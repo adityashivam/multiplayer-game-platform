@@ -1,0 +1,15 @@
+{
+  "type": "module",
+  "name": "kaboom-fight",
+  "version": "1.0.0",
+  "description": "Multiplayer fighting game with Kaboom.js",
+  "main": "server/server.js",
+  "scripts": {
+    "start": "node server/server.js",
+    "dev": "node --watch server/server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "socket.io": "^4.8.0"
+  }
+}
