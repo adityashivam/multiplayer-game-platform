@@ -7,6 +7,18 @@ kaboom({
   global: true,
 });
 
+// Fit canvas into portrait-first layout (top half of screen)
+const gameCanvas = document.querySelector("canvas");
+if (gameCanvas) {
+  gameCanvas.id = "game-canvas";
+  gameCanvas.style.width = "100vw";
+  gameCanvas.style.height = "55vh";
+  gameCanvas.style.maxHeight = "520px";
+  gameCanvas.style.display = "block";
+  gameCanvas.style.margin = "0 auto";
+  gameCanvas.style.objectFit = "contain";
+}
+
 // ---------- Multiplayer setup ----------
 
 // Generate or read room from URL
@@ -31,6 +43,7 @@ const socket = io(SOCKET_URL);
 
 let myPlayerId = null;
 let readyToPlay = false;
+let removeTouchControls = null;
 
 function sendInputFlag(type, value) {
   if (!readyToPlay) return;
@@ -510,6 +523,141 @@ scene("fight", () => {
   onKeyDown("enter", () => {
     if (gameOverFlag) go("fight");
   });
+
+  function setupTouchControls() {
+    const isTouch =
+      "ontouchstart" in window ||
+      navigator.maxTouchPoints > 0 ||
+      navigator.msMaxTouchPoints > 0 ||
+      window.innerWidth <= 900;
+    if (!isTouch) return null;
+
+    const style = document.createElement("style");
+    style.textContent = `
+      .touch-wrapper {
+        position: relative;
+        width: 100%;
+        height: 42vh;
+        max-height: 360px;
+        padding: 12px 16px 18px;
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-end;
+        background: linear-gradient(180deg, rgba(7,8,15,0.15) 0%, rgba(5,6,11,0.85) 65%);
+        pointer-events: auto;
+        z-index: 10;
+        backdrop-filter: blur(6px);
+      }
+      .touch-controls {
+        display: flex;
+        gap: 16px;
+        pointer-events: auto;
+        align-items: center;
+      }
+      .touch-cluster {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        grid-template-rows: repeat(2, 1fr);
+        gap: 10px;
+      }
+      .touch-btn {
+        width: 78px;
+        height: 78px;
+        border-radius: 18px;
+        border: 2px solid rgba(255,255,255,0.35);
+        background: radial-gradient(circle at 30% 30%, rgba(70,90,255,0.35), rgba(25,30,55,0.95));
+        color: #f5f5f5;
+        font-weight: 800;
+        font-size: 18px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: 0 12px 24px rgba(0,0,0,0.45);
+        user-select: none;
+        -webkit-user-select: none;
+        touch-action: none;
+      }
+      .touch-btn:active {
+        transform: translateY(2px);
+        box-shadow: 0 6px 14px rgba(0,0,0,0.35);
+      }
+      .touch-btn.wide {
+        width: 160px;
+      }
+      @media (max-width: 640px) {
+        .touch-btn {
+          width: 64px;
+          height: 64px;
+          font-size: 16px;
+        }
+        .touch-btn.wide {
+          width: 130px;
+        }
+      }
+    `;
+    document.head.appendChild(style);
+
+    const wrapper = document.createElement("div");
+    wrapper.className = "touch-wrapper";
+
+    const leftControls = document.createElement("div");
+    leftControls.className = "touch-controls";
+
+    const dpad = document.createElement("div");
+    dpad.className = "touch-cluster";
+
+    const rightControls = document.createElement("div");
+    rightControls.className = "touch-controls";
+
+    function createBtn({ label, type }) {
+      const btn = document.createElement("div");
+      btn.className = "touch-btn";
+      btn.textContent = label;
+
+      const start = (e) => {
+        e.preventDefault();
+        sendInputFlag(type, true);
+      };
+      const end = (e) => {
+        e.preventDefault();
+        sendInputFlag(type, false);
+      };
+
+      btn.addEventListener("touchstart", start, { passive: false });
+      btn.addEventListener("touchend", end, { passive: false });
+      btn.addEventListener("touchcancel", end, { passive: false });
+      btn.addEventListener("pointerdown", start);
+      btn.addEventListener("pointerup", end);
+      btn.addEventListener("pointerout", end);
+      btn.addEventListener("pointercancel", end);
+
+      return btn;
+    }
+
+    dpad.appendChild(createBtn({ label: "◀", type: "left" }));
+    dpad.appendChild(createBtn({ label: "▶", type: "right" }));
+    dpad.appendChild(createBtn({ label: "⤒", type: "jump" }));
+    dpad.appendChild(createBtn({ label: "⤒", type: "jump" }));
+
+    const attackBtn = createBtn({ label: "⚔ ATTACK", type: "attack" });
+    attackBtn.classList.add("wide");
+
+    leftControls.appendChild(dpad);
+    rightControls.appendChild(attackBtn);
+
+    wrapper.appendChild(leftControls);
+    wrapper.appendChild(rightControls);
+    document.body.appendChild(wrapper);
+
+    return () => {
+      document.body.removeChild(wrapper);
+      document.head.removeChild(style);
+    };
+  }
+
+  if (!removeTouchControls) {
+    removeTouchControls = setupTouchControls();
+  }
 
   // Server state updates
   socket.on("state", (state) => {

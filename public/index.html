@@ -3,9 +3,44 @@
   <head>
     <meta charset="UTF-8" />
     <title>Kaboom Fight Multiplayer</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+    <style>
+      :root {
+        color-scheme: dark;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: #05060b;
+        display: flex;
+        flex-direction: column;
+        min-height: 100vh;
+        overflow: hidden;
+      }
+      #app {
+        flex: 0 0 auto;
+      }
+      canvas {
+        display: block;
+        width: 100vw;
+        height: 55vh;
+        max-height: 520px;
+        flex: 0 0 auto;
+        margin: 0 auto;
+        object-fit: contain;
+        background: #0b0d13;
+      }
+      @media (orientation: landscape) {
+        canvas {
+          height: 70vh;
+          max-height: none;
+        }
+      }
+    </style>
   </head>
-  <body style="margin:0; background:#000;">
+  <body>
     <div id="app"></div>
 
     <!-- Kaboom via CDN -->
