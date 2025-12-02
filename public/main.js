@@ -537,7 +537,6 @@ scene("fight", () => {
       .touch-wrapper {
         position: relative;
         width: 100%;
-        height: 42vh;
         max-height: 360px;
         padding: 12px 16px 18px;
         display: flex;
