@@ -1,16 +1,17 @@
 // ---------- Kaboom init ----------
+const canvasEl = document.getElementById("game-canvas");
 kaboom({
   width: 1280,
   height: 720,
   scale: 0.7,
   debug: false,
   global: true,
+  canvas: canvasEl || undefined,
 });
 
 // Fit canvas into portrait-first layout (top half of screen)
-const gameCanvas = document.querySelector("canvas");
+const gameCanvas = canvasEl || document.querySelector("canvas");
 if (gameCanvas) {
-  gameCanvas.id = "game-canvas";
   gameCanvas.style.width = "100vw";
   gameCanvas.style.height = "55vh";
   gameCanvas.style.maxHeight = "520px";
@@ -20,26 +21,78 @@ if (gameCanvas) {
 }
 
 // ---------- Multiplayer setup ----------
+const GAME_SLUG = "fight";
+const shareInput = document.getElementById("room-url");
+const copyRoomButton = document.getElementById("copy-room");
+const openRoomButton = document.getElementById("open-room");
 
-// Generate or read room from URL
-function getOrCreateGameId() {
-  const pathMatch = window.location.pathname.match(/\/room\/([a-z0-9]+)/);
-  if (pathMatch && pathMatch[1]) {
-    return pathMatch[1];
-  }
-  
-  // On home page, generate new room
-  const gameId = Math.random().toString(36).slice(2, 8);
-  window.history.replaceState({}, "", `/room/${gameId}`);
-  return gameId;
+function buildRoomUrl(roomId) {
+  return `${window.location.origin}/games/${GAME_SLUG}/${roomId}`;
 }
 
-const gameId = getOrCreateGameId();
+function setRoomLink(url) {
+  if (shareInput) {
+    shareInput.value = url;
+  }
+  if (openRoomButton) {
+    openRoomButton.onclick = () => {
+      window.location.href = url;
+    };
+  }
+}
 
-// Backend URL
-const SOCKET_URL = window.location.origin;
+function setupCopyButton() {
+  if (!copyRoomButton) return;
+  copyRoomButton.addEventListener("click", async () => {
+    if (!shareInput?.value) return;
+    try {
+      await navigator.clipboard.writeText(shareInput.value);
+      copyRoomButton.textContent = "Copied!";
+      setTimeout(() => (copyRoomButton.textContent = "Copy link"), 1200);
+    } catch (err) {
+      copyRoomButton.textContent = "Select to copy";
+      shareInput?.focus();
+      shareInput?.select();
+      setTimeout(() => (copyRoomButton.textContent = "Copy link"), 1400);
+    }
+  });
+}
 
-const socket = io(SOCKET_URL);
+setupCopyButton();
+
+function getRoomIdFromPath() {
+  const pathMatch = window.location.pathname.match(new RegExp(`/games/${GAME_SLUG}/([a-z0-9]+)`, "i"));
+  return pathMatch && pathMatch[1] ? pathMatch[1] : null;
+}
+
+async function ensureRoomId() {
+  const existingId = getRoomIdFromPath();
+  if (existingId) {
+    setRoomLink(buildRoomUrl(existingId));
+    return existingId;
+  }
+
+  try {
+    const res = await fetch(`/api/games/${GAME_SLUG}/new-room`);
+    if (!res.ok) throw new Error("Failed to create room");
+    const data = await res.json();
+    const roomId = data.roomId || Math.random().toString(36).slice(2, 8);
+    const targetUrl = data.url || buildRoomUrl(roomId);
+    window.history.replaceState({}, "", `/games/${GAME_SLUG}/${roomId}`);
+    setRoomLink(targetUrl);
+    return roomId;
+  } catch (err) {
+    const roomId = Math.random().toString(36).slice(2, 8);
+    const fallbackUrl = buildRoomUrl(roomId);
+    window.history.replaceState({}, "", `/games/${GAME_SLUG}/${roomId}`);
+    setRoomLink(fallbackUrl);
+    return roomId;
+  }
+}
+
+let gameId = null;
+let hasJoined = false;
+const socket = io(`/${GAME_SLUG}`);
 
 let myPlayerId = null;
 let readyToPlay = false;
@@ -50,18 +103,39 @@ function sendInputFlag(type, value) {
   socket.emit("input", { type, value });
 }
 
-socket.on("connect", () => {
+function tryJoinGame() {
+  if (!socket.connected || !gameId || hasJoined) return;
   socket.emit("joinGame", { gameId });
+  hasJoined = true;
+}
+
+socket.on("connect", () => {
+  hasJoined = false;
+  if (gameId) {
+    tryJoinGame();
+  } else {
+    ensureRoomId().then((id) => {
+      gameId = id;
+      tryJoinGame();
+    });
+  }
 });
 
 socket.on("roomFull", () => {
   alert("Room is full!");
 });
 
-socket.on("gameJoined", ({ playerId }) => {
+socket.on("gameJoined", ({ playerId, gameId: joinedGameId }) => {
   myPlayerId = playerId;
   readyToPlay = true;
+  gameId = gameId || joinedGameId;
+  setRoomLink(buildRoomUrl(gameId));
   console.log("Joined game", gameId, "as", playerId);
+});
+
+ensureRoomId().then((id) => {
+  gameId = id;
+  tryJoinGame();
 });
 
 // ---------- Assets ----------
@@ -420,16 +494,14 @@ scene("fight", () => {
 
   async function startNewGame() {
     try {
-      const res = await fetch("/api/new-room");
+      const res = await fetch(`/api/games/${GAME_SLUG}/new-room`);
       const data = await res.json();
-      if (data?.url) {
-        window.location.href = data.url;
-      } else if (data?.roomId) {
-        window.location.href = `/room/${data.roomId}`;
-      }
+      const roomId = data?.roomId || Math.random().toString(36).slice(2, 8);
+      const targetUrl = data?.url || buildRoomUrl(roomId);
+      window.location.href = targetUrl;
     } catch (err) {
       const fallbackId = Math.random().toString(36).slice(2, 8);
-      window.location.href = `/room/${fallbackId}`;
+      window.location.href = buildRoomUrl(fallbackId);
     }
   }
 
@@ -535,7 +607,9 @@ scene("fight", () => {
     const style = document.createElement("style");
     style.textContent = `
       .touch-wrapper {
-        position: relative;
+        position: fixed;
+        left: 0;
+        bottom: 0;
         width: 100%;
         max-height: 360px;
         padding: 12px 16px 18px;
@@ -544,7 +618,7 @@ scene("fight", () => {
         align-items: flex-end;
         background: linear-gradient(180deg, rgba(7,8,15,0.15) 0%, rgba(5,6,11,0.85) 65%);
         pointer-events: auto;
-        z-index: 10;
+        z-index: 3000;
         backdrop-filter: blur(6px);
       }
       .touch-controls {

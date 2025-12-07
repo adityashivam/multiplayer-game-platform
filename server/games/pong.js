@@ -1,0 +1,261 @@
+import { pongGameMeta } from "./metadata.js";
+
+const FPS = 60;
+const DT = 1 / FPS;
+const WIDTH = 1280;
+const HEIGHT = 720;
+const PADDLE_W = 26;
+const PADDLE_H = 160;
+const PADDLE_SPEED = 900;
+const BALL_BASE_SPEED = 840;
+const COUNTDOWN_MS = 1500;
+const WIN_SCORE = 7;
+
+function makeBall(initialDir = 1) {
+  const angle = (Math.random() * Math.PI) / 3 - Math.PI / 6; // -30deg..+30deg
+  const speed = BALL_BASE_SPEED;
+  return {
+    x: WIDTH / 2,
+    y: HEIGHT / 2,
+    vx: Math.cos(angle) * speed * initialDir,
+    vy: Math.sin(angle) * speed,
+    speed,
+  };
+}
+
+function createInitialGameState() {
+  return {
+    players: {
+      p1: {
+        y: HEIGHT / 2,
+        score: 0,
+        connected: false,
+        input: { up: false, down: false },
+      },
+      p2: {
+        y: HEIGHT / 2,
+        score: 0,
+        connected: false,
+        input: { up: false, down: false },
+      },
+    },
+    ball: makeBall(),
+    started: false,
+    startAt: null,
+    gameOver: false,
+    winner: null,
+    lastUpdate: Date.now(),
+  };
+}
+
+function bothPlayersConnected(state) {
+  return state.players.p1.connected && state.players.p2.connected;
+}
+
+function scheduleStart(state) {
+  if (!state.started && !state.gameOver && bothPlayersConnected(state)) {
+    state.startAt = Date.now() + COUNTDOWN_MS;
+  }
+}
+
+function resetRound(state, direction = 1) {
+  state.ball = makeBall(direction);
+  state.started = false;
+  scheduleStart(state);
+}
+
+function sanitize(state) {
+  return {
+    players: {
+      p1: {
+        y: state.players.p1.y,
+        score: state.players.p1.score,
+        connected: state.players.p1.connected,
+      },
+      p2: {
+        y: state.players.p2.y,
+        score: state.players.p2.score,
+        connected: state.players.p2.connected,
+      },
+    },
+    ball: {
+      x: state.ball.x,
+      y: state.ball.y,
+    },
+    gameOver: state.gameOver,
+    winner: state.winner,
+    started: state.started,
+    startAt: state.startAt,
+  };
+}
+
+function updateGameState(state, dt) {
+  const { p1, p2 } = state.players;
+  const ball = state.ball;
+  const now = Date.now();
+
+  if (!state.started && state.startAt && now >= state.startAt) {
+    state.started = true;
+    state.startAt = null;
+  }
+
+  // Paddles move regardless to respond instantly
+  for (const player of [p1, p2]) {
+    let vy = 0;
+    if (player.input.up && !player.input.down) vy = -PADDLE_SPEED;
+    else if (player.input.down && !player.input.up) vy = PADDLE_SPEED;
+    player.y += vy * dt;
+    player.y = Math.max(PADDLE_H / 2, Math.min(HEIGHT - PADDLE_H / 2, player.y));
+  }
+
+  if (!state.started || state.gameOver) return;
+
+  // Ball physics
+  ball.x += ball.vx * dt;
+  ball.y += ball.vy * dt;
+
+  // Top/bottom walls
+  if (ball.y <= 0) {
+    ball.y = 0;
+    ball.vy *= -1;
+  } else if (ball.y >= HEIGHT) {
+    ball.y = HEIGHT;
+    ball.vy *= -1;
+  }
+
+  // Paddle collision helpers
+  const paddleX1 = 70;
+  const paddleX2 = WIDTH - 70;
+  const halfH = PADDLE_H / 2;
+
+  const hitPaddle = (px, py) =>
+    ball.x >= px - PADDLE_W / 2 &&
+    ball.x <= px + PADDLE_W / 2 &&
+    ball.y >= py - halfH &&
+    ball.y <= py + halfH;
+
+  if (ball.vx < 0 && hitPaddle(paddleX1, p1.y)) {
+    ball.x = paddleX1 + PADDLE_W / 2;
+    const offset = (ball.y - p1.y) / halfH;
+    const angle = offset * (Math.PI / 3); // up to 60deg
+    const speed = Math.min(ball.speed * 1.03, BALL_BASE_SPEED * 1.35);
+    ball.vx = Math.cos(angle) * speed;
+    ball.vy = Math.sin(angle) * speed;
+    ball.speed = speed;
+  } else if (ball.vx > 0 && hitPaddle(paddleX2, p2.y)) {
+    ball.x = paddleX2 - PADDLE_W / 2;
+    const offset = (ball.y - p2.y) / halfH;
+    const angle = offset * (Math.PI / 3);
+    const speed = Math.min(ball.speed * 1.03, BALL_BASE_SPEED * 1.35);
+    ball.vx = -Math.cos(angle) * speed;
+    ball.vy = Math.sin(angle) * speed;
+    ball.speed = speed;
+  }
+
+  // Scoring
+  if (ball.x < -20) {
+    p2.score += 1;
+    if (p2.score >= WIN_SCORE) {
+      state.gameOver = true;
+      state.winner = "p2";
+    } else {
+      resetRound(state, -1);
+    }
+  } else if (ball.x > WIDTH + 20) {
+    p1.score += 1;
+    if (p1.score >= WIN_SCORE) {
+      state.gameOver = true;
+      state.winner = "p1";
+    } else {
+      resetRound(state, 1);
+    }
+  }
+}
+
+export function registerPongGame(io) {
+  const nsp = io.of(pongGameMeta.namespace);
+  const games = new Map();
+
+  setInterval(() => {
+    const now = Date.now();
+    for (const [gameId, state] of games.entries()) {
+      const dt = (now - state.lastUpdate) / 1000 || DT;
+      state.lastUpdate = now;
+      updateGameState(state, dt);
+      nsp.to(gameId).emit("state", sanitize(state));
+    }
+  }, 1000 / FPS);
+
+  nsp.on("connection", (socket) => {
+    socket.on("joinGame", ({ gameId }) => {
+      if (!gameId) return;
+
+      const room = nsp.adapter.rooms.get(gameId);
+      let playerId;
+
+      if (!room) {
+        playerId = "p1";
+        socket.join(gameId);
+        socket.data.gameId = gameId;
+        socket.data.playerId = playerId;
+        games.set(gameId, createInitialGameState());
+      } else if (room.size === 1) {
+        playerId = "p2";
+        socket.join(gameId);
+        socket.data.gameId = gameId;
+        socket.data.playerId = playerId;
+        if (!games.has(gameId)) {
+          games.set(gameId, createInitialGameState());
+        }
+      } else {
+        socket.emit("roomFull");
+        return;
+      }
+
+      const state = games.get(gameId);
+      if (state && state.players[playerId]) {
+        state.players[playerId].connected = true;
+        state.gameOver = false;
+        state.winner = null;
+        scheduleStart(state);
+      }
+
+      socket.emit("gameJoined", { playerId, gameId });
+      socket.to(gameId).emit("playerJoined", { playerId });
+    });
+
+    socket.on("input", ({ type, value }) => {
+      const { gameId, playerId } = socket.data;
+      if (!gameId || !playerId) return;
+      const state = games.get(gameId);
+      if (!state) return;
+      const player = state.players[playerId];
+      if (!player) return;
+
+      switch (type) {
+        case "up":
+        case "down":
+          player.input[type] = value;
+          break;
+        default:
+          break;
+      }
+    });
+
+    socket.on("disconnect", () => {
+      const { gameId, playerId } = socket.data;
+      if (!gameId || !playerId) return;
+      const state = games.get(gameId);
+      if (!state) return;
+      if (state.players[playerId]) {
+        state.players[playerId].connected = false;
+        state.started = false;
+        state.startAt = null;
+        state.gameOver = false;
+        state.winner = null;
+        state.ball = makeBall();
+      }
+      socket.to(gameId).emit("playerLeft", { playerId });
+    });
+  });
+}

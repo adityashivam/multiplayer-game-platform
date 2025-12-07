@@ -2,8 +2,14 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <title>Kaboom Fight Multiplayer</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+    <title>Kaboom Arcade Platform</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
     <style>
       :root {
         color-scheme: dark;
@@ -13,41 +19,147 @@
       }
       body {
         margin: 0;
-        background: #05060b;
+        font-family: "Space Grotesk", "Inter", system-ui, -apple-system, sans-serif;
+        background: radial-gradient(circle at 15% 20%, #0f1428 0%, #070913 38%), radial-gradient(circle at 80% 10%, #0b1328, #05060b 45%);
+        color: #e8edff;
+        min-height: 100vh;
+      }
+      .page {
+        max-width: 1100px;
+        margin: 0 auto;
+        padding: 28px clamp(16px, 3vw, 32px) 60px;
+      }
+      header.hero {
+        padding: 24px 0 10px;
+      }
+      .eyebrow {
+        display: inline-flex;
+        gap: 8px;
+        align-items: center;
+        padding: 6px 12px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.06);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        color: #9eb5ff;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        font-size: 12px;
+      }
+      h1 {
+        margin: 14px 0 10px;
+        font-size: clamp(28px, 5vw, 42px);
+        letter-spacing: -0.02em;
+      }
+      .lead {
+        margin: 0 0 20px;
+        max-width: 760px;
+        color: #c7d4ff;
+        line-height: 1.5;
+      }
+      .game-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 18px;
+        margin-top: 18px;
+      }
+      .card {
+        padding: 20px;
+        border-radius: 18px;
+        background: linear-gradient(160deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.03));
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        box-shadow: 0 12px 50px rgba(0, 0, 0, 0.25);
         display: flex;
         flex-direction: column;
-        min-height: 100vh;
-        overflow: hidden;
+        gap: 12px;
+        cursor: pointer;
       }
-      #app {
-        flex: 0 0 auto;
+      .card h3 {
+        margin: 0;
+        font-size: 20px;
       }
-      canvas {
-        display: block;
-        width: 100vw;
-        height: 55vh;
-        max-height: 520px;
-        flex: 0 0 auto;
-        margin: 0 auto;
-        object-fit: contain;
-        background: #0b0d13;
+      .card p {
+        margin: 0;
+        color: #c0c9e8;
+        line-height: 1.45;
       }
-      @media (orientation: landscape) {
-        canvas {
-          height: 70vh;
-          max-height: none;
-        }
+      .tag-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+      .tag {
+        padding: 6px 10px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.08);
+        color: #9cb7ff;
+        font-size: 12px;
+        letter-spacing: 0.02em;
+      }
+      .card-actions {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        align-items: center;
+        gap: 10px;
+      }
+      .card button {
+        padding: 12px 14px;
+        border-radius: 12px;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        background: linear-gradient(120deg, #4b7bff, #4ef0cf);
+        color: #0b0c14;
+        font-weight: 700;
+        cursor: pointer;
+      }
+      .card button:active {
+        transform: translateY(1px);
+      }
+      .share {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .share input {
+        flex: 1;
+        padding: 10px 12px;
+        border-radius: 12px;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        background: rgba(255, 255, 255, 0.03);
+        color: #e8edff;
+      }
+      .share .copy-btn {
+        padding: 10px 12px;
+        border-radius: 12px;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        background: rgba(255, 255, 255, 0.08);
+        color: #dce6ff;
+        cursor: pointer;
+      }
+      .status {
+        font-size: 13px;
+        color: #9cb7ff;
+      }
+      footer {
+        margin-top: 28px;
+        color: #91a1c9;
+        font-size: 13px;
       }
     </style>
   </head>
   <body>
-    <div id="app"></div>
-
-    <!-- Kaboom via CDN -->
-    <script src="https://unpkg.com/kaboom/dist/kaboom.js"></script>
-    <!-- Socket.IO client -->
-    <script src="/socket.io/socket.io.js"></script>
-    <!-- Your game code -->
-    <script src="/main.js"></script>
+    <div class="page">
+      <header class="hero">
+        <div class="eyebrow">Kaboom Arcade Platform</div>
+        <h1>Pick a game, spin up a room, share the link.</h1>
+        <p class="lead">
+          Host fast multiplayer matches without setup. Choose a title, generate a room, then drop the link to a friend to
+          join instantly.
+        </p>
+      </header>
+      <main>
+        <div id="game-grid" class="game-grid"></div>
+      </main>
+      <footer>More games coming soon—this lobby is ready for additional titles.</footer>
+    </div>
+    <script src="/home.js"></script>
   </body>
 </html>
