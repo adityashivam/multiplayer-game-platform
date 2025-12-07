@@ -97,6 +97,7 @@ let hasJoined = false;
 let myPlayerId = null;
 let readyToPlay = false;
 let removeTouchControls = null;
+let lastConnected = { p1: false, p2: false };
 
 const socket = io(`/${GAME_SLUG}`);
 
@@ -497,6 +498,18 @@ scene("pong", () => {
   socket.on("state", (state) => {
     if (!state || !state.players || !state.ball) return;
     const { players, ball: ballState, gameOver, winner, started, startAt } = state;
+    const connected = { p1: players.p1.connected, p2: players.p2.connected };
+
+    if (connected.p1 !== lastConnected.p1 || connected.p2 !== lastConnected.p2) {
+      if (connected.p1 && connected.p2 && !(lastConnected.p1 && lastConnected.p2)) {
+        showToast("Both players connected!");
+      } else if (connected.p1 && !lastConnected.p1) {
+        showToast("Player 1 connected");
+      } else if (connected.p2 && !lastConnected.p2) {
+        showToast("Player 2 connected");
+      }
+      lastConnected = connected;
+    }
 
     paddle1.pos.y = players.p1.y;
     paddle2.pos.y = players.p2.y;
@@ -508,7 +521,7 @@ scene("pong", () => {
       myPlayerId === "p1" ? "W/S" : myPlayerId === "p2" ? "Arrow keys" : "N/A"
     }`;
 
-    updateStartUI(started, startAt, { p1: players.p1.connected, p2: players.p2.connected }, gameOver);
+    updateStartUI(started, startAt, connected, gameOver);
 
     if (gameOver) {
       gameOverOverlay.hidden = false;

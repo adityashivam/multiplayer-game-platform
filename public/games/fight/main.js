@@ -97,6 +97,7 @@ const socket = io(`/${GAME_SLUG}`);
 let myPlayerId = null;
 let readyToPlay = false;
 let removeTouchControls = null;
+let lastConnected = { p1: false, p2: false };
 
 function sendInputFlag(type, value) {
   if (!readyToPlay) return;
@@ -739,6 +740,18 @@ scene("fight", () => {
     }
 
     const { players, timer, gameOver, winner, started, startAt, connected } = state;
+    if (connected) {
+      if (connected.p1 !== lastConnected.p1 || connected.p2 !== lastConnected.p2) {
+        if (connected.p1 && connected.p2 && !(lastConnected.p1 && lastConnected.p2)) {
+          showJoinToast("Both players connected!");
+        } else if (connected.p1 && !lastConnected.p1) {
+          showJoinToast("Player 1 connected");
+        } else if (connected.p2 && !lastConnected.p2) {
+          showJoinToast("Player 2 connected");
+        }
+        lastConnected = connected;
+      }
+    }
     updateStartUI(started, startAt, connected, gameOver);
 
     const s1 = players.p1;

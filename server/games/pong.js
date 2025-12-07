@@ -94,6 +94,11 @@ function updateGameState(state, dt) {
   const ball = state.ball;
   const now = Date.now();
 
+  // Ensure countdown starts if both players are connected
+  if (!state.started && !state.gameOver && !state.startAt && bothPlayersConnected(state)) {
+    state.startAt = now + COUNTDOWN_MS;
+  }
+
   if (!state.started && state.startAt && now >= state.startAt) {
     state.started = true;
     state.startAt = null;
