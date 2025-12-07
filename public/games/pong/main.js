@@ -98,6 +98,7 @@ let myPlayerId = null;
 let readyToPlay = false;
 let removeTouchControls = null;
 let lastConnected = { p1: false, p2: false };
+let hasPlayedRound = false;
 
 const socket = io(`/${GAME_SLUG}`);
 
@@ -260,6 +261,15 @@ scene("pong", () => {
     "new-game-button",
   ]);
   newGameButton.add([text("New Room", { size: 26 }), anchor("center")]);
+  const rematchButton = gameOverOverlay.add([
+    rect(240, 70),
+    area(),
+    color(80, 200, 140),
+    anchor("center"),
+    pos(WIDTH / 2, HEIGHT / 2 + 130),
+    "rematch-button",
+  ]);
+  rematchButton.add([text("Rematch", { size: 26 }), anchor("center")]);
   gameOverOverlay.hidden = true;
 
   function showToast(msg) {
@@ -283,7 +293,7 @@ scene("pong", () => {
       return;
     }
 
-    if (started) {
+    if (started || hasPlayedRound) {
       startOverlay.hidden = true;
       countdownText.text = "";
       return;
@@ -296,7 +306,7 @@ scene("pong", () => {
       return;
     }
 
-    startMessage.text = "Player joined! Get ready...";
+    startMessage.text = "Get ready...";
     if (startAt) {
       const seconds = Math.max(0, Math.ceil((startAt - Date.now()) / 1000));
       countdownText.text = seconds > 0 ? `Starting in ${seconds}` : "Play!";
@@ -323,12 +333,15 @@ scene("pong", () => {
     startNewGame();
   });
 
-  socket.on("playerJoined", ({ playerId }) => {
-    showToast(`Player ${playerId === "p1" ? "1" : "2"} joined`);
+  onClick("rematch-button", () => {
+    if (gameOverOverlay?.hidden) return;
+    socket.emit("rematch");
+    showToast("Rematch requested...");
   });
 
-  socket.on("playerLeft", ({ playerId }) => {
-    showToast(`Player ${playerId === "p1" ? "1" : "2"} left`);
+  socket.on("rematchStarted", () => {
+    showToast("Rematch starting!");
+    hasPlayedRound = false;
   });
 
   onKeyDown("w", () => {
@@ -497,15 +510,15 @@ scene("pong", () => {
 
   socket.on("state", (state) => {
     if (!state || !state.players || !state.ball) return;
-    const { players, ball: ballState, gameOver, winner, started, startAt } = state;
+    const { players, ball: ballState, gameOver, winner, started, startAt, lastLost } = state;
     const connected = { p1: players.p1.connected, p2: players.p2.connected };
 
     if (connected.p1 !== lastConnected.p1 || connected.p2 !== lastConnected.p2) {
-      if (connected.p1 && connected.p2 && !(lastConnected.p1 && lastConnected.p2)) {
-        showToast("Both players connected!");
-      } else if (connected.p1 && !lastConnected.p1) {
+      // Only toast on net new connections, not repeated start cycles
+      if (connected.p1 && !lastConnected.p1 && connected.p2) {
         showToast("Player 1 connected");
-      } else if (connected.p2 && !lastConnected.p2) {
+      }
+      if (connected.p2 && !lastConnected.p2 && connected.p1) {
         showToast("Player 2 connected");
       }
       lastConnected = connected;
@@ -519,9 +532,17 @@ scene("pong", () => {
     scoreText.text = `${players.p1.score}   ${players.p2.score}`;
     infoText.text = `You are ${myPlayerId ? myPlayerId.toUpperCase() : "spectator"} • Move: ${
       myPlayerId === "p1" ? "W/S" : myPlayerId === "p2" ? "Arrow keys" : "N/A"
-    }`;
+    } • First to 10`;
+
+    if (started) {
+      hasPlayedRound = true;
+    }
 
     updateStartUI(started, startAt, connected, gameOver);
+
+    if (!gameOver && lastLost) {
+      showToast(lastLost === "p1" ? "Left missed — point to Right" : "Right missed — point to Left");
+    }
 
     if (gameOver) {
       gameOverOverlay.hidden = false;

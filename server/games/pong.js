@@ -7,9 +7,9 @@ const HEIGHT = 720;
 const PADDLE_W = 26;
 const PADDLE_H = 160;
 const PADDLE_SPEED = 900;
-const BALL_BASE_SPEED = 840;
+const BALL_BASE_SPEED = 450;
 const COUNTDOWN_MS = 1500;
-const WIN_SCORE = 7;
+const WIN_SCORE = 10;
 
 function makeBall(initialDir = 1) {
   const angle = (Math.random() * Math.PI) / 3 - Math.PI / 6; // -30deg..+30deg
@@ -53,15 +53,15 @@ function bothPlayersConnected(state) {
 }
 
 function scheduleStart(state) {
-  if (!state.started && !state.gameOver && bothPlayersConnected(state)) {
+  if (!state.started && !state.gameOver && !state.startAt && bothPlayersConnected(state)) {
     state.startAt = Date.now() + COUNTDOWN_MS;
   }
 }
 
 function resetRound(state, direction = 1) {
   state.ball = makeBall(direction);
-  state.started = false;
-  scheduleStart(state);
+  state.started = true; // keep the match flowing without a new countdown mid-game
+  state.startAt = null;
 }
 
 function sanitize(state) {
@@ -86,6 +86,7 @@ function sanitize(state) {
     winner: state.winner,
     started: state.started,
     startAt: state.startAt,
+    lastLost: state.lastLost || null,
   };
 }
 
@@ -143,7 +144,7 @@ function updateGameState(state, dt) {
     ball.x = paddleX1 + PADDLE_W / 2;
     const offset = (ball.y - p1.y) / halfH;
     const angle = offset * (Math.PI / 3); // up to 60deg
-    const speed = Math.min(ball.speed * 1.03, BALL_BASE_SPEED * 1.35);
+    const speed = Math.min(ball.speed * 1.015, BALL_BASE_SPEED * 1.25);
     ball.vx = Math.cos(angle) * speed;
     ball.vy = Math.sin(angle) * speed;
     ball.speed = speed;
@@ -151,7 +152,7 @@ function updateGameState(state, dt) {
     ball.x = paddleX2 - PADDLE_W / 2;
     const offset = (ball.y - p2.y) / halfH;
     const angle = offset * (Math.PI / 3);
-    const speed = Math.min(ball.speed * 1.03, BALL_BASE_SPEED * 1.35);
+    const speed = Math.min(ball.speed * 1.015, BALL_BASE_SPEED * 1.25);
     ball.vx = -Math.cos(angle) * speed;
     ball.vy = Math.sin(angle) * speed;
     ball.speed = speed;
@@ -160,6 +161,7 @@ function updateGameState(state, dt) {
   // Scoring
   if (ball.x < -20) {
     p2.score += 1;
+    state.lastLost = "p1";
     if (p2.score >= WIN_SCORE) {
       state.gameOver = true;
       state.winner = "p2";
@@ -168,6 +170,7 @@ function updateGameState(state, dt) {
     }
   } else if (ball.x > WIDTH + 20) {
     p1.score += 1;
+    state.lastLost = "p2";
     if (p1.score >= WIN_SCORE) {
       state.gameOver = true;
       state.winner = "p1";
@@ -188,6 +191,7 @@ export function registerPongGame(io) {
       state.lastUpdate = now;
       updateGameState(state, dt);
       nsp.to(gameId).emit("state", sanitize(state));
+      state.lastLost = null;
     }
   }, 1000 / FPS);
 
@@ -261,6 +265,23 @@ export function registerPongGame(io) {
         state.ball = makeBall();
       }
       socket.to(gameId).emit("playerLeft", { playerId });
+    });
+
+    socket.on("rematch", () => {
+      const { gameId } = socket.data;
+      if (!gameId) return;
+      const state = games.get(gameId);
+      if (!state) return;
+      state.players.p1.score = 0;
+      state.players.p2.score = 0;
+      state.gameOver = false;
+      state.winner = null;
+      state.started = false;
+      state.startAt = Date.now() + COUNTDOWN_MS;
+      state.ball = makeBall();
+      state.lastUpdate = Date.now();
+      state.lastLost = null;
+      nsp.to(gameId).emit("rematchStarted");
     });
   });
 }

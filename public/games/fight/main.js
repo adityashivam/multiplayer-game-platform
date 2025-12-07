@@ -474,7 +474,7 @@ scene("fight", () => {
       return;
     }
 
-    startMessage.text = "Player joined! Get ready...";
+    startMessage.text = "Get ready...";
     if (startAt) {
       const seconds = Math.max(0, Math.ceil((startAt - Date.now()) / 1000));
       countdownText.text = seconds > 0 ? `Starting in ${seconds}` : "Fight!";
@@ -742,11 +742,10 @@ scene("fight", () => {
     const { players, timer, gameOver, winner, started, startAt, connected } = state;
     if (connected) {
       if (connected.p1 !== lastConnected.p1 || connected.p2 !== lastConnected.p2) {
-        if (connected.p1 && connected.p2 && !(lastConnected.p1 && lastConnected.p2)) {
-          showJoinToast("Both players connected!");
-        } else if (connected.p1 && !lastConnected.p1) {
+        if (connected.p1 && !lastConnected.p1 && connected.p2) {
           showJoinToast("Player 1 connected");
-        } else if (connected.p2 && !lastConnected.p2) {
+        }
+        if (connected.p2 && !lastConnected.p2 && connected.p1) {
           showJoinToast("Player 2 connected");
         }
         lastConnected = connected;

@@ -69,7 +69,7 @@ function bothPlayersConnected(state) {
 }
 
 function scheduleStart(state) {
-  if (!state.started && !state.gameOver && bothPlayersConnected(state)) {
+  if (!state.started && !state.gameOver && !state.startAt && bothPlayersConnected(state)) {
     state.startAt = Date.now() + COUNTDOWN_MS;
     state.timer = GAME_DURATION;
   }
@@ -231,6 +231,9 @@ export function registerFightGame(io) {
     for (const [gameId, state] of games.entries()) {
       const dt = (now - state.lastUpdate) / 1000 || DT;
       state.lastUpdate = now;
+
+      // In case the countdown wasn't scheduled on join, ensure it starts when both players connect
+      scheduleStart(state);
 
       if (!state.gameOver) {
         updateGameState(state, dt);
