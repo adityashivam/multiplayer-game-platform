@@ -1,4 +1,5 @@
 import { fightGameMeta } from "./metadata.js";
+import { registerGame, scheduleStart } from "../utils/utils.js";
 
 const FPS = 60;
 const DT = 1 / FPS;
@@ -64,15 +65,10 @@ function initAttackTimestamps(state) {
   state.players.p2.lastAttackHitTime = 0;
 }
 
-function bothPlayersConnected(state) {
-  return state.players.p1.connected && state.players.p2.connected;
-}
-
-function scheduleStart(state) {
-  if (!state.started && !state.gameOver && !state.startAt && bothPlayersConnected(state)) {
-    state.startAt = Date.now() + COUNTDOWN_MS;
-    state.timer = GAME_DURATION;
-  }
+function scheduleFightStart(state) {
+  scheduleStart(state, COUNTDOWN_MS, (gameState) => {
+    gameState.timer = GAME_DURATION;
+  });
 }
 
 function sanitizeStateForClients(state) {
@@ -222,72 +218,17 @@ function updateGameState(state, dt) {
 }
 
 export function registerFightGame(io) {
-  const nsp = io.of(fightGameMeta.namespace);
-  const games = new Map();
-
-  setInterval(() => {
-    const now = Date.now();
-
-    for (const [gameId, state] of games.entries()) {
-      const dt = (now - state.lastUpdate) / 1000 || DT;
-      state.lastUpdate = now;
-
-      // In case the countdown wasn't scheduled on join, ensure it starts when both players connect
-      scheduleStart(state);
-
-      if (!state.gameOver) {
-        updateGameState(state, dt);
-      }
-
-      nsp.to(gameId).emit("state", sanitizeStateForClients(state));
-    }
-  }, 1000 / FPS);
-
-  nsp.on("connection", (socket) => {
-    socket.on("joinGame", ({ gameId }) => {
-      if (!gameId) return;
-
-      const room = nsp.adapter.rooms.get(gameId);
-      let playerId;
-
-      if (!room) {
-        playerId = "p1";
-        socket.join(gameId);
-        socket.data.gameId = gameId;
-        socket.data.playerId = playerId;
-        games.set(gameId, createInitialGameState());
-        initAttackTimestamps(games.get(gameId));
-      } else if (room.size === 1) {
-        playerId = "p2";
-        socket.join(gameId);
-        socket.data.gameId = gameId;
-        socket.data.playerId = playerId;
-        if (!games.has(gameId)) {
-          games.set(gameId, createInitialGameState());
-          initAttackTimestamps(games.get(gameId));
-        }
-      } else {
-        socket.emit("roomFull");
-        return;
-      }
-
-      const state = games.get(gameId);
-      if (state && state.players[playerId]) {
-        state.players[playerId].connected = true;
-        scheduleStart(state);
-      }
-
-      socket.emit("gameJoined", { playerId, gameId });
-      socket.to(gameId).emit("playerJoined", { playerId });
-    });
-
-    socket.on("input", ({ type, value }) => {
-      const gameId = socket.data.gameId;
-      const playerId = socket.data.playerId;
-      if (!gameId || !playerId) return;
-
-      const state = games.get(gameId);
-      if (!state) return;
+  registerGame({
+    io,
+    meta: fightGameMeta,
+    createState: createInitialGameState,
+    onStateCreated: initAttackTimestamps,
+    onPlayerConnected: (state, playerId) => {
+      state.players[playerId].connected = true;
+      scheduleFightStart(state);
+    },
+    handleInput: ({ state, playerId, payload }) => {
+      const { type, value } = payload;
       const player = state.players[playerId];
       if (!player || player.dead) return;
 
@@ -301,22 +242,23 @@ export function registerFightGame(io) {
         default:
           break;
       }
-    });
-
-    socket.on("disconnect", () => {
-      const { gameId, playerId } = socket.data;
-      if (gameId && playerId) {
-        const state = games.get(gameId);
-        if (state && state.players[playerId]) {
-          state.players[playerId].connected = false;
-          state.started = false;
-          state.startAt = null;
-          state.timer = GAME_DURATION;
-          state.gameOver = false;
-          state.winner = null;
-        }
-        socket.to(gameId).emit("playerLeft", { playerId });
+    },
+    handleDisconnect: (state, playerId) => {
+      state.players[playerId].connected = false;
+      state.started = false;
+      state.startAt = null;
+      state.timer = GAME_DURATION;
+      state.gameOver = false;
+      state.winner = null;
+    },
+    beforeUpdate: scheduleFightStart,
+    updateState: (state, dt) => {
+      if (!state.gameOver) {
+        updateGameState(state, dt);
       }
-    });
+    },
+    serializeState: sanitizeStateForClients,
+    dtFallback: DT,
+    tickMs: 1000 / FPS,
   });
 }

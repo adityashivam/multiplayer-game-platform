@@ -1,4 +1,9 @@
 import { pongGameMeta } from "./metadata.js";
+import {
+  emitEvent,
+  registerGame,
+  scheduleStart,
+} from "../utils/utils.js";
 
 const FPS = 60;
 const DT = 1 / FPS;
@@ -48,16 +53,6 @@ function createInitialGameState() {
   };
 }
 
-function bothPlayersConnected(state) {
-  return state.players.p1.connected && state.players.p2.connected;
-}
-
-function scheduleStart(state) {
-  if (!state.started && !state.gameOver && !state.startAt && bothPlayersConnected(state)) {
-    state.startAt = Date.now() + COUNTDOWN_MS;
-  }
-}
-
 function resetRound(state, direction = 1) {
   state.ball = makeBall(direction);
   state.started = true; // keep the match flowing without a new countdown mid-game
@@ -96,9 +91,7 @@ function updateGameState(state, dt) {
   const now = Date.now();
 
   // Ensure countdown starts if both players are connected
-  if (!state.started && !state.gameOver && !state.startAt && bothPlayersConnected(state)) {
-    state.startAt = now + COUNTDOWN_MS;
-  }
+  scheduleStart(state, COUNTDOWN_MS);
 
   if (!state.started && state.startAt && now >= state.startAt) {
     state.started = true;
@@ -181,63 +174,18 @@ function updateGameState(state, dt) {
 }
 
 export function registerPongGame(io) {
-  const nsp = io.of(pongGameMeta.namespace);
-  const games = new Map();
-
-  setInterval(() => {
-    const now = Date.now();
-    for (const [gameId, state] of games.entries()) {
-      const dt = (now - state.lastUpdate) / 1000 || DT;
-      state.lastUpdate = now;
-      updateGameState(state, dt);
-      nsp.to(gameId).emit("state", sanitize(state));
-      state.lastLost = null;
-    }
-  }, 1000 / FPS);
-
-  nsp.on("connection", (socket) => {
-    socket.on("joinGame", ({ gameId }) => {
-      if (!gameId) return;
-
-      const room = nsp.adapter.rooms.get(gameId);
-      let playerId;
-
-      if (!room) {
-        playerId = "p1";
-        socket.join(gameId);
-        socket.data.gameId = gameId;
-        socket.data.playerId = playerId;
-        games.set(gameId, createInitialGameState());
-      } else if (room.size === 1) {
-        playerId = "p2";
-        socket.join(gameId);
-        socket.data.gameId = gameId;
-        socket.data.playerId = playerId;
-        if (!games.has(gameId)) {
-          games.set(gameId, createInitialGameState());
-        }
-      } else {
-        socket.emit("roomFull");
-        return;
-      }
-
-      const state = games.get(gameId);
-      if (state && state.players[playerId]) {
-        state.players[playerId].connected = true;
-        state.gameOver = false;
-        state.winner = null;
-        scheduleStart(state);
-      }
-
-      socket.emit("gameJoined", { playerId, gameId });
-      socket.to(gameId).emit("playerJoined", { playerId });
-    });
-
-    socket.on("input", ({ type, value }) => {
-      const { gameId, playerId } = socket.data;
-      if (!gameId || !playerId) return;
-      const state = games.get(gameId);
-      if (!state) return;
+  registerGame({
+    io,
+    meta: pongGameMeta,
+    createState: createInitialGameState,
+    onPlayerConnected: (state, playerId) => {
+      state.players[playerId].connected = true;
+      state.gameOver = false;
+      state.winner = null;
+      scheduleStart(state, COUNTDOWN_MS);
+    },
+    handleInput: ({ state, playerId, payload }) => {
+      const { type, value } = payload;
       const player = state.players[playerId];
       if (!player) return;
 
@@ -249,25 +197,16 @@ export function registerPongGame(io) {
         default:
           break;
       }
-    });
-
-    socket.on("disconnect", () => {
-      const { gameId, playerId } = socket.data;
-      if (!gameId || !playerId) return;
-      const state = games.get(gameId);
-      if (!state) return;
-      if (state.players[playerId]) {
-        state.players[playerId].connected = false;
-        state.started = false;
-        state.startAt = null;
-        state.gameOver = false;
-        state.winner = null;
-        state.ball = makeBall();
-      }
-      socket.to(gameId).emit("playerLeft", { playerId });
-    });
-
-    socket.on("rematch", () => {
+    },
+    handleDisconnect: (state, playerId) => {
+      state.players[playerId].connected = false;
+      state.started = false;
+      state.startAt = null;
+      state.gameOver = false;
+      state.winner = null;
+      state.ball = makeBall();
+    },
+    handleRematch: ({ socket, games, nsp }) => {
       const { gameId } = socket.data;
       if (!gameId) return;
       const state = games.get(gameId);
@@ -281,7 +220,14 @@ export function registerPongGame(io) {
       state.ball = makeBall();
       state.lastUpdate = Date.now();
       state.lastLost = null;
-      nsp.to(gameId).emit("rematchStarted");
-    });
+      emitEvent({ nsp, gameId, type: "rematchStarted", target: "game" });
+    },
+    updateState: updateGameState,
+    serializeState: sanitize,
+    afterEmit: (state) => {
+      state.lastLost = null;
+    },
+    dtFallback: DT,
+    tickMs: 1000 / FPS,
   });
 }
