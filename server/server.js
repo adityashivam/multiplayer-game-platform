@@ -1,4 +1,3 @@
-import fs from "fs";
 import { createServer } from "http";
 import { Server } from "socket.io";
 import express from "express";
@@ -10,6 +9,7 @@ import { fightGameMeta, pongGameMeta } from "./games/metadata.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+const platformIndex = path.join(__dirname, "../public/platform/dist/index.html");
 
 const app = express();
 const httpServer = createServer(app);
@@ -25,10 +25,15 @@ const catalog = [
   { ...pongGameMeta },
 ];
 
-app.use(express.static(path.join(__dirname, "../public")));
+app.use(
+  express.static(path.join(__dirname, "../public"), {
+    index: false,
+    redirect: false,
+  }),
+);
 
 app.get("/", (req, res) => {
-  res.sendFile(path.join(__dirname, "../public/index.html"));
+  res.sendFile(platformIndex);
 });
 
 app.get("/api/games", (req, res) => {
@@ -71,12 +76,7 @@ app.get("/games/:gameId/:roomId?", (req, res) => {
     return res.status(404).send("Game not found");
   }
 
-  const htmlPath = path.join(__dirname, "../public/games", gameId, "index.html");
-  if (!fs.existsSync(htmlPath)) {
-    return res.status(404).send("Game client not found");
-  }
-
-  res.sendFile(htmlPath);
+  res.sendFile(platformIndex);
 });
 
 // Register socket handlers for each game

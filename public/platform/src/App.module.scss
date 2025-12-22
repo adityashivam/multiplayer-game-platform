@@ -1,0 +1,733 @@
+:global(body) {
+  background: var(--color-background);
+}
+
+.app {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px 10px;
+  background: radial-gradient(circle at 20% 20%, rgba(231, 111, 81, 0.12), transparent 40%),
+    radial-gradient(circle at 80% 10%, rgba(42, 157, 143, 0.14), transparent 42%),
+    var(--color-background);
+}
+
+.frame {
+  width: 100%;
+  max-width: 780px;
+  max-height: 860px;
+  display: flex;
+  flex-direction: column;
+  border-radius: 10px;
+  gap: 10px;
+}
+
+.screen {
+  flex: 1;
+  min-height: 0;
+  background: var(--color-surface);
+  border: 4px solid #000;
+  box-shadow: var(--screen-shadow);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  position: relative;
+}
+
+.scanlines {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0),
+    rgba(255, 255, 255, 0) 50%,
+    rgba(0, 0, 0, 0.1) 50%,
+    rgba(0, 0, 0, 0.1)
+  );
+  background-size: 100% 4px;
+  pointer-events: none;
+  opacity: 0.18;
+  z-index: 5;
+}
+
+.screenInner {
+  position: relative;
+  z-index: 10;
+  flex: 1;
+  min-height: 0;
+  padding: 16px 18px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: radial-gradient(circle at 30% 20%, rgba(0, 0, 0, 0.04), transparent 40%),
+    radial-gradient(circle at 70% 80%, rgba(0, 0, 0, 0.05), transparent 45%);
+}
+
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.badgeRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.badge {
+  background: #264653;
+  color: #fff;
+  padding: 6px 10px;
+  border: 2px solid #000;
+  box-shadow: 2px 2px 0 0 #000;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  font-size: 13px;
+}
+
+.backLink {
+  background: #264653;
+  color: #fff;
+  padding: 8px 12px;
+  border: 2px solid #000;
+  box-shadow: 2px 2px 0 0 #000;
+  text-transform: uppercase;
+  font-size: 12px;
+  letter-spacing: 0.1em;
+}
+
+.statusRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.statusText {
+  font-size: 13px;
+  letter-spacing: 0.18em;
+  font-weight: 700;
+  color: var(--color-muted);
+  text-transform: uppercase;
+}
+
+.themeToggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  background: var(--color-surface-alt);
+  border: 2px solid #000;
+  box-shadow: 2px 2px 0 0 #000;
+}
+
+.themeIcon {
+  color: var(--color-text);
+  font-size: 18px;
+}
+
+.titleBlock {
+  border-bottom: 2px dashed rgba(0, 0, 0, 0.15);
+  padding-bottom: 10px;
+}
+
+:global(.dark) .titleBlock {
+  border-bottom-color: rgba(255, 255, 255, 0.18);
+}
+
+.title {
+  font-family: "Press Start 2P", cursive;
+  font-size: 16px;
+  color: var(--color-text);
+  line-height: 1.4;
+  margin: 0;
+}
+
+.subtitle {
+  margin: 8px 0 0;
+  color: var(--color-muted);
+  font-size: 16px;
+  line-height: 1.35;
+}
+
+.shareBar {
+  background: var(--color-surface-alt);
+  border: 2px solid #000;
+  box-shadow: 2px 2px 0 0 #000;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+:global(.dark) .shareBar {
+  background: var(--color-surface-dark);
+  border-color: #5c5046;
+}
+
+.shareLabel {
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--color-muted);
+}
+
+.shareControls {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+
+  @media (min-width: 600px) {
+    flex-direction: row;
+  }
+}
+
+.shareInput {
+  flex: 1;
+  padding: 10px 12px;
+  border: 2px solid #000;
+  background: #fff;
+  color: #000;
+  box-shadow: 2px 2px 0 0 #000;
+}
+
+:global(.dark) .shareInput {
+  background: #1b1612;
+  color: #fff;
+  border-color: #5c5046;
+}
+
+.shareButtons {
+  display: flex;
+  gap: 8px;
+}
+
+.shareButton {
+  padding: 10px 16px;
+  border: 2px solid #000;
+  box-shadow: 2px 2px 0 0 #000;
+  background: var(--color-primary);
+  color: #fff;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.shareButtonSecondary {
+  background: var(--color-secondary);
+}
+
+.view {
+  flex: 1;
+  min-height: 0;
+}
+
+.hidden {
+  display: none !important;
+}
+
+.lobbyList {
+  height: 100%;
+  overflow-y: auto;
+  padding-right: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.emptyState {
+  color: var(--color-muted);
+  font-size: 16px;
+}
+
+.card {
+  position: relative;
+  display: flex;
+  gap: 12px;
+  background: #fdf0d5;
+  border: 4px solid transparent;
+  border-right-color: #000;
+  border-bottom-color: #000;
+  padding: 14px;
+  cursor: pointer;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+  transition: transform 120ms ease, box-shadow 120ms ease, filter 120ms ease, opacity 120ms ease;
+  outline: none;
+}
+
+:global(.dark) .card {
+  background: var(--color-surface-dark);
+  border-right-color: #5c5046;
+  border-bottom-color: #5c5046;
+}
+
+.featured {
+  background: #fdf0d5;
+  border-color: var(--color-primary);
+  box-shadow: 4px 4px 0 0 var(--color-primary);
+}
+
+:global(.dark) .featured {
+  background: var(--color-surface-dark);
+  box-shadow: 4px 4px 0 0 var(--color-primary);
+}
+
+.card:hover {
+  transform: translateY(-2px);
+  opacity: 1;
+}
+
+.card:not(.featured) {
+  filter: grayscale(0.1);
+  opacity: 0.9;
+}
+
+.card:not(.featured):hover {
+  filter: grayscale(0);
+  box-shadow: 2px 2px 0 0 #000;
+}
+
+.selected {
+  outline: 3px solid var(--color-primary);
+  box-shadow: 0 0 0 4px #000;
+  filter: none;
+  opacity: 1;
+}
+
+.corner {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 12px;
+  height: 12px;
+  background: rgba(0, 0, 0, 0.08);
+  border-left: 4px solid #000;
+  border-bottom: 4px solid #000;
+}
+
+:global(.dark) .corner {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: #5c5046;
+}
+
+.arrow {
+  position: absolute;
+  left: -10px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 0;
+  height: 0;
+  border-top: 10px solid transparent;
+  border-bottom: 10px solid transparent;
+  border-left: 16px solid var(--color-primary);
+  animation: pulse 1s infinite;
+  display: none;
+
+  @media (min-width: 768px) {
+    display: block;
+  }
+}
+
+@keyframes pulse {
+  0% {
+    opacity: 0.5;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0.5;
+  }
+}
+
+.cardMedia {
+  position: relative;
+  width: 88px;
+  height: 88px;
+  border: 2px solid #000;
+  overflow: hidden;
+  box-shadow: 2px 2px 0 0 rgba(0, 0, 0, 0.2);
+  flex-shrink: 0;
+  background: #000;
+}
+
+:global(.dark) .cardMedia {
+  border-color: #f4f1de;
+}
+
+.cardImage {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  image-rendering: pixelated;
+}
+
+.cardFallback {
+  width: 100%;
+  height: 100%;
+  display: grid;
+  place-items: center;
+  font-family: "Press Start 2P", cursive;
+  font-size: 14px;
+  letter-spacing: 0.1em;
+  color: #fff;
+  background: linear-gradient(135deg, #6b7280, #111827);
+}
+
+.mediaOverlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, transparent, rgba(0, 0, 0, 0.35));
+}
+
+.cardBody {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.tagRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.tag {
+  padding: 4px 8px;
+  border: 1px solid #000;
+  color: #fff;
+  background: #9ca3af;
+  font-weight: 700;
+  font-size: 12px;
+}
+
+.status {
+  background: var(--color-primary);
+}
+
+.players {
+  background: var(--color-secondary);
+}
+
+.cardHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: space-between;
+}
+
+.cardTitle {
+  margin: 0;
+  font-family: "Press Start 2P", cursive;
+  font-size: 14px;
+  color: var(--color-text);
+  line-height: 1.3;
+  flex: 1;
+}
+
+.cardIcon {
+  font-size: 24px;
+  color: var(--color-primary);
+}
+
+.cardDescription {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 16px;
+  line-height: 1.3;
+}
+
+.featuredFooter {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 8px;
+  border-top: 2px solid rgba(0, 0, 0, 0.12);
+}
+
+:global(.dark) .featuredFooter {
+  border-top-color: rgba(255, 255, 255, 0.15);
+}
+
+.cta {
+  color: var(--color-primary);
+  font-weight: 700;
+  font-size: 12px;
+  animation: pulse 1.3s infinite;
+}
+
+.gameView {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  height: 100%;
+}
+
+.canvasFrame {
+  flex: 1;
+  min-height: 0;
+  background: #000;
+  border: 2px solid #000;
+  box-shadow: 2px 2px 0 0 #000;
+  position: relative;
+  overflow: hidden;
+}
+
+:global(.dark) .canvasFrame {
+  border-color: #5c5046;
+  box-shadow: 2px 2px 0 0 #5c5046;
+}
+
+.gameCanvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: contain;
+}
+
+.canvasOverlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(0deg, rgba(0, 0, 0, 0.35), transparent);
+}
+
+.footerBar {
+  text-align: center;
+  padding: 6px 0;
+  background: #000;
+  border-top: 4px solid #000;
+}
+
+.footerLabel {
+  color: #6b7280;
+  font-family: "Press Start 2P", cursive;
+  font-size: 11px;
+  letter-spacing: 0.28em;
+}
+
+.controllerSection {
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.06), transparent),
+    var(--color-background);
+  border-radius: 12px;
+  padding: 10px 6px 16px;
+  box-shadow: inset 0 0 12px rgba(0, 0, 0, 0.08);
+}
+
+.controllerGrid {
+  max-width: 720px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+
+  @media (min-width: 680px) {
+    grid-template-columns: repeat(3, 1fr);
+    align-items: center;
+  }
+}
+
+.dpadWrap {
+  display: flex;
+  justify-content: center;
+}
+
+.dpad {
+  position: relative;
+  width: 120px;
+  height: 120px;
+}
+
+.dpadButton {
+  position: absolute;
+  background: #333;
+  color: #fff;
+  border: 2px solid #444;
+  box-shadow: 0 4px 0 #111, 0 5px 5px rgba(0, 0, 0, 0.4);
+  transition: transform 80ms ease, box-shadow 80ms ease;
+}
+
+.dpadButton:active {
+  transform: translateY(4px);
+  box-shadow: 0 0 0 #111;
+}
+
+.dpadButton[data-dir="up"] {
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 56px;
+  height: 48px;
+  border-radius: 6px 6px 2px 2px;
+}
+
+.dpadButton[data-dir="down"] {
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 56px;
+  height: 48px;
+  border-radius: 2px 2px 6px 6px;
+}
+
+.dpadButton[data-dir="left"] {
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 52px;
+  height: 44px;
+  border-radius: 6px 2px 2px 6px;
+}
+
+.dpadButton[data-dir="right"] {
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 52px;
+  height: 44px;
+  border-radius: 2px 6px 6px 2px;
+}
+
+.dpadCenter {
+  position: absolute;
+  inset: 50% auto auto 50%;
+  transform: translate(-50%, -50%);
+  width: 60px;
+  height: 60px;
+  background: linear-gradient(135deg, #333, #111);
+  border-radius: 50%;
+  z-index: 2;
+}
+
+.dpadHint {
+  position: absolute;
+  color: #a1a1aa;
+  font-size: 14px;
+  pointer-events: none;
+  z-index: 3;
+}
+
+.up {
+  top: 4px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.down {
+  bottom: 4px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.left {
+  left: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.right {
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.selectStart {
+  display: flex;
+  justify-content: center;
+  gap: 24px;
+  transform: rotate(-12deg);
+}
+
+.miniButton {
+  width: 56px;
+  height: 18px;
+  border-radius: 999px;
+  border: 1px solid #000;
+  background: #555;
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.5);
+  transition: transform 80ms ease, box-shadow 80ms ease;
+}
+
+.miniButton:active {
+  transform: translateY(2px);
+  box-shadow: 0 0 0 rgba(0, 0, 0, 0.5);
+}
+
+.miniLabel {
+  text-align: center;
+  color: #6b7280;
+  font-family: "Press Start 2P", cursive;
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  margin-top: 6px;
+}
+
+.actionWrap {
+  display: flex;
+  justify-content: center;
+}
+
+.actionPad {
+  position: relative;
+  width: 150px;
+  height: 150px;
+  transform: rotate(-14deg);
+}
+
+.actionButton {
+  position: absolute;
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  border: 2px solid #000;
+  box-shadow: 0 4px 0 rgba(0, 0, 0, 0.45);
+  transition: transform 80ms ease, box-shadow 80ms ease;
+  display: grid;
+  place-items: center;
+}
+
+.actionButton:active {
+  transform: translateY(4px);
+  box-shadow: 0 0 0 rgba(0, 0, 0, 0.45);
+}
+
+.actionButton[data-action="back"] {
+  background: #264653;
+  color: #fff;
+  left: 6px;
+  bottom: 12px;
+}
+
+.actionButton[data-action="confirm"] {
+  background: var(--color-primary);
+  color: #fff;
+  right: 6px;
+  top: 12px;
+}
+
+.actionLetter {
+  font-family: "Press Start 2P", cursive;
+  font-size: 18px;
+  opacity: 0.85;
+  text-shadow: 1px 1px 0 #000;
+}
+
+.controllerDeco {
+  display: flex;
+  justify-content: center;
+  gap: 4px;
+  margin-top: 6px;
+  opacity: 0.35;
+}
+
+.controllerDeco span {
+  display: block;
+  width: 6px;
+  height: 26px;
+  background: #000;
+  border-radius: 12px;
+}

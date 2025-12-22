@@ -1,7 +1,13 @@
 // ---------- Kaboom init ----------
 const canvasEl = document.getElementById("game-canvas");
+const themeToggle = document.getElementById("theme-toggle");
+const dpadButtons = document.querySelectorAll("[data-dir]");
+const controllerButtons = document.querySelectorAll("[data-action]");
+const root = document.documentElement;
+const THEME_KEY = "kaboom-preferred-theme";
+let roomUrl = "";
 kaboom({
-  width: 1280,
+  width: 960,
   height: 720,
   scale: 0.7,
   debug: false,
@@ -12,50 +18,26 @@ kaboom({
 // Fit canvas into portrait-first layout (top half of screen)
 const gameCanvas = canvasEl || document.querySelector("canvas");
 if (gameCanvas) {
-  gameCanvas.style.width = "100vw";
-  gameCanvas.style.height = "55vh";
-  gameCanvas.style.maxHeight = "520px";
+  gameCanvas.style.width = "100%";
+  gameCanvas.style.height = "100%";
+  gameCanvas.style.maxHeight = "none";
   gameCanvas.style.display = "block";
-  gameCanvas.style.margin = "0 auto";
   gameCanvas.style.objectFit = "contain";
 }
 
 // ---------- Multiplayer setup ----------
 const GAME_SLUG = "fight";
-const shareInput = document.getElementById("room-url");
-const copyRoomButton = document.getElementById("copy-room");
-const openRoomButton = document.getElementById("open-room");
 
 function buildRoomUrl(roomId) {
   return `${window.location.origin}/games/${GAME_SLUG}/${roomId}`;
 }
 
 function setRoomLink(url) {
-  if (shareInput) {
-    shareInput.value = url;
-  }
-  if (openRoomButton) {
-    openRoomButton.onclick = () => {
-      window.location.href = url;
-    };
-  }
+  roomUrl = url;
 }
 
 function setupCopyButton() {
-  if (!copyRoomButton) return;
-  copyRoomButton.addEventListener("click", async () => {
-    if (!shareInput?.value) return;
-    try {
-      await navigator.clipboard.writeText(shareInput.value);
-      copyRoomButton.textContent = "Copied!";
-      setTimeout(() => (copyRoomButton.textContent = "Copy link"), 1200);
-    } catch (err) {
-      copyRoomButton.textContent = "Select to copy";
-      shareInput?.focus();
-      shareInput?.select();
-      setTimeout(() => (copyRoomButton.textContent = "Copy link"), 1400);
-    }
-  });
+  // no-op; share UI removed
 }
 
 setupCopyButton();
@@ -90,18 +72,142 @@ async function ensureRoomId() {
   }
 }
 
+async function startNewRoom() {
+  try {
+    const res = await fetch(`/api/games/${GAME_SLUG}/new-room`);
+    const data = await res.json();
+    const roomId = data?.roomId || Math.random().toString(36).slice(2, 8);
+    const targetUrl = data?.url || buildRoomUrl(roomId);
+    window.location.href = targetUrl;
+  } catch (err) {
+    const fallbackId = Math.random().toString(36).slice(2, 8);
+    window.location.href = buildRoomUrl(fallbackId);
+  }
+}
+
 let gameId = null;
 let hasJoined = false;
 const socket = io(`/${GAME_SLUG}`);
 
 let myPlayerId = null;
 let readyToPlay = false;
-let removeTouchControls = null;
 let lastConnected = { p1: false, p2: false };
 
 function sendInputFlag(type, value) {
   if (!readyToPlay) return;
   socket.emit("input", { type, value });
+}
+
+function applyTheme(mode) {
+  if (mode === "dark") {
+    root.classList.add("dark");
+  } else {
+    root.classList.remove("dark");
+  }
+  localStorage.setItem(THEME_KEY, mode);
+}
+
+function toggleTheme() {
+  const isDark = root.classList.contains("dark");
+  applyTheme(isDark ? "light" : "dark");
+}
+
+function initTheme() {
+  const saved = localStorage.getItem(THEME_KEY);
+  if (saved === "dark" || saved === "light") {
+    applyTheme(saved);
+    return;
+  }
+  const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+  applyTheme(prefersDark ? "dark" : "light");
+}
+
+function bindHold(btn, onDown, onUp) {
+  const start = (e) => {
+    e.preventDefault();
+    onDown();
+  };
+  const end = (e) => {
+    e.preventDefault();
+    onUp();
+  };
+  btn.addEventListener("pointerdown", start);
+  btn.addEventListener("pointerup", end);
+  btn.addEventListener("pointerleave", end);
+  btn.addEventListener("pointercancel", end);
+  btn.addEventListener("touchstart", start, { passive: false });
+  btn.addEventListener("touchend", end, { passive: false });
+  btn.addEventListener("touchcancel", end, { passive: false });
+}
+
+function handleDirectionalInput(direction, active) {
+  switch (direction) {
+    case "left":
+    case "right":
+      sendInputFlag(direction, active);
+      break;
+    case "up":
+      sendInputFlag("jump", active);
+      break;
+    case "down":
+      sendInputFlag("attack", active);
+      break;
+    default:
+      break;
+  }
+}
+
+function handleActionInput(action) {
+  switch (action) {
+    case "confirm": {
+      sendInputFlag("attack", true);
+      setTimeout(() => sendInputFlag("attack", false), 120);
+      break;
+    }
+    case "start":
+      startNewRoom();
+      break;
+    case "back":
+      window.location.href = "/";
+      break;
+    case "select":
+      toggleTheme();
+      break;
+    default:
+      break;
+  }
+}
+
+function initControllerNavigation() {
+  dpadButtons.forEach((btn) => {
+    bindHold(
+      btn,
+      () => handleDirectionalInput(btn.dataset.dir, true),
+      () => handleDirectionalInput(btn.dataset.dir, false),
+    );
+  });
+
+  controllerButtons.forEach((btn) => {
+    btn.addEventListener("click", () => handleActionInput(btn.dataset.action));
+  });
+
+  if (themeToggle) {
+    themeToggle.addEventListener("click", toggleTheme);
+  }
+
+  window.addEventListener("keydown", (evt) => {
+    const key = evt.key;
+    if (key === "Enter" || key === " ") {
+      evt.preventDefault();
+      handleActionInput("confirm");
+    } else if (key === "Escape" || key === "Backspace") {
+      evt.preventDefault();
+      handleActionInput("back");
+    } else if (key && key.toLowerCase() === "t") {
+      evt.preventDefault();
+      toggleTheme();
+    }
+  });
 }
 
 function tryJoinGame() {
@@ -493,22 +599,9 @@ scene("fight", () => {
     gameOverText.text = message;
   }
 
-  async function startNewGame() {
-    try {
-      const res = await fetch(`/api/games/${GAME_SLUG}/new-room`);
-      const data = await res.json();
-      const roomId = data?.roomId || Math.random().toString(36).slice(2, 8);
-      const targetUrl = data?.url || buildRoomUrl(roomId);
-      window.location.href = targetUrl;
-    } catch (err) {
-      const fallbackId = Math.random().toString(36).slice(2, 8);
-      window.location.href = buildRoomUrl(fallbackId);
-    }
-  }
-
   onClick("new-game-button", () => {
     if (gameOverOverlay?.hidden) return;
-    startNewGame();
+    startNewRoom();
   });
 
   socket.on("playerJoined", ({ playerId }) => {
@@ -597,142 +690,6 @@ scene("fight", () => {
     if (gameOverFlag) go("fight");
   });
 
-  function setupTouchControls() {
-    const isTouch =
-      "ontouchstart" in window ||
-      navigator.maxTouchPoints > 0 ||
-      navigator.msMaxTouchPoints > 0 ||
-      window.innerWidth <= 900;
-    if (!isTouch) return null;
-
-    const style = document.createElement("style");
-    style.textContent = `
-      .touch-wrapper {
-        position: fixed;
-        left: 0;
-        bottom: 0;
-        width: 100%;
-        max-height: 360px;
-        padding: 12px 16px 18px;
-        display: flex;
-        justify-content: space-between;
-        align-items: flex-end;
-        background: linear-gradient(180deg, rgba(7,8,15,0.15) 0%, rgba(5,6,11,0.85) 65%);
-        pointer-events: auto;
-        z-index: 3000;
-        backdrop-filter: blur(6px);
-      }
-      .touch-controls {
-        display: flex;
-        gap: 16px;
-        pointer-events: auto;
-        align-items: center;
-      }
-      .touch-cluster {
-        display: grid;
-        grid-template-columns: repeat(2, 1fr);
-        grid-template-rows: repeat(2, 1fr);
-        gap: 10px;
-      }
-      .touch-btn {
-        width: 78px;
-        height: 78px;
-        border-radius: 18px;
-        border: 2px solid rgba(255,255,255,0.35);
-        background: radial-gradient(circle at 30% 30%, rgba(70,90,255,0.35), rgba(25,30,55,0.95));
-        color: #f5f5f5;
-        font-weight: 800;
-        font-size: 18px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        box-shadow: 0 12px 24px rgba(0,0,0,0.45);
-        user-select: none;
-        -webkit-user-select: none;
-        touch-action: none;
-      }
-      .touch-btn:active {
-        transform: translateY(2px);
-        box-shadow: 0 6px 14px rgba(0,0,0,0.35);
-      }
-      .touch-btn.wide {
-        width: 160px;
-      }
-      @media (max-width: 640px) {
-        .touch-btn {
-          width: 64px;
-          height: 64px;
-          font-size: 16px;
-        }
-        .touch-btn.wide {
-          width: 130px;
-        }
-      }
-    `;
-    document.head.appendChild(style);
-
-    const wrapper = document.createElement("div");
-    wrapper.className = "touch-wrapper";
-
-    const leftControls = document.createElement("div");
-    leftControls.className = "touch-controls";
-
-    const dpad = document.createElement("div");
-    dpad.className = "touch-cluster";
-
-    const rightControls = document.createElement("div");
-    rightControls.className = "touch-controls";
-
-    function createBtn({ label, type }) {
-      const btn = document.createElement("div");
-      btn.className = "touch-btn";
-      btn.textContent = label;
-
-      const start = (e) => {
-        e.preventDefault();
-        sendInputFlag(type, true);
-      };
-      const end = (e) => {
-        e.preventDefault();
-        sendInputFlag(type, false);
-      };
-
-      btn.addEventListener("touchstart", start, { passive: false });
-      btn.addEventListener("touchend", end, { passive: false });
-      btn.addEventListener("touchcancel", end, { passive: false });
-      btn.addEventListener("pointerdown", start);
-      btn.addEventListener("pointerup", end);
-      btn.addEventListener("pointerout", end);
-      btn.addEventListener("pointercancel", end);
-
-      return btn;
-    }
-
-    dpad.appendChild(createBtn({ label: "◀", type: "left" }));
-    dpad.appendChild(createBtn({ label: "▶", type: "right" }));
-    dpad.appendChild(createBtn({ label: "⤒", type: "jump" }));
-    dpad.appendChild(createBtn({ label: "⤒", type: "jump" }));
-
-    const attackBtn = createBtn({ label: "⚔ ATTACK", type: "attack" });
-    attackBtn.classList.add("wide");
-
-    leftControls.appendChild(dpad);
-    rightControls.appendChild(attackBtn);
-
-    wrapper.appendChild(leftControls);
-    wrapper.appendChild(rightControls);
-    document.body.appendChild(wrapper);
-
-    return () => {
-      document.body.removeChild(wrapper);
-      document.head.removeChild(style);
-    };
-  }
-
-  if (!removeTouchControls) {
-    removeTouchControls = setupTouchControls();
-  }
-
   // Server state updates
   socket.on("state", (state) => {
     if (!player1 || !player2 || !player1HealthBar || !player2HealthBar) {
@@ -750,6 +707,7 @@ scene("fight", () => {
         }
         lastConnected = connected;
       }
+      updateInviteOverlay(connected);
     }
     updateStartUI(started, startAt, connected, gameOver);
 
@@ -830,5 +788,8 @@ scene("fight", () => {
     }
   }
 });
+
+initTheme();
+initControllerNavigation();
 
 go("fight");

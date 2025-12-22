@@ -1,5 +1,5 @@
 const GAME_SLUG = "pong";
-const WIDTH = 1280;
+const WIDTH = 960;
 const HEIGHT = 720;
 const PADDLE_W = 26;
 const PADDLE_H = 160;
@@ -8,11 +8,17 @@ const PADDLE_X2 = WIDTH - 70;
 
 // Use the in-app canvas so it stays inside the layout
 const gameCanvas = document.getElementById("game-canvas");
+const themeToggle = document.getElementById("theme-toggle");
+const dpadButtons = document.querySelectorAll("[data-dir]");
+const controllerButtons = document.querySelectorAll("[data-action]");
+const root = document.documentElement;
+const THEME_KEY = "kaboom-preferred-theme";
+let roomUrl = "";
 
 // ---------- Kaboom init ----------
 kaboom({
-  width: 1280,
-  height: 720,
+  width: WIDTH,
+  height: HEIGHT,
   scale: 0.7,
   debug: false,
   global: true,
@@ -21,48 +27,20 @@ kaboom({
 
 // Fit canvas into top-half layout (mobile-first)
 if (gameCanvas) {
-  gameCanvas.style.width = "100vw";
-  gameCanvas.style.height = "50vh";
-  gameCanvas.style.maxHeight = "420px";
+  gameCanvas.style.width = "100%";
+  gameCanvas.style.height = "100%";
+  gameCanvas.style.maxHeight = "none";
   gameCanvas.style.display = "block";
-  gameCanvas.style.margin = "0 auto";
   gameCanvas.style.objectFit = "contain";
 }
-
-const shareInput = document.getElementById("room-url");
-const copyRoomButton = document.getElementById("copy-room");
-const openRoomButton = document.getElementById("open-room");
 
 function buildRoomUrl(roomId) {
   return `${window.location.origin}/games/${GAME_SLUG}/${roomId}`;
 }
 
 function setRoomLink(url) {
-  if (shareInput) shareInput.value = url;
-  if (openRoomButton) {
-    openRoomButton.onclick = () => {
-      window.location.href = url;
-    };
-  }
+  roomUrl = url;
 }
-
-function setupCopyButton() {
-  if (!copyRoomButton) return;
-  copyRoomButton.addEventListener("click", async () => {
-    if (!shareInput?.value) return;
-    try {
-      await navigator.clipboard.writeText(shareInput.value);
-      copyRoomButton.textContent = "Copied!";
-      setTimeout(() => (copyRoomButton.textContent = "Copy link"), 1200);
-    } catch (err) {
-      copyRoomButton.textContent = "Select to copy";
-      shareInput?.focus();
-      shareInput?.select();
-      setTimeout(() => (copyRoomButton.textContent = "Copy link"), 1400);
-    }
-  });
-}
-setupCopyButton();
 
 function getRoomIdFromPath() {
   const match = window.location.pathname.match(new RegExp(`/games/${GAME_SLUG}/([a-z0-9]+)`, "i"));
@@ -96,7 +74,6 @@ let gameId = null;
 let hasJoined = false;
 let myPlayerId = null;
 let readyToPlay = false;
-let removeTouchControls = null;
 let lastConnected = { p1: false, p2: false };
 let hasPlayedRound = false;
 
@@ -140,6 +117,111 @@ ensureRoomId().then((id) => {
 function sendInput(type, value) {
   if (!readyToPlay) return;
   socket.emit("input", { type, value });
+}
+
+function applyTheme(mode) {
+  if (mode === "dark") {
+    root.classList.add("dark");
+  } else {
+    root.classList.remove("dark");
+  }
+  localStorage.setItem(THEME_KEY, mode);
+}
+
+function toggleTheme() {
+  const isDark = root.classList.contains("dark");
+  applyTheme(isDark ? "light" : "dark");
+}
+
+function initTheme() {
+  const saved = localStorage.getItem(THEME_KEY);
+  if (saved === "dark" || saved === "light") {
+    applyTheme(saved);
+    return;
+  }
+  const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+  applyTheme(prefersDark ? "dark" : "light");
+}
+
+function bindHold(btn, onDown, onUp) {
+  const start = (e) => {
+    e.preventDefault();
+    onDown();
+  };
+  const end = (e) => {
+    e.preventDefault();
+    onUp();
+  };
+  btn.addEventListener("pointerdown", start);
+  btn.addEventListener("pointerup", end);
+  btn.addEventListener("pointerleave", end);
+  btn.addEventListener("pointercancel", end);
+  btn.addEventListener("touchstart", start, { passive: false });
+  btn.addEventListener("touchend", end, { passive: false });
+  btn.addEventListener("touchcancel", end, { passive: false });
+}
+
+function handleDirectionalInput(direction, active) {
+  // Map horizontal to vertical since Pong paddles move only up/down
+  const mapped =
+    direction === "up" || direction === "left"
+      ? "up"
+      : direction === "down" || direction === "right"
+      ? "down"
+      : null;
+  if (!mapped) return;
+  sendInput(mapped, active);
+}
+
+function handleActionInput(action) {
+  switch (action) {
+    case "confirm":
+      socket.emit("rematch");
+      break;
+    case "start":
+      if (roomUrl) window.location.href = roomUrl;
+      break;
+    case "back":
+      window.location.href = "/";
+      break;
+    case "select":
+      toggleTheme();
+      break;
+    default:
+      break;
+  }
+}
+
+function initControllerNavigation() {
+  dpadButtons.forEach((btn) => {
+    bindHold(
+      btn,
+      () => handleDirectionalInput(btn.dataset.dir, true),
+      () => handleDirectionalInput(btn.dataset.dir, false),
+    );
+  });
+
+  controllerButtons.forEach((btn) => {
+    btn.addEventListener("click", () => handleActionInput(btn.dataset.action));
+  });
+
+  if (themeToggle) {
+    themeToggle.addEventListener("click", toggleTheme);
+  }
+
+  window.addEventListener("keydown", (evt) => {
+    const key = evt.key;
+    if (key === "Enter") {
+      evt.preventDefault();
+      handleActionInput("confirm");
+    } else if (key === "Escape") {
+      evt.preventDefault();
+      handleActionInput("back");
+    } else if (key && key.toLowerCase() === "t") {
+      evt.preventDefault();
+      toggleTheme();
+    }
+  });
 }
 
 // ---------- Scene ----------
@@ -380,138 +462,10 @@ scene("pong", () => {
     sendInput("down", false);
   });
 
-  function setupTouchControls() {
-    const isTouch =
-      "ontouchstart" in window ||
-      navigator.maxTouchPoints > 0 ||
-      navigator.msMaxTouchPoints > 0 ||
-      window.innerWidth <= 900;
-    if (!isTouch) return null;
-
-    const style = document.createElement("style");
-    style.textContent = `
-      .touch-wrapper {
-        position: fixed;
-        bottom: 0;
-        left: 0;
-        width: 100%;
-        max-height: 360px;
-        padding: 12px 16px 18px;
-        display: flex;
-        justify-content: center;
-        gap: 18px;
-        align-items: flex-end;
-        background: linear-gradient(180deg, rgba(7,8,15,0.25) 0%, rgba(5,6,11,0.9) 70%);
-        pointer-events: auto;
-        z-index: 3000;
-        backdrop-filter: blur(6px);
-      }
-      .touch-controls {
-        display: flex;
-        gap: 12px;
-        pointer-events: auto;
-        align-items: center;
-      }
-      .touch-cluster {
-        display: grid;
-        grid-template-columns: repeat(2, 1fr);
-        grid-template-rows: repeat(2, 1fr);
-        gap: 10px;
-      }
-      .touch-btn {
-        width: 78px;
-        height: 78px;
-        border-radius: 18px;
-        border: 2px solid rgba(255,255,255,0.35);
-        background: radial-gradient(circle at 30% 30%, rgba(70,90,255,0.35), rgba(25,30,55,0.95));
-        color: #f5f5f5;
-        font-weight: 800;
-        font-size: 18px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        box-shadow: 0 12px 24px rgba(0,0,0,0.45);
-        user-select: none;
-        -webkit-user-select: none;
-        touch-action: none;
-      }
-      .touch-btn:active {
-        transform: translateY(2px);
-        box-shadow: 0 6px 14px rgba(0,0,0,0.35);
-      }
-      .touch-btn.wide {
-        width: 160px;
-      }
-      @media (max-width: 640px) {
-        .touch-btn {
-          width: 64px;
-          height: 64px;
-          font-size: 16px;
-        }
-        .touch-btn.wide {
-          width: 130px;
-        }
-      }
-    `;
-    document.head.appendChild(style);
-
-    const wrapper = document.createElement("div");
-    wrapper.className = "touch-wrapper";
-
-    const leftControls = document.createElement("div");
-    leftControls.className = "touch-controls";
-
-    const dpad = document.createElement("div");
-    dpad.className = "touch-cluster";
-
-    function createBtn({ label, type }) {
-      const btn = document.createElement("div");
-      btn.className = "touch-btn";
-      btn.textContent = label;
-
-      const start = (e) => {
-        e.preventDefault();
-        sendInput(type, true);
-      };
-      const end = (e) => {
-        e.preventDefault();
-        sendInput(type, false);
-      };
-
-      btn.addEventListener("touchstart", start, { passive: false });
-      btn.addEventListener("touchend", end, { passive: false });
-      btn.addEventListener("touchcancel", end, { passive: false });
-      btn.addEventListener("pointerdown", start);
-      btn.addEventListener("pointerup", end);
-      btn.addEventListener("pointerout", end);
-      btn.addEventListener("pointercancel", end);
-
-      return btn;
-    }
-
-    dpad.appendChild(createBtn({ label: "⤒", type: "up" }));
-    dpad.appendChild(createBtn({ label: "⤓", type: "down" }));
-    dpad.appendChild(createBtn({ label: "⤒", type: "up" }));
-    dpad.appendChild(createBtn({ label: "⤓", type: "down" }));
-
-    leftControls.appendChild(dpad);
-    wrapper.appendChild(leftControls);
-    document.body.appendChild(wrapper);
-
-    return () => {
-      document.body.removeChild(wrapper);
-      document.head.removeChild(style);
-    };
-  }
-
-  if (!removeTouchControls) {
-    removeTouchControls = setupTouchControls();
-  }
-
-  socket.on("state", (state) => {
-    if (!state || !state.players || !state.ball) return;
-    const { players, ball: ballState, gameOver, winner, started, startAt, lastLost } = state;
-    const connected = { p1: players.p1.connected, p2: players.p2.connected };
+socket.on("state", (state) => {
+  if (!state || !state.players || !state.ball) return;
+  const { players, ball: ballState, gameOver, winner, started, startAt, lastLost } = state;
+  const connected = { p1: players.p1.connected, p2: players.p2.connected };
 
     if (connected.p1 !== lastConnected.p1 || connected.p2 !== lastConnected.p2) {
       // Only toast on net new connections, not repeated start cycles
@@ -539,6 +493,7 @@ scene("pong", () => {
     }
 
     updateStartUI(started, startAt, connected, gameOver);
+    updateInviteOverlay(connected);
 
     if (!gameOver && lastLost) {
       showToast(lastLost === "p1" ? "Left missed — point to Right" : "Right missed — point to Left");
@@ -553,5 +508,8 @@ scene("pong", () => {
     }
   });
 });
+
+initTheme();
+initControllerNavigation();
 
 go("pong");
