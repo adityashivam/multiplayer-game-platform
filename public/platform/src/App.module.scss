@@ -903,7 +903,13 @@
 }
 
 .controllerSection {
-  background: var(--color-background);
+  background-color: #d8cbb6;
+  background-image: url(https://lh3.googleusercontent.com/aida-public/AB6AXuCD_J62fXfNYv6CbTN3jDGxxgZaRc6Expr9E-AZWEiMsAS4uU9cBC1OUDu2uWGwCPEMOAMQ9f7fvrkc9HFj_HAw1_4Lim39PwweA73e38WFLvOeJVHYaWwAw-alz3sF8Jg81jrAOJ8QnXI8kXhdQKrsEuCSMtUddEegfKu4Q1V3Irxf71uD6muUCNR967OZ5U7C0mH9Epi7HJIiLfzbiES-PyEhGLSTJRaPiuC0FLQzgXrkbO_P3Kahzt5VkritqrjeTGCccUiMoC46);
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  box-shadow: inset 0 10px 20px rgba(0, 0, 0, 0.1),
+    inset 0 -10px 30px rgba(0, 0, 0, 0.15);
   padding: clamp(12px, 2.2vh, 18px) clamp(12px, 3vw, 22px)
     clamp(16px, 3vh, 24px);
   border: none;
@@ -915,6 +921,13 @@
   max-height: 35vh;
   min-height: 0;
   overflow: hidden;
+}
+
+.dark .controllerSection {
+  background-color: #1a1817;
+  background-image: url(https://lh3.googleusercontent.com/aida-public/AB6AXuA9TKKKBhjhmDp7Gkgdl55fmGRBaTc3TL7YOieDM38a_Hh0v1JEG9UxBgxZJogPetTGGx5cJp8PwKHxOzQsz4v4QC-fJd73QeuC0XmAuRZZHnmgx5M7qFnbx-3oBxW6vhDXQcnoekC0TYDq_ipWhaSdSqCT-ZvXQQJoRX__Cy6B8NUfSK0izY2-iPMTNcInEjyzNXd6m4jiUUBM4mKXleN2ocHBL5YAic155dgP4MInypPo8RJhdyjxa3CU1NejRvMn0A6U1YpX81Of);
+  box-shadow: inset 0 10px 20px rgba(0, 0, 0, 0.5),
+    inset 0 -10px 30px rgba(0, 0, 0, 0.5);
 }
 
 .controllerTopBar {
@@ -956,7 +969,7 @@
 
 .dpadShell {
   position: relative;
-  width: clamp(90px, 20vw, 170px);
+  width: clamp(118px, 20vw, 170px);
   height: auto;
   aspect-ratio: 1 / 1;
   display: flex;
@@ -968,14 +981,17 @@
 
 .dpadHalo {
   position: absolute;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.05);
+  inset: -5%;
+  background: rgba(0, 0, 0, 0.1);
   border-radius: 50%;
-  transform: scale(1.05);
+  box-shadow: inset 2px 2px 5px rgba(0, 0, 0, 0.2),
+    inset -1px -1px 0 rgba(255, 255, 255, 0.2);
 }
 
 :global(.dark) .dpadHalo {
-  background: rgba(255, 255, 255, 0.06);
+  background: rgba(0, 0, 0, 0.3);
+  box-shadow: inset 2px 2px 5px rgba(0, 0, 0, 0.5),
+    inset -1px -1px 0 rgba(255, 255, 255, 0.05);
 }
 
 .dpadCross {
@@ -986,10 +1002,11 @@
 
 .dpadVertical,
 .dpadHorizontal {
-  background: #222;
+  background: linear-gradient(180deg, #444 0%, #222 100%);
   position: absolute;
-  box-shadow: 2px 4px 0 #000;
-  border: 1px solid #444;
+  box-shadow: 2px 4px 5px rgba(0, 0, 0, 0.4),
+    inset 1px 1px 1px rgba(255, 255, 255, 0.15);
+  border: 1px solid #1a1a1a;
 }
 
 .dpadVertical {
@@ -1016,7 +1033,7 @@
   left: 33.33%;
   width: 33.33%;
   height: 33.33%;
-  background: radial-gradient(circle, #333 0%, #222 100%);
+  background: radial-gradient(circle at 30% 30%, #444 0%, #222 100%);
   z-index: 2;
 }
 
@@ -1029,7 +1046,7 @@
 }
 
 .dpadArea:active {
-  background: rgba(255, 255, 255, 0.1);
+  background: radial-gradient(circle, rgba(0, 0, 0, 0.3) 0%, transparent 70%);
 }
 
 .dpadUp {
@@ -1066,7 +1083,7 @@
 
 .dpadHint {
   position: absolute;
-  color: #a1a1aa;
+  color: rgba(255, 255, 255, 0.3);
   font-size: clamp(12px, 2.5vw, 18px);
   pointer-events: none;
   z-index: 4;
@@ -1113,22 +1130,23 @@
 .miniButton {
   width: clamp(36px, 8vw, 60px);
   height: clamp(12px, 2vw, 20px);
-  background: #555;
+  background: linear-gradient(to bottom, #666 0%, #444 100%);
   border-radius: 999px;
-  border: 2px solid #333;
-  box-shadow: 0 3px 0 rgba(0, 0, 0, 0.5);
+  border: none;
+  box-shadow: 0 3px 0 #222, 0 4px 5px rgba(0, 0, 0, 0.3),
+    inset 0 1px 1px rgba(255, 255, 255, 0.2);
   transition: transform 80ms ease, box-shadow 80ms ease;
 }
 
 .miniButton:active {
-  transform: translateY(2px);
-  box-shadow: 0 0 0 rgba(0, 0, 0, 0.5);
+  transform: translateY(3px);
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.5);
 }
 
 .miniLabel {
   margin-top: 6px;
   text-align: center;
-  color: #6b7280;
+  color: rgba(107, 114, 128, 0.8);
   font-family: "Press Start 2P", cursive;
   font-size: clamp(7px, 1.4vw, 9px);
   letter-spacing: 0.08em;
@@ -1136,7 +1154,7 @@
 
 .actionShell {
   position: relative;
-  --pad-size: clamp(135px, 24vw, 200px);
+  --pad-size: clamp(140px, 24vw, 210px);
   width: var(--pad-size);
   height: auto;
   aspect-ratio: 1 / 1;
@@ -1149,10 +1167,11 @@
 
 .actionHalo {
   position: absolute;
-  inset: 8px;
+  inset: 10px;
   background: rgba(0, 0, 0, 0.05);
   border-radius: 40px;
   transform: rotate(-10deg);
+  box-shadow: inset 0 0 12px rgba(0, 0, 0, 0.15);
 }
 
 :global(.dark) .actionHalo {
@@ -1176,8 +1195,10 @@
   width: var(--action-size);
   height: var(--action-size);
   border-radius: 50%;
-  border: 2px solid #000;
-  box-shadow: 0 4px 0 rgba(0, 0, 0, 0.45);
+  border: none;
+  box-shadow: 0 5px 0 #111, 0 7px 10px rgba(0, 0, 0, 0.4),
+    inset 0 2px 4px rgba(255, 255, 255, 0.4),
+    inset 0 -3px 4px rgba(0, 0, 0, 0.2);
   transition: transform 80ms ease, box-shadow 80ms ease;
   display: grid;
   place-items: center;
@@ -1185,12 +1206,24 @@
 }
 
 .actionButton:active {
-  transform: var(--action-shift) translateY(4px);
-  box-shadow: 0 0 0 rgba(0, 0, 0, 0.45);
+  transform: var(--action-shift) translateY(5px);
+  box-shadow: 0 0 0 #111, inset 0 3px 5px rgba(0, 0, 0, 0.6);
+}
+
+.actionButton::after {
+  content: "";
+  position: absolute;
+  top: 10%;
+  left: 15%;
+  width: 70%;
+  height: 45%;
+  border-radius: 50%;
+  background: linear-gradient(to bottom, rgba(255, 255, 255, 0.3), transparent);
+  pointer-events: none;
 }
 
 .actionButtonY {
-  background: #264653;
+  background: radial-gradient(circle at 40% 40%, #264653, #19303a);
   color: #fff;
   top: var(--action-gap);
   left: 50%;
@@ -1198,7 +1231,7 @@
 }
 
 .actionButtonA {
-  background: var(--color-secondary);
+  background: radial-gradient(circle at 40% 40%, #2a9d8f, #1d6f65);
   color: #fff;
   bottom: var(--action-gap);
   left: 50%;
@@ -1206,7 +1239,7 @@
 }
 
 .actionButtonX {
-  background: #e9c46a;
+  background: radial-gradient(circle at 40% 40%, #e9c46a, #bfa055);
   color: #fff;
   left: var(--action-gap);
   top: 50%;
@@ -1214,7 +1247,7 @@
 }
 
 .actionButtonB {
-  background: var(--color-primary);
+  background: radial-gradient(circle at 40% 40%, #e76f51, #c04e32);
   color: #fff;
   right: var(--action-gap);
   top: 50%;
@@ -1224,8 +1257,9 @@
 .actionLetter {
   font-family: "Press Start 2P", cursive;
   font-size: clamp(9px, 1.8vw, 14px);
-  opacity: 0.85;
-  text-shadow: 1px 1px 0 #000;
+  opacity: 0.9;
+  text-shadow: 0 -1px 1px rgba(0, 0, 0, 0.5);
+  color: rgba(255, 255, 255, 0.9);
 }
 
 .controllerDeco {
@@ -1237,8 +1271,10 @@
 
 .controllerDeco span {
   display: block;
-  width: 4px;
+  width: 6px;
   height: 24px;
-  background: #000;
+  background: #2a2a2a;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.8),
+    0 1px 0 rgba(255, 255, 255, 0.1);
   border-radius: 12px;
 }
