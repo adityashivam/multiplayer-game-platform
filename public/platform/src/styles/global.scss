@@ -28,12 +28,21 @@
   box-sizing: border-box;
 }
 
+html,
+body {
+  height: 100%;
+}
+
 body {
   margin: 0;
-  min-height: 100vh;
   background: var(--color-background);
   color: var(--color-text);
   font-family: "VT323", monospace;
+  overflow: hidden;
+}
+
+:global(#root) {
+  height: 100%;
 }
 
 a {
@@ -48,6 +57,11 @@ button {
 
 input {
   font: inherit;
+}
+
+::selection {
+  background: var(--color-primary);
+  color: #fff;
 }
 
 ::-webkit-scrollbar {

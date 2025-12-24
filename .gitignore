@@ -1,1 +1,7 @@
 /node_modules
+*/dist
+/public/**/dist
+/.env
+.DS_Store
+/logs
+*.log   

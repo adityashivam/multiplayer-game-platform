@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Controller from "./components/Controller.jsx";
 import GameCard from "./components/GameCard.jsx";
-import ShareBar from "./components/ShareBar.jsx";
 import { fallbackGames, gameTitles, visualsByGame } from "./data/games.js";
 import classNames from "./utils/classNames.js";
 import { loadScript } from "./utils/loadScript.js";
@@ -43,19 +42,17 @@ export default function App() {
   const [shareUrl, setShareUrl] = useState(window.location.href);
   const [copyLabel, setCopyLabel] = useState("Copy");
   const [gameLoadError, setGameLoadError] = useState(null);
+  const [shareOpen, setShareOpen] = useState(false);
   const cardRefs = useRef([]);
 
   const isGameView = Boolean(route?.gameId);
 
-  const headerStatus = useMemo(() => {
+  const headerTitle = useMemo(() => {
     if (isGameView) {
-      return gameTitles[route?.gameId] || route?.gameId?.toUpperCase() || "--";
+      return gameTitles[route?.gameId] || route?.gameId?.replace(/-/g, " ")?.toUpperCase() || "GAME VIEW";
     }
-    if (loadingGames) return "--";
-    return `${games.length} cartridge${games.length === 1 ? "" : "s"}`;
-  }, [games.length, isGameView, loadingGames, route?.gameId]);
-
-  const shareLabel = isGameView ? "Share this room" : "Share this lobby";
+    return "SELECT GAME CARTRIDGE";
+  }, [isGameView, route?.gameId]);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -127,6 +124,10 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    setShareOpen(isGameView);
+  }, [isGameView]);
+
+  useEffect(() => {
     if (!route?.gameId) {
       setGameLoadError(null);
       return;
@@ -168,7 +169,12 @@ export default function App() {
 
   const handleActionInput = useCallback(
     (action) => {
-      if (isGameView) return;
+      if (isGameView) {
+        if (action === "back") {
+          window.location.assign("/");
+        }
+        return;
+      }
       switch (action) {
         case "confirm":
         case "start":
@@ -250,92 +256,175 @@ export default function App() {
     </div>
   );
 
+  const roomLabel = route?.roomId ? `Room #${route.roomId}` : "Room #----";
+
   return (
     <div className={styles.app}>
-      <div className={styles.frame}>
+      <div className={styles.console}>
         <div className={styles.screen}>
           <div className={styles.scanlines} aria-hidden="true" />
-          <div className={styles.screenInner}>
-            <header className={styles.header}>
-              <div className={styles.badgeRow}>{headerLeft}</div>
-              <div className={styles.statusRow}>
-                <span id="header-status" className={styles.statusText}>
-                  {headerStatus}
-                </span>
-                <button
-                  id="theme-toggle"
-                  type="button"
-                  className={styles.themeToggle}
-                  onClick={isGameView ? undefined : () => setTheme((prev) => (prev === "dark" ? "light" : "dark"))}
-                  aria-label="Toggle theme"
-                >
-                  <span className={classNames("material-symbols-outlined", styles.themeIcon)}>contrast</span>
-                </button>
-              </div>
-            </header>
+          <div className={styles.screenOverlay} aria-hidden="true" />
+          <div className={styles.screenBody}>
+            <div className={classNames(styles.screenScroll, isGameView && styles.screenScrollGame)}>
+              {!isGameView && (
+                <header className={styles.header}>
+                  <div className={styles.headerTop}>
+                    {headerLeft}
+                    <button
+                      id="theme-toggle"
+                      type="button"
+                      className={styles.themeToggle}
+                      onClick={() => setTheme((prev) => (prev === "dark" ? "light" : "dark"))}
+                      aria-label="Toggle theme"
+                    >
+                      <span className={classNames("material-symbols-outlined", styles.themeIcon)}>contrast</span>
+                    </button>
+                  </div>
+                  <h1 className={styles.title}>{headerTitle}</h1>
+                </header>
+              )}
 
-            {!isGameView && (
-              <div id="lobby-title" className={styles.titleBlock}>
-                <h1 className={styles.title}>SELECT GAME CARTRIDGE</h1>
-                <p className={styles.subtitle}>
-                  Pick a title, spin up a room, and drop the link to a friend.
-                </p>
-              </div>
-            )}
+              {!isGameView && (
+                <div id="game-list" className={styles.lobbyList}>
+                  {loadingGames ? (
+                    <div className={styles.emptyState}>Loading cartridges...</div>
+                  ) : games.length === 0 ? (
+                    <div className={styles.emptyState}>No games available right now.</div>
+                  ) : (
+                    games.map((game, index) => {
+                      const visuals = visualsByGame[game.id] || {};
+                      const featured = visuals.featured ?? index === 0;
+                      return (
+                        <GameCard
+                          key={game.id}
+                          game={game}
+                          visuals={visuals}
+                          featured={featured}
+                          selected={selectedIndex === index}
+                          onSelect={() => setSelectedIndex(index)}
+                          onActivate={() => window.location.assign(game.path)}
+                          ref={(node) => {
+                            cardRefs.current[index] = node;
+                          }}
+                        />
+                      );
+                    })
+                  )}
+                </div>
+              )}
 
-            {isGameView && (
-              <ShareBar
-                shareUrl={shareUrl}
-                label={shareLabel}
-                copyLabel={copyLabel}
-                onCopy={handleCopyShare}
-                onOpen={() => window.location.assign(shareUrl)}
-              />
-            )}
-
-            <div id="lobby-view" className={classNames(styles.view, isGameView && styles.hidden)}>
-              <div id="game-list" className={styles.lobbyList}>
-                {loadingGames ? (
-                  <div className={styles.emptyState}>Loading cartridges...</div>
-                ) : games.length === 0 ? (
-                  <div className={styles.emptyState}>No games available right now.</div>
-                ) : (
-                  games.map((game, index) => {
-                    const visuals = visualsByGame[game.id] || {};
-                    const featured = visuals.featured ?? index === 0;
-                    return (
-                      <GameCard
-                        key={game.id}
-                        game={game}
-                        visuals={visuals}
-                        featured={featured}
-                        selected={selectedIndex === index}
-                        onSelect={() => setSelectedIndex(index)}
-                        onActivate={() => window.location.assign(game.path)}
-                        ref={(node) => {
-                          cardRefs.current[index] = node;
-                        }}
-                      />
-                    );
-                  })
-                )}
-              </div>
-            </div>
-
-            <div id="game-view" className={classNames(styles.gameView, !isGameView && styles.hidden)}>
-              <div className={styles.canvasFrame}>
-                <canvas id="game-canvas" className={styles.gameCanvas} />
-                <div className={styles.canvasOverlay} />
-                {gameLoadError && <div className={styles.emptyState}>{gameLoadError}</div>}
-              </div>
+              {isGameView && (
+                <div id="game-view" className={styles.gameView}>
+                  <div className={styles.canvasFrame}>
+                    <canvas id="game-canvas" className={styles.gameCanvas} />
+                    <div className={styles.canvasOverlay} />
+                    {shareOpen && (
+                      <div className={styles.shareOverlay} role="dialog" aria-modal="true" aria-label="Invite players">
+                        <div className={styles.shareModal}>
+                          <button
+                            type="button"
+                            className={styles.shareClose}
+                            onClick={() => setShareOpen(false)}
+                            aria-label="Close invite dialog"
+                          >
+                            <span className={classNames("material-symbols-outlined", styles.shareCloseIcon)}>
+                              close
+                            </span>
+                          </button>
+                          <div className={styles.shareHeader}>
+                            <div className={styles.sharePattern} aria-hidden="true" />
+                            <h2 className={styles.shareTitle}>Invite Players</h2>
+                            <p className={styles.shareSubtitle}>{roomLabel} Lobby</p>
+                          </div>
+                          <div className={styles.shareBody}>
+                            <div className={styles.shareField}>
+                              <label className={styles.shareFieldLabel}>Share Room Link</label>
+                              <div className={styles.shareInputRow}>
+                                <input className={styles.shareLinkInput} value={shareUrl} readOnly />
+                                <button
+                                  type="button"
+                                  className={styles.shareCopy}
+                                  onClick={handleCopyShare}
+                                  aria-label="Copy room link"
+                                  title={copyLabel}
+                                >
+                                  <span className="material-symbols-outlined">content_copy</span>
+                                </button>
+                              </div>
+                            </div>
+                            <div className={styles.shareDivider}>
+                              <span className={styles.shareDividerLine} />
+                              <span className={styles.shareDividerText}>Or instant share</span>
+                              <span className={styles.shareDividerLine} />
+                            </div>
+                            <button type="button" className={styles.shareActionPrimary}>
+                              <div className={styles.shareActionIcon}>
+                                <span className="material-symbols-outlined">person_add</span>
+                              </div>
+                              <div className={styles.shareActionText}>
+                                <span className={styles.shareActionEyebrow}>Online</span>
+                                <span className={styles.shareActionTitle}>Invite Active Friends</span>
+                              </div>
+                            </button>
+                            <button type="button" className={styles.shareActionWhatsApp}>
+                              <div className={styles.shareActionIcon}>
+                                <span className="material-symbols-outlined">chat</span>
+                              </div>
+                              <div className={styles.shareActionText}>
+                                <span className={styles.shareActionEyebrow}>Send via</span>
+                                <span className={styles.shareActionTitle}>WhatsApp</span>
+                              </div>
+                            </button>
+                            <div className={styles.shareActionGrid}>
+                              <button type="button" className={styles.shareActionGhost}>
+                                <span className={classNames("material-symbols-outlined", styles.shareGhostIcon)}>
+                                  sms
+                                </span>
+                                <span className={styles.shareGhostLabel}>SMS</span>
+                              </button>
+                              <button type="button" className={styles.shareActionGhost}>
+                                <span className={classNames("material-symbols-outlined", styles.shareGhostIcon)}>
+                                  share
+                                </span>
+                                <span className={styles.shareGhostLabel}>More</span>
+                              </button>
+                            </div>
+                          </div>
+                          <div className={styles.shareFooter}>Waiting for host to start...</div>
+                        </div>
+                      </div>
+                    )}
+                    {gameLoadError && <div className={styles.emptyState}>{gameLoadError}</div>}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
-          <div className={styles.footerBar}>
-            <span className={styles.footerLabel}>KABOOM VISION</span>
-          </div>
+          <nav className={styles.navBar} aria-label="Primary">
+            <button type="button" className={styles.navButton}>
+              <span className={classNames("material-symbols-outlined", styles.navIcon)}>videogame_asset</span>
+              <span className={styles.navLabel}>Solo</span>
+            </button>
+            <button type="button" className={classNames(styles.navButton, styles.navButtonActive)} aria-current="page">
+              <span className={classNames("material-symbols-outlined", styles.navIcon)}>hub</span>
+              <span className={styles.navLabel}>Multi</span>
+            </button>
+            <button type="button" className={styles.navButton}>
+              <span className={classNames("material-symbols-outlined", styles.navIcon)}>id_card</span>
+              <span className={styles.navLabel}>Profile</span>
+            </button>
+            <button type="button" className={styles.navButton}>
+              <span className={classNames("material-symbols-outlined", styles.navIcon)}>group</span>
+              <span className={styles.navLabel}>Friends</span>
+            </button>
+            <button type="button" className={styles.navButton}>
+              <span className={classNames("material-symbols-outlined", styles.navIcon)}>settings</span>
+              <span className={styles.navLabel}>Config</span>
+            </button>
+          </nav>
         </div>
 
-        <Controller onDirectional={handleDirectionalInput} onAction={handleActionInput} disabled={isGameView} />
+        <Controller onDirectional={handleDirectionalInput} onAction={handleActionInput} disabled={false} />
       </div>
     </div>
   );

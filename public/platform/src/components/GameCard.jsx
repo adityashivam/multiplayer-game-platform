@@ -35,7 +35,7 @@ const GameCard = React.forwardRef(function GameCard(
       ref={ref}
     >
       {featured && <div className={styles.arrow} aria-hidden="true" />}
-      <div className={styles.corner} aria-hidden="true" />
+      {featured && <div className={styles.corner} aria-hidden="true" />}
       <div className={styles.cardMedia}>
         {hasArt ? (
           <img src={visuals.art} alt={`${game.name} artwork`} className={styles.cardImage} />

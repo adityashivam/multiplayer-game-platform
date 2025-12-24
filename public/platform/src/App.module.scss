@@ -3,36 +3,56 @@
 }
 
 .app {
-  min-height: 100vh;
+  height: 100%;
+  width: 100%;
   display: flex;
-  align-items: center;
+  align-items: stretch;
   justify-content: center;
-  padding: 16px 10px;
-  background: radial-gradient(circle at 20% 20%, rgba(231, 111, 81, 0.12), transparent 40%),
-    radial-gradient(circle at 80% 10%, rgba(42, 157, 143, 0.14), transparent 42%),
+  padding: 0;
+  background: radial-gradient(
+      circle at 50% 0%,
+      rgba(255, 255, 255, 0.18),
+      transparent 60%
+    ),
+    var(--color-background);
+  overflow: hidden;
+}
+
+:global(.dark) .app {
+  background: radial-gradient(
+      circle at 50% 0%,
+      rgba(231, 111, 81, 0.12),
+      transparent 60%
+    ),
     var(--color-background);
 }
 
-.frame {
+.console {
   width: 100%;
-  max-width: 780px;
-  max-height: 860px;
+  height: 100%;
+  max-width: none;
+  min-height: 0;
   display: flex;
   flex-direction: column;
-  border-radius: 10px;
-  gap: 10px;
+  gap: 0;
 }
 
 .screen {
-  flex: 1;
-  min-height: 0;
+  flex: 1 0 65vh;
+  min-height: 65vh;
   background: var(--color-surface);
   border: 4px solid #000;
+  border-radius: 0;
   box-shadow: var(--screen-shadow);
+  position: relative;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
-  position: relative;
+}
+
+:global(.dark) .screen {
+  border-color: #5c5046;
+  box-shadow: var(--screen-shadow-dark);
 }
 
 .scanlines {
@@ -48,33 +68,54 @@
   background-size: 100% 4px;
   pointer-events: none;
   opacity: 0.18;
-  z-index: 5;
+  z-index: 50;
 }
 
-.screenInner {
+.screenOverlay {
+  position: absolute;
+  inset: 0;
+  box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.45);
+  pointer-events: none;
+  z-index: 40;
+}
+
+.screenBody {
   position: relative;
   z-index: 10;
   flex: 1;
   min-height: 0;
-  padding: 16px 18px 12px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  background: radial-gradient(circle at 30% 20%, rgba(0, 0, 0, 0.04), transparent 40%),
-    radial-gradient(circle at 70% 80%, rgba(0, 0, 0, 0.05), transparent 45%);
+}
+
+.screenScroll {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  padding: clamp(12px, 2.4vh, 20px) clamp(12px, 3vw, 24px)
+    clamp(10px, 2vh, 16px);
+  display: flex;
+  flex-direction: column;
+  gap: clamp(12px, 2vh, 18px);
+}
+
+.screenScrollGame {
+  overflow: hidden;
+  padding: 0;
+  gap: 0;
 }
 
 .header {
   display: flex;
+  flex-direction: column;
+  gap: clamp(8px, 1.8vh, 12px);
+}
+
+.headerTop {
+  display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
-}
-
-.badgeRow {
-  display: flex;
-  align-items: center;
-  gap: 10px;
 }
 
 .badge {
@@ -82,46 +123,39 @@
   color: #fff;
   padding: 6px 10px;
   border: 2px solid #000;
-  box-shadow: 2px 2px 0 0 #000;
+  box-shadow: var(--shadow-sm);
   letter-spacing: 0.18em;
   text-transform: uppercase;
-  font-size: 13px;
+  font-size: 12px;
+  font-family: "Press Start 2P", cursive;
 }
 
 .backLink {
   background: #264653;
   color: #fff;
-  padding: 8px 12px;
+  padding: 6px 10px;
   border: 2px solid #000;
-  box-shadow: 2px 2px 0 0 #000;
+  box-shadow: var(--shadow-sm);
+  letter-spacing: 0.12em;
   text-transform: uppercase;
-  font-size: 12px;
-  letter-spacing: 0.1em;
-}
-
-.statusRow {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.statusText {
-  font-size: 13px;
-  letter-spacing: 0.18em;
-  font-weight: 700;
-  color: var(--color-muted);
-  text-transform: uppercase;
+  font-size: 11px;
+  font-family: "Press Start 2P", cursive;
 }
 
 .themeToggle {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 36px;
+  width: 34px;
+  height: 34px;
   background: var(--color-surface-alt);
   border: 2px solid #000;
-  box-shadow: 2px 2px 0 0 #000;
+  box-shadow: var(--shadow-sm);
+}
+
+:global(.dark) .themeToggle {
+  background: var(--color-surface-dark);
+  border-color: #5c5046;
 }
 
 .themeIcon {
@@ -129,34 +163,43 @@
   font-size: 18px;
 }
 
-.titleBlock {
-  border-bottom: 2px dashed rgba(0, 0, 0, 0.15);
-  padding-bottom: 10px;
-}
-
-:global(.dark) .titleBlock {
-  border-bottom-color: rgba(255, 255, 255, 0.18);
+:global(.dark) .themeIcon {
+  color: #f4f1de;
 }
 
 .title {
   font-family: "Press Start 2P", cursive;
-  font-size: 16px;
-  color: var(--color-text);
-  line-height: 1.4;
+  font-size: clamp(12px, 2.2vw, 16px);
+  line-height: 1.5;
   margin: 0;
+  color: var(--color-text);
+  border-bottom: 2px dashed rgba(0, 0, 0, 0.25);
+  padding-bottom: clamp(6px, 1.4vh, 10px);
 }
 
-.subtitle {
-  margin: 8px 0 0;
+:global(.dark) .title {
+  border-bottom-color: rgba(255, 255, 255, 0.2);
+  color: #e76f51;
+}
+
+.lobbyList {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(10px, 2vh, 18px);
+  padding-bottom: 0;
+  flex: 1;
+  min-height: 0;
+}
+
+.emptyState {
   color: var(--color-muted);
   font-size: 16px;
-  line-height: 1.35;
 }
 
 .shareBar {
-  background: var(--color-surface-alt);
+  background: #fdf0d5;
   border: 2px solid #000;
-  box-shadow: 2px 2px 0 0 #000;
+  box-shadow: var(--shadow-sm);
   padding: 12px;
   display: flex;
   flex-direction: column;
@@ -170,7 +213,7 @@
 
 .shareLabel {
   font-size: 11px;
-  letter-spacing: 0.18em;
+  letter-spacing: 0.16em;
   text-transform: uppercase;
   color: var(--color-muted);
 }
@@ -180,18 +223,18 @@
   flex-direction: column;
   gap: 8px;
 
-  @media (min-width: 600px) {
+  @media (min-width: 640px) {
     flex-direction: row;
   }
 }
 
 .shareInput {
   flex: 1;
-  padding: 10px 12px;
+  padding: 8px 10px;
   border: 2px solid #000;
   background: #fff;
   color: #000;
-  box-shadow: 2px 2px 0 0 #000;
+  box-shadow: var(--shadow-sm);
 }
 
 :global(.dark) .shareInput {
@@ -206,72 +249,472 @@
 }
 
 .shareButton {
-  padding: 10px 16px;
+  padding: 8px 14px;
   border: 2px solid #000;
-  box-shadow: 2px 2px 0 0 #000;
+  box-shadow: var(--shadow-sm);
   background: var(--color-primary);
   color: #fff;
   text-transform: uppercase;
   letter-spacing: 0.08em;
+  font-size: 12px;
 }
 
 .shareButtonSecondary {
   background: var(--color-secondary);
 }
 
-.view {
+.shareOverlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: clamp(10px, 2.4vw, 16px);
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(2px);
+  z-index: 6;
+}
+
+.shareModal {
+  position: relative;
+  width: 80%;
+  background: #f4f1de;
+  border: 4px solid #000;
+  box-shadow: 8px 8px 0 rgba(0, 0, 0, 0.5);
+  display: flex;
+  flex-direction: column;
+  max-height: 80%;
+}
+
+:global(.dark) .shareModal {
+  background: #2c2520;
+}
+
+.shareClose {
+  position: absolute;
+  top: -14px;
+  right: -14px;
+  width: 32px;
+  height: 32px;
+  border: 2px solid #000;
+  background: #ef4444;
+  color: #fff;
+  box-shadow: var(--shadow-sm);
+  display: grid;
+  place-items: center;
+  transition: transform 120ms ease;
+}
+
+.shareClose:hover {
+  transform: scale(1.05);
+}
+
+.shareCloseIcon {
+  font-size: 18px;
+}
+
+.shareHeader {
+  position: relative;
+  background: #e9c46a;
+  border-bottom: 4px solid #000;
+  padding: 10px 8px;
+  text-align: center;
+  overflow: hidden;
+}
+
+:global(.dark) .shareHeader {
+  background: #3e342f;
+}
+
+.sharePattern {
+  position: absolute;
+  inset: 0;
+  opacity: 0.1;
+  background-image: linear-gradient(45deg, #000 25%, transparent 25%),
+    linear-gradient(-45deg, #000 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #000 75%),
+    linear-gradient(-45deg, transparent 75%, #000 75%);
+  background-size: 10px 10px;
+  background-position: 0 0, 0 5px, 5px -5px, -5px 0;
+}
+
+.shareTitle {
+  margin: 0;
+  font-family: "Press Start 2P", cursive;
+  font-size: 10px;
+  text-transform: uppercase;
+  color: #111;
+  position: relative;
+  z-index: 1;
+}
+
+:global(.dark) .shareTitle {
+  color: #e76f51;
+}
+
+.shareSubtitle {
+  margin: 6px 0 0;
+  font-family: "VT323", monospace;
+  font-size: 14px;
+  color: #4b5563;
+  position: relative;
+  z-index: 1;
+}
+
+:global(.dark) .shareSubtitle {
+  color: #9ca3af;
+}
+
+.shareBody {
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.shareField {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.shareFieldLabel {
+  font-family: "Press Start 2P", cursive;
+  font-size: 8px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #6b7280;
+}
+
+.shareInputRow {
+  position: relative;
+  display: flex;
+  box-shadow: var(--shadow-sm);
+}
+
+.shareLinkInput {
+  flex: 1;
+  border: 2px solid #000;
+  padding: 6px 36px 6px 6px;
+  font-family: "VT323", monospace;
+  font-size: 14px;
+  color: #374151;
+  background: #fff;
+}
+
+:global(.dark) .shareLinkInput {
+  background: #000;
+  color: #d1d5db;
+}
+
+.shareCopy {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 34px;
+  height: 100%;
+  background: var(--color-secondary);
+  color: #fff;
+  border-left: 2px solid #000;
+  display: grid;
+  place-items: center;
+}
+
+.shareDivider {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.shareDividerLine {
+  flex: 1;
+  height: 2px;
+  background: rgba(0, 0, 0, 0.1);
+}
+
+:global(.dark) .shareDividerLine {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.shareDividerText {
+  font-family: "Press Start 2P", cursive;
+  font-size: 8px;
+  color: #9ca3af;
+  text-transform: uppercase;
+}
+
+.shareActionPrimary,
+.shareActionWhatsApp {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px;
+  border: 2px solid #000;
+  box-shadow: var(--shadow-sm);
+  text-align: left;
+  transition: transform 120ms ease, box-shadow 120ms ease;
+}
+
+.shareActionPrimary {
+  background: #3b82f6;
+  color: #fff;
+}
+
+.shareActionWhatsApp {
+  background: #25d366;
+  color: #fff;
+}
+
+.shareActionPrimary:hover,
+.shareActionWhatsApp:hover {
+  transform: translateY(-2px);
+  box-shadow: 2px 2px 0 #000;
+}
+
+.shareActionIcon {
+  width: 24px;
+  height: 24px;
+  border: 1px solid rgba(0, 0, 0, 0.2);
+  background: rgba(0, 0, 0, 0.1);
+  display: grid;
+  place-items: center;
+}
+
+.shareActionText {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.shareActionEyebrow {
+  font-family: "Press Start 2P", cursive;
+  font-size: 7px;
+  text-transform: uppercase;
+  opacity: 0.8;
+}
+
+.shareActionTitle {
+  font-family: "Press Start 2P", cursive;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+}
+
+.shareActionGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.shareActionGhost {
+  background: #fff;
+  border: 2px solid #000;
+  box-shadow: var(--shadow-sm);
+  padding: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: transform 120ms ease, box-shadow 120ms ease;
+}
+
+:global(.dark) .shareActionGhost {
+  background: #3e342f;
+}
+
+.shareActionGhost:hover {
+  transform: translateY(-2px);
+  box-shadow: 2px 2px 0 #000;
+}
+
+.shareGhostIcon {
+  font-size: 16px;
+}
+
+.shareGhostLabel {
+  font-family: "Press Start 2P", cursive;
+  font-size: 9px;
+  color: #374151;
+}
+
+:global(.dark) .shareGhostLabel {
+  color: #d1d5db;
+}
+
+.shareFooter {
+  padding: 6px;
+  text-align: center;
+  font-size: 11px;
+  color: #6b7280;
+  background: rgba(0, 0, 0, 0.04);
+  border-top: 2px solid rgba(0, 0, 0, 0.1);
+}
+
+:global(.dark) .shareFooter {
+  background: rgba(0, 0, 0, 0.2);
+  border-top-color: rgba(255, 255, 255, 0.1);
+  color: #9ca3af;
+}
+
+.gameView {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
   flex: 1;
   min-height: 0;
 }
 
-.hidden {
-  display: none !important;
+.canvasFrame {
+  flex: 1;
+  min-height: 0;
+  background: #000;
+  border: none;
+  box-shadow: none;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
-.lobbyList {
+:global(.dark) .canvasFrame {
+  border-color: #5c5046;
+  box-shadow: none;
+}
+
+.gameCanvas {
+  width: 100%;
   height: 100%;
-  overflow-y: auto;
-  padding-right: 4px;
+  display: block;
+  object-fit: contain;
+  object-position: center center;
+}
+
+.canvasOverlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(0deg, rgba(0, 0, 0, 0.35), transparent);
+}
+
+.footerBar {
+  background: #000;
+  padding: 6px 12px;
+  text-align: center;
+  border-top: 4px solid #000;
+}
+
+:global(.dark) .footerBar {
+  border-top-color: #5c5046;
+}
+
+.footerLabel {
+  color: #6b7280;
+  font-family: "Press Start 2P", cursive;
+  font-size: 10px;
+  letter-spacing: 0.3em;
+}
+
+.navBar {
+  background: var(--color-surface-alt);
+  border-top: 4px solid #000;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+}
+
+:global(.dark) .navBar {
+  background: #1d1918;
+  border-top-color: #5c5046;
+}
+
+.navButton {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 10px 4px;
+  background: var(--color-background);
+  border-right: 2px solid rgba(0, 0, 0, 0.1);
+  color: #4a413a;
+  transition: background 150ms ease, color 150ms ease;
 }
 
-.emptyState {
-  color: var(--color-muted);
-  font-size: 16px;
+.navButton:last-child {
+  border-right: none;
+}
+
+:global(.dark) .navButton {
+  background: #2c2520;
+  color: #d9cfc5;
+  border-right-color: rgba(255, 255, 255, 0.08);
+}
+
+.navButton:hover {
+  background: rgba(0, 0, 0, 0.06);
+}
+
+:global(.dark) .navButton:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.navButtonActive {
+  background: var(--color-primary);
+  color: #fff;
+  position: relative;
+}
+
+.navButtonActive::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.1);
+  pointer-events: none;
+}
+
+.navIcon {
+  font-size: 20px;
+}
+
+.navLabel {
+  font-family: "Press Start 2P", cursive;
+  font-size: 8px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
 }
 
 .card {
   position: relative;
   display: flex;
-  gap: 12px;
+  gap: clamp(10px, 2vw, 14px);
   background: #fdf0d5;
   border: 4px solid transparent;
+  border-top-color: #d9ccb2;
+  border-left-color: #d9ccb2;
   border-right-color: #000;
   border-bottom-color: #000;
-  padding: 14px;
+  padding: clamp(10px, 2vw, 14px);
   cursor: pointer;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
-  transition: transform 120ms ease, box-shadow 120ms ease, filter 120ms ease, opacity 120ms ease;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.08);
+  transition: transform 120ms ease, box-shadow 120ms ease, filter 120ms ease,
+    opacity 120ms ease;
   outline: none;
 }
 
 :global(.dark) .card {
   background: var(--color-surface-dark);
+  border-top-color: #3a312a;
+  border-left-color: #3a312a;
   border-right-color: #5c5046;
   border-bottom-color: #5c5046;
 }
 
 .featured {
-  background: #fdf0d5;
   border-color: var(--color-primary);
   box-shadow: 4px 4px 0 0 var(--color-primary);
 }
 
 :global(.dark) .featured {
   background: var(--color-surface-dark);
-  box-shadow: 4px 4px 0 0 var(--color-primary);
 }
 
 .card:hover {
@@ -281,7 +724,7 @@
 
 .card:not(.featured) {
   filter: grayscale(0.1);
-  opacity: 0.9;
+  opacity: 0.7;
 }
 
 .card:not(.featured):hover {
@@ -291,7 +734,7 @@
 
 .selected {
   outline: 3px solid var(--color-primary);
-  box-shadow: 0 0 0 4px #000;
+  outline-offset: 3px;
   filter: none;
   opacity: 1;
 }
@@ -300,21 +743,20 @@
   position: absolute;
   top: 0;
   right: 0;
-  width: 12px;
-  height: 12px;
-  background: rgba(0, 0, 0, 0.08);
+  width: 14px;
+  height: 14px;
+  background: var(--color-primary);
   border-left: 4px solid #000;
   border-bottom: 4px solid #000;
 }
 
 :global(.dark) .corner {
-  background: rgba(255, 255, 255, 0.08);
   border-color: #5c5046;
 }
 
 .arrow {
   position: absolute;
-  left: -10px;
+  left: -12px;
   top: 50%;
   transform: translateY(-50%);
   width: 0;
@@ -344,8 +786,8 @@
 
 .cardMedia {
   position: relative;
-  width: 88px;
-  height: 88px;
+  width: clamp(56px, 9vw, 80px);
+  height: clamp(56px, 9vw, 80px);
   border: 2px solid #000;
   overflow: hidden;
   box-shadow: 2px 2px 0 0 rgba(0, 0, 0, 0.2);
@@ -423,21 +865,21 @@
 .cardTitle {
   margin: 0;
   font-family: "Press Start 2P", cursive;
-  font-size: 14px;
+  font-size: clamp(11px, 1.8vw, 14px);
   color: var(--color-text);
   line-height: 1.3;
   flex: 1;
 }
 
 .cardIcon {
-  font-size: 24px;
+  font-size: clamp(18px, 3vw, 24px);
   color: var(--color-primary);
 }
 
 .cardDescription {
   margin: 0;
   color: var(--color-muted);
-  font-size: 16px;
+  font-size: clamp(12px, 2.4vw, 16px);
   line-height: 1.3;
 }
 
@@ -460,195 +902,221 @@
   animation: pulse 1.3s infinite;
 }
 
-.gameView {
+.controllerSection {
+  background: var(--color-background);
+  padding: clamp(12px, 2.2vh, 18px) clamp(12px, 3vw, 22px)
+    clamp(16px, 3vh, 24px);
+  border: none;
+  border-radius: 0;
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  height: 100%;
-}
-
-.canvasFrame {
-  flex: 1;
+  gap: clamp(12px, 2vh, 16px);
+  flex: 0 1 35vh;
+  max-height: 35vh;
   min-height: 0;
-  background: #000;
-  border: 2px solid #000;
-  box-shadow: 2px 2px 0 0 #000;
-  position: relative;
   overflow: hidden;
 }
 
-:global(.dark) .canvasFrame {
-  border-color: #5c5046;
-  box-shadow: 2px 2px 0 0 #5c5046;
+.controllerTopBar {
+  height: 8px;
+  background: rgba(0, 0, 0, 0.08);
+  display: flex;
+  gap: 10px;
 }
 
-.gameCanvas {
-  width: 100%;
-  height: 100%;
-  display: block;
-  object-fit: contain;
+:global(.dark) .controllerTopBar {
+  background: rgba(255, 255, 255, 0.08);
 }
 
-.canvasOverlay {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background: linear-gradient(0deg, rgba(0, 0, 0, 0.35), transparent);
+.controllerTopSegment {
+  flex: 1;
+  background: transparent;
 }
 
-.footerBar {
-  text-align: center;
-  padding: 6px 0;
-  background: #000;
-  border-top: 4px solid #000;
+.controllerTopSegmentActive {
+  background: rgba(0, 0, 0, 0.1);
 }
 
-.footerLabel {
-  color: #6b7280;
-  font-family: "Press Start 2P", cursive;
-  font-size: 11px;
-  letter-spacing: 0.28em;
-}
-
-.controllerSection {
-  background: linear-gradient(180deg, rgba(0, 0, 0, 0.06), transparent),
-    var(--color-background);
-  border-radius: 12px;
-  padding: 10px 6px 16px;
-  box-shadow: inset 0 0 12px rgba(0, 0, 0, 0.08);
+:global(.dark) .controllerTopSegmentActive {
+  background: rgba(255, 255, 255, 0.08);
 }
 
 .controllerGrid {
-  max-width: 720px;
-  margin: 0 auto;
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 12px;
-
-  @media (min-width: 680px) {
-    grid-template-columns: repeat(3, 1fr);
-    align-items: center;
-  }
-}
-
-.dpadWrap {
+  flex: 1;
   display: flex;
-  justify-content: center;
+  align-items: center;
+  justify-content: space-between;
+  gap: clamp(12px, 2vw, 18px);
+  max-width: 760px;
+  margin: 0 auto;
+  width: 100%;
+  flex-wrap: nowrap;
+  padding-top: clamp(8px, 2vh, 16px);
 }
 
-.dpad {
+.dpadShell {
   position: relative;
-  width: 120px;
-  height: 120px;
+  width: clamp(90px, 20vw, 170px);
+  height: auto;
+  aspect-ratio: 1 / 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 1;
+  min-width: 0;
 }
 
-.dpadButton {
+.dpadHalo {
   position: absolute;
-  background: #333;
-  color: #fff;
-  border: 2px solid #444;
-  box-shadow: 0 4px 0 #111, 0 5px 5px rgba(0, 0, 0, 0.4);
-  transition: transform 80ms ease, box-shadow 80ms ease;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.05);
+  border-radius: 50%;
+  transform: scale(1.05);
 }
 
-.dpadButton:active {
-  transform: translateY(4px);
-  box-shadow: 0 0 0 #111;
+:global(.dark) .dpadHalo {
+  background: rgba(255, 255, 255, 0.06);
 }
 
-.dpadButton[data-dir="up"] {
+.dpadCross {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.dpadVertical,
+.dpadHorizontal {
+  background: #222;
+  position: absolute;
+  box-shadow: 2px 4px 0 #000;
+  border: 1px solid #444;
+}
+
+.dpadVertical {
   top: 0;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 56px;
-  height: 48px;
-  border-radius: 6px 6px 2px 2px;
-}
-
-.dpadButton[data-dir="down"] {
   bottom: 0;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 56px;
-  height: 48px;
-  border-radius: 2px 2px 6px 6px;
+  left: 33.33%;
+  width: 33.33%;
+  border-radius: 4px;
+  z-index: 1;
 }
 
-.dpadButton[data-dir="left"] {
+.dpadHorizontal {
   left: 0;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 52px;
-  height: 44px;
-  border-radius: 6px 2px 2px 6px;
-}
-
-.dpadButton[data-dir="right"] {
   right: 0;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 52px;
-  height: 44px;
-  border-radius: 2px 6px 6px 2px;
+  top: 33.33%;
+  height: 33.33%;
+  border-radius: 4px;
+  z-index: 1;
 }
 
 .dpadCenter {
   position: absolute;
-  inset: 50% auto auto 50%;
-  transform: translate(-50%, -50%);
-  width: 60px;
-  height: 60px;
-  background: linear-gradient(135deg, #333, #111);
-  border-radius: 50%;
+  top: 33.33%;
+  left: 33.33%;
+  width: 33.33%;
+  height: 33.33%;
+  background: radial-gradient(circle, #333 0%, #222 100%);
   z-index: 2;
+}
+
+.dpadArea {
+  position: absolute;
+  z-index: 3;
+  background: transparent;
+  border: none;
+  padding: 0;
+}
+
+.dpadArea:active {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.dpadUp {
+  top: 0;
+  left: 33.33%;
+  width: 33.33%;
+  height: 33.33%;
+  border-radius: 4px 4px 0 0;
+}
+
+.dpadDown {
+  bottom: 0;
+  left: 33.33%;
+  width: 33.33%;
+  height: 33.33%;
+  border-radius: 0 0 4px 4px;
+}
+
+.dpadLeft {
+  top: 33.33%;
+  left: 0;
+  width: 33.33%;
+  height: 33.33%;
+  border-radius: 4px 0 0 4px;
+}
+
+.dpadRight {
+  top: 33.33%;
+  right: 0;
+  width: 33.33%;
+  height: 33.33%;
+  border-radius: 0 4px 4px 0;
 }
 
 .dpadHint {
   position: absolute;
   color: #a1a1aa;
-  font-size: 14px;
+  font-size: clamp(12px, 2.5vw, 18px);
   pointer-events: none;
-  z-index: 3;
+  z-index: 4;
 }
 
-.up {
-  top: 4px;
+.dpadHintUp {
+  top: 6px;
   left: 50%;
   transform: translateX(-50%);
 }
 
-.down {
-  bottom: 4px;
+.dpadHintDown {
+  bottom: 6px;
   left: 50%;
   transform: translateX(-50%);
 }
 
-.left {
-  left: 4px;
+.dpadHintLeft {
+  left: 6px;
   top: 50%;
   transform: translateY(-50%);
 }
 
-.right {
-  right: 4px;
+.dpadHintRight {
+  right: 6px;
   top: 50%;
   transform: translateY(-50%);
 }
 
 .selectStart {
   display: flex;
-  justify-content: center;
-  gap: 24px;
-  transform: rotate(-12deg);
+  gap: clamp(10px, 2vw, 16px);
+  transform: rotate(-15deg);
+  align-items: flex-end;
+  flex: 0 1 auto;
+}
+
+.selectStartGroup {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 
 .miniButton {
-  width: 56px;
-  height: 18px;
-  border-radius: 999px;
-  border: 1px solid #000;
+  width: clamp(36px, 8vw, 60px);
+  height: clamp(12px, 2vw, 20px);
   background: #555;
-  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.5);
+  border-radius: 999px;
+  border: 2px solid #333;
+  box-shadow: 0 3px 0 rgba(0, 0, 0, 0.5);
   transition: transform 80ms ease, box-shadow 80ms ease;
 }
 
@@ -658,60 +1126,104 @@
 }
 
 .miniLabel {
+  margin-top: 6px;
   text-align: center;
   color: #6b7280;
   font-family: "Press Start 2P", cursive;
-  font-size: 9px;
+  font-size: clamp(7px, 1.4vw, 9px);
   letter-spacing: 0.08em;
-  margin-top: 6px;
 }
 
-.actionWrap {
+.actionShell {
+  position: relative;
+  --pad-size: clamp(135px, 24vw, 200px);
+  width: var(--pad-size);
+  height: auto;
+  aspect-ratio: 1 / 1;
   display: flex;
+  align-items: center;
   justify-content: center;
+  flex-shrink: 1;
+  min-width: 0;
+}
+
+.actionHalo {
+  position: absolute;
+  inset: 8px;
+  background: rgba(0, 0, 0, 0.05);
+  border-radius: 40px;
+  transform: rotate(-10deg);
+}
+
+:global(.dark) .actionHalo {
+  background: rgba(255, 255, 255, 0.06);
 }
 
 .actionPad {
   position: relative;
-  width: 150px;
-  height: 150px;
-  transform: rotate(-14deg);
+  width: 100%;
+  height: 100%;
+  --action-gap: clamp(8px, calc(var(--pad-size) * 0.08), 16px);
+  --action-center-gap: clamp(6px, calc(var(--pad-size)), 35px);
+  --action-size: calc(
+    (var(--pad-size) - (var(--action-gap) * 2) - var(--action-center-gap)) / 2
+  );
 }
 
 .actionButton {
+  --action-shift: translate(0, 0);
   position: absolute;
-  width: 64px;
-  height: 64px;
+  width: var(--action-size);
+  height: var(--action-size);
   border-radius: 50%;
   border: 2px solid #000;
   box-shadow: 0 4px 0 rgba(0, 0, 0, 0.45);
   transition: transform 80ms ease, box-shadow 80ms ease;
   display: grid;
   place-items: center;
+  transform: var(--action-shift);
 }
 
 .actionButton:active {
-  transform: translateY(4px);
+  transform: var(--action-shift) translateY(4px);
   box-shadow: 0 0 0 rgba(0, 0, 0, 0.45);
 }
 
-.actionButton[data-action="back"] {
+.actionButtonY {
   background: #264653;
   color: #fff;
-  left: 6px;
-  bottom: 12px;
+  top: var(--action-gap);
+  left: 50%;
+  --action-shift: translateX(-50%);
 }
 
-.actionButton[data-action="confirm"] {
+.actionButtonA {
+  background: var(--color-secondary);
+  color: #fff;
+  bottom: var(--action-gap);
+  left: 50%;
+  --action-shift: translateX(-50%);
+}
+
+.actionButtonX {
+  background: #e9c46a;
+  color: #fff;
+  left: var(--action-gap);
+  top: 50%;
+  --action-shift: translateY(-50%);
+}
+
+.actionButtonB {
   background: var(--color-primary);
   color: #fff;
-  right: 6px;
-  top: 12px;
+  right: var(--action-gap);
+  top: 50%;
+  --action-shift: translateY(-50%);
 }
 
 .actionLetter {
   font-family: "Press Start 2P", cursive;
-  font-size: 18px;
+  font-size: clamp(9px, 1.8vw, 14px);
   opacity: 0.85;
   text-shadow: 1px 1px 0 #000;
 }
@@ -719,15 +1231,14 @@
 .controllerDeco {
   display: flex;
   justify-content: center;
-  gap: 4px;
-  margin-top: 6px;
-  opacity: 0.35;
+  gap: 6px;
+  opacity: 0.3;
 }
 
 .controllerDeco span {
   display: block;
-  width: 6px;
-  height: 26px;
+  width: 4px;
+  height: 24px;
   background: #000;
   border-radius: 12px;
 }
