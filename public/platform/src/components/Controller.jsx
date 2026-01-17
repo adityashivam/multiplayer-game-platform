@@ -24,21 +24,25 @@ function Controller({ onDirectional, onAction, disabled }) {
             <button
               type="button"
               className={classNames(styles.dpadArea, styles.dpadUp)}
+              data-dir="up"
               onClick={() => dirHandler?.("up")}
             />
             <button
               type="button"
               className={classNames(styles.dpadArea, styles.dpadDown)}
+              data-dir="down"
               onClick={() => dirHandler?.("down")}
             />
             <button
               type="button"
               className={classNames(styles.dpadArea, styles.dpadLeft)}
+              data-dir="left"
               onClick={() => dirHandler?.("left")}
             />
             <button
               type="button"
               className={classNames(styles.dpadArea, styles.dpadRight)}
+              data-dir="right"
               onClick={() => dirHandler?.("right")}
             />
             <span
@@ -70,11 +74,21 @@ function Controller({ onDirectional, onAction, disabled }) {
 
         <div className={styles.selectStart}>
           <div className={styles.selectStartGroup}>
-            <button type="button" className={styles.miniButton} onClick={() => actionHandler?.("select")} />
+            <button
+              type="button"
+              className={styles.miniButton}
+              data-action="select"
+              onClick={() => actionHandler?.("select")}
+            />
             <span className={styles.miniLabel}>SELECT</span>
           </div>
           <div className={styles.selectStartGroup}>
-            <button type="button" className={styles.miniButton} onClick={() => actionHandler?.("start")} />
+            <button
+              type="button"
+              className={styles.miniButton}
+              data-action="start"
+              onClick={() => actionHandler?.("start")}
+            />
             <span className={styles.miniLabel}>START</span>
           </div>
         </div>
@@ -85,13 +99,14 @@ function Controller({ onDirectional, onAction, disabled }) {
             <button
               type="button"
               className={classNames(styles.actionButton, styles.actionButtonY)}
-              onClick={() => actionHandler?.("start")}
+              aria-disabled="true"
             >
               <span className={styles.actionLetter}>Y</span>
             </button>
             <button
               type="button"
               className={classNames(styles.actionButton, styles.actionButtonA)}
+              data-action="confirm"
               onClick={() => actionHandler?.("confirm")}
             >
               <span className={styles.actionLetter}>A</span>
@@ -99,13 +114,15 @@ function Controller({ onDirectional, onAction, disabled }) {
             <button
               type="button"
               className={classNames(styles.actionButton, styles.actionButtonX)}
-              onClick={() => actionHandler?.("select")}
+              data-action="confirm"
+              onClick={() => actionHandler?.("confirm")}
             >
               <span className={styles.actionLetter}>X</span>
             </button>
             <button
               type="button"
               className={classNames(styles.actionButton, styles.actionButtonB)}
+              data-action="back"
               onClick={() => actionHandler?.("back")}
             >
               <span className={styles.actionLetter}>B</span>

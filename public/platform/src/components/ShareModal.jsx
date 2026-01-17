@@ -3,6 +3,8 @@ import classNames from "../utils/classNames.js";
 import styles from "../App.module.scss";
 
 export default function ShareModal({ onClose, roomLabel, shareUrl, copyLabel, onCopyShare }) {
+  const copyDisabled = !shareUrl;
+
   return (
     <div className={styles.shareOverlay} role="dialog" aria-modal="true" aria-label="Invite players">
       <div className={styles.shareModal}>
@@ -23,13 +25,19 @@ export default function ShareModal({ onClose, roomLabel, shareUrl, copyLabel, on
           <div className={styles.shareField}>
             <label className={styles.shareFieldLabel}>Share Room Link</label>
             <div className={styles.shareInputRow}>
-              <input className={styles.shareLinkInput} value={shareUrl} readOnly />
+              <input
+                className={styles.shareLinkInput}
+                value={shareUrl}
+                placeholder="Generating room link..."
+                readOnly
+              />
               <button
                 type="button"
                 className={styles.shareCopy}
                 onClick={onCopyShare}
                 aria-label="Copy room link"
                 title={copyLabel}
+                disabled={copyDisabled}
               >
                 <span className="material-symbols-outlined">content_copy</span>
               </button>

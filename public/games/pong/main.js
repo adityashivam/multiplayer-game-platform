@@ -26,12 +26,20 @@ kaboom({
 });
 
 // Fit canvas into top-half layout (mobile-first)
+const isEmbedded = Boolean(document.getElementById("game-view"));
 if (gameCanvas) {
   gameCanvas.style.width = "100%";
-  gameCanvas.style.height = "100%";
-  gameCanvas.style.maxHeight = "none";
+  gameCanvas.style.maxWidth = "100%";
   gameCanvas.style.display = "block";
   gameCanvas.style.objectFit = "contain";
+  gameCanvas.style.objectPosition = "center";
+  if (isEmbedded) {
+    gameCanvas.style.height = "auto";
+    gameCanvas.style.maxHeight = "100%";
+  } else {
+    gameCanvas.style.height = "100%";
+    gameCanvas.style.maxHeight = "none";
+  }
 }
 
 function buildRoomUrl(roomId) {
@@ -185,7 +193,9 @@ function handleActionInput(action) {
       window.location.href = "/";
       break;
     case "select":
-      toggleTheme();
+      if (!isEmbedded) {
+        toggleTheme();
+      }
       break;
     default:
       break;

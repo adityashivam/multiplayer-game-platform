@@ -7,7 +7,7 @@ const root = document.documentElement;
 const THEME_KEY = "kaboom-preferred-theme";
 let roomUrl = "";
 kaboom({
-  width: 960,
+  width: 1280,
   height: 720,
   scale: 0.7,
   debug: false,
@@ -17,17 +17,27 @@ kaboom({
 
 // Fit canvas into portrait-first layout (top half of screen)
 const gameCanvas = canvasEl || document.querySelector("canvas");
+const isEmbedded = Boolean(document.getElementById("game-view"));
 if (gameCanvas) {
   gameCanvas.style.width = "100%";
-  gameCanvas.style.height = "100%";
-  gameCanvas.style.maxHeight = "none";
+  gameCanvas.style.maxWidth = "100%";
   gameCanvas.style.display = "block";
   gameCanvas.style.objectFit = "contain";
+  gameCanvas.style.objectPosition = "center";
+  if (isEmbedded) {
+    gameCanvas.style.height = "auto";
+    gameCanvas.style.maxHeight = "100%";
+  } else {
+    gameCanvas.style.height = "100%";
+    gameCanvas.style.maxHeight = "none";
+  }
 }
 
 // ---------- Multiplayer setup ----------
 const GAME_SLUG = "fight";
 const ASSET_BASE = `/games/${GAME_SLUG}/assets`;
+const OPPONENT_JOIN_EVENT = "kaboom:opponent-joined";
+const ROOM_READY_EVENT = "kaboom:room-ready";
 
 function buildRoomUrl(roomId) {
   return `${window.location.origin}/games/${GAME_SLUG}/${roomId}`;
@@ -52,6 +62,7 @@ async function ensureRoomId() {
   const existingId = getRoomIdFromPath();
   if (existingId) {
     setRoomLink(buildRoomUrl(existingId));
+    announceRoomReady(existingId);
     return existingId;
   }
 
@@ -63,14 +74,26 @@ async function ensureRoomId() {
     const targetUrl = data.url || buildRoomUrl(roomId);
     window.history.replaceState({}, "", `/games/${GAME_SLUG}/${roomId}`);
     setRoomLink(targetUrl);
+    announceRoomReady(roomId);
     return roomId;
   } catch (err) {
     const roomId = Math.random().toString(36).slice(2, 8);
     const fallbackUrl = buildRoomUrl(roomId);
     window.history.replaceState({}, "", `/games/${GAME_SLUG}/${roomId}`);
     setRoomLink(fallbackUrl);
+    announceRoomReady(roomId);
     return roomId;
   }
+}
+
+function getOrCreateRoomId() {
+  if (!roomReadyPromise) {
+    roomReadyPromise = ensureRoomId().then((id) => {
+      gameId = id;
+      return id;
+    });
+  }
+  return roomReadyPromise;
 }
 
 async function startNewRoom() {
@@ -89,10 +112,32 @@ async function startNewRoom() {
 let gameId = null;
 let hasJoined = false;
 const socket = io(`/${GAME_SLUG}`);
+let roomReadyPromise = null;
 
 let myPlayerId = null;
 let readyToPlay = false;
 let lastConnected = { p1: false, p2: false };
+let opponentJoined = false;
+let currentRoomId = null;
+
+function announceRoomReady(roomId) {
+  if (!roomId) return;
+  if (roomId !== currentRoomId) {
+    currentRoomId = roomId;
+    opponentJoined = false;
+    window.__kaboomOpponentJoined = null;
+  }
+  window.dispatchEvent(
+    new CustomEvent(ROOM_READY_EVENT, { detail: { gameId: GAME_SLUG, roomId } }),
+  );
+}
+
+function announceOpponentJoined() {
+  window.__kaboomOpponentJoined = { gameId: GAME_SLUG, roomId: gameId };
+  window.dispatchEvent(
+    new CustomEvent(OPPONENT_JOIN_EVENT, { detail: { gameId: GAME_SLUG, roomId: gameId } }),
+  );
+}
 
 function sendInputFlag(type, value) {
   if (!readyToPlay) return;
@@ -172,7 +217,9 @@ function handleActionInput(action) {
       window.location.href = "/";
       break;
     case "select":
-      toggleTheme();
+      if (!isEmbedded) {
+        toggleTheme();
+      }
       break;
     default:
       break;
@@ -219,14 +266,9 @@ function tryJoinGame() {
 
 socket.on("connect", () => {
   hasJoined = false;
-  if (gameId) {
+  getOrCreateRoomId().then(() => {
     tryJoinGame();
-  } else {
-    ensureRoomId().then((id) => {
-      gameId = id;
-      tryJoinGame();
-    });
-  }
+  });
 });
 
 socket.on("roomFull", () => {
@@ -236,13 +278,13 @@ socket.on("roomFull", () => {
 socket.on("gameJoined", ({ playerId, gameId: joinedGameId }) => {
   myPlayerId = playerId;
   readyToPlay = true;
-  gameId = gameId || joinedGameId;
-  setRoomLink(buildRoomUrl(gameId));
-  console.log("Joined game", gameId, "as", playerId);
+  gameId = joinedGameId;
+  setRoomLink(buildRoomUrl(joinedGameId));
+  announceRoomReady(joinedGameId);
+  console.log("Joined game", joinedGameId, "as", playerId);
 });
 
-ensureRoomId().then((id) => {
-  gameId = id;
+getOrCreateRoomId().then(() => {
   tryJoinGame();
 });
 
@@ -605,13 +647,16 @@ scene("fight", () => {
     startNewRoom();
   });
 
-  socket.on("playerJoined", ({ playerId }) => {
-    showJoinToast(`Player ${playerId === "p1" ? "1" : "2"} joined the game`);
-  });
+socket.on("playerJoined", ({ playerId }) => {
+  showJoinToast(`Player ${playerId === "p1" ? "1" : "2"} joined the game`);
+  announceOpponentJoined();
+});
 
-  socket.on("playerLeft", ({ playerId }) => {
-    showJoinToast(`Player ${playerId === "p1" ? "1" : "2"} left the game`);
-  });
+socket.on("playerLeft", ({ playerId }) => {
+  showJoinToast(`Player ${playerId === "p1" ? "1" : "2"} left the game`);
+  opponentJoined = false;
+  window.__kaboomOpponentJoined = null;
+});
 
   // Input handlers
   onKeyDown("d", () => {
@@ -708,7 +753,10 @@ scene("fight", () => {
         }
         lastConnected = connected;
       }
-      updateInviteOverlay(connected);
+      if (!opponentJoined && connected.p1 && connected.p2) {
+        opponentJoined = true;
+        announceOpponentJoined();
+      }
     }
     updateStartUI(started, startAt, connected, gameOver);
 

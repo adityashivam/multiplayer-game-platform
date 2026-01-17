@@ -42,7 +42,6 @@ export default function App() {
   const [loadingGames, setLoadingGames] = useState(true);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [route, setRoute] = useState(getGameRoute());
-  const [shareUrl, setShareUrl] = useState(window.location.href);
   const [copyLabel, setCopyLabel] = useState("Copy");
   const [gameLoadError, setGameLoadError] = useState(null);
   const [shareOpen, setShareOpen] = useState(false);
@@ -56,6 +55,11 @@ export default function App() {
     }
     return "SELECT GAME CARTRIDGE";
   }, [isGameView, route?.gameId]);
+
+  const shareUrl = useMemo(() => {
+    if (!route?.gameId || !route?.roomId) return "";
+    return `${window.location.origin}/games/${route.gameId}/${route.roomId}`;
+  }, [route?.gameId, route?.roomId]);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -104,7 +108,6 @@ export default function App() {
   useEffect(() => {
     const update = () => {
       setRoute(getGameRoute());
-      setShareUrl(window.location.href);
     };
     const originalPush = history.pushState;
     const originalReplace = history.replaceState;
@@ -127,8 +130,33 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    setShareOpen(isGameView);
-  }, [isGameView]);
+    if (!isGameView) {
+      setShareOpen(false);
+      return;
+    }
+    const joined = window.__kaboomOpponentJoined;
+    if (joined && joined.gameId === route?.gameId && joined.roomId === route?.roomId) {
+      setShareOpen(false);
+      return;
+    }
+    setShareOpen(true);
+  }, [isGameView, route?.gameId]);
+
+  useEffect(() => {
+    const handleOpponentJoined = () => {
+      setShareOpen(false);
+    };
+    window.addEventListener("kaboom:opponent-joined", handleOpponentJoined);
+    return () => window.removeEventListener("kaboom:opponent-joined", handleOpponentJoined);
+  }, []);
+
+  useEffect(() => {
+    const handleRoomReady = () => {
+      setRoute(getGameRoute());
+    };
+    window.addEventListener("kaboom:room-ready", handleRoomReady);
+    return () => window.removeEventListener("kaboom:room-ready", handleRoomReady);
+  }, []);
 
   useEffect(() => {
     if (!route?.gameId) {
@@ -175,6 +203,10 @@ export default function App() {
       if (isGameView) {
         if (action === "back") {
           window.location.assign("/");
+          return;
+        }
+        if (action === "select") {
+          setShareOpen((prev) => !prev);
         }
         return;
       }
