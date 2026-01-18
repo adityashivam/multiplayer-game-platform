@@ -3,7 +3,7 @@ services:
     name: kaboom-rpg
     env: node
     plan: free
-    buildCommand: npm ci && npm run build
+    buildCommand: npm ci
     startCommand: npm start
     autoDeploy: true
     envVars:
