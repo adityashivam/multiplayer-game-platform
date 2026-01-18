@@ -7,7 +7,11 @@ function Controller({ onDirectional, onAction, disabled }) {
   const actionHandler = disabled ? undefined : onAction;
 
   return (
-    <div className={styles.controllerSection}>
+    <div
+      className={styles.controllerSection}
+      onContextMenu={(event) => event.preventDefault()}
+      onDragStart={(event) => event.preventDefault()}
+    >
       <div className={styles.controllerTopBar} aria-hidden="true">
         <span className={styles.controllerTopSegment} />
         <span className={classNames(styles.controllerTopSegment, styles.controllerTopSegmentActive)} />
