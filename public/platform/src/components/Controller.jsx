@@ -99,31 +99,32 @@ function Controller({ onDirectional, onAction, disabled }) {
             <button
               type="button"
               className={classNames(styles.actionButton, styles.actionButtonY)}
-              aria-disabled="true"
+              data-action="y"
+              onClick={() => actionHandler?.("y")}
             >
               <span className={styles.actionLetter}>Y</span>
             </button>
             <button
               type="button"
               className={classNames(styles.actionButton, styles.actionButtonA)}
-              data-action="confirm"
-              onClick={() => actionHandler?.("confirm")}
+              data-action="a"
+              onClick={() => actionHandler?.("a")}
             >
               <span className={styles.actionLetter}>A</span>
             </button>
             <button
               type="button"
               className={classNames(styles.actionButton, styles.actionButtonX)}
-              data-action="confirm"
-              onClick={() => actionHandler?.("confirm")}
+              data-action="x"
+              onClick={() => actionHandler?.("x")}
             >
               <span className={styles.actionLetter}>X</span>
             </button>
             <button
               type="button"
               className={classNames(styles.actionButton, styles.actionButtonB)}
-              data-action="back"
-              onClick={() => actionHandler?.("back")}
+              data-action="b"
+              onClick={() => actionHandler?.("b")}
             >
               <span className={styles.actionLetter}>B</span>
             </button>

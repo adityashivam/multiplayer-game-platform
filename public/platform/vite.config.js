@@ -12,6 +12,9 @@ export default defineConfig({
   build: {
     outDir: path.resolve(root, "dist"),
     emptyOutDir: true,
+    rollupOptions: {
+      external: ["/platform/shared/shareModalBridge.js"],
+    },
   },
   server: {
     port: 5173,

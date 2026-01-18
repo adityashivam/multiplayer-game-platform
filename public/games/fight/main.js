@@ -1,9 +1,9 @@
-import { getGameDomRefs } from "/platform/shared/gameDom.js";
+import { getGameControls, getGameDomRefs } from "/platform/shared/gameDom.js";
+import { openShareModal } from "/platform/shared/shareModalBridge.js";
 
 // ---------- Kaboom init ----------
-const { canvas, themeToggle, dpadButtons, controllerButtons, isEmbedded } = getGameDomRefs();
-const root = document.documentElement;
-const THEME_KEY = "kaboom-preferred-theme";
+const { canvas } = getGameDomRefs();
+const { dpad, menu, actions } = getGameControls();
 let roomUrl = "";
 kaboom({
   width: 1280,
@@ -22,13 +22,8 @@ if (gameCanvas) {
   gameCanvas.style.display = "block";
   gameCanvas.style.objectFit = "contain";
   gameCanvas.style.objectPosition = "center";
-  if (isEmbedded) {
-    gameCanvas.style.height = "auto";
-    gameCanvas.style.maxHeight = "100%";
-  } else {
-    gameCanvas.style.height = "100%";
-    gameCanvas.style.maxHeight = "none";
-  }
+  gameCanvas.style.height = "auto";
+  gameCanvas.style.maxHeight = "100%";
 }
 
 // ---------- Multiplayer setup ----------
@@ -36,7 +31,6 @@ const GAME_SLUG = "fight";
 const ASSET_BASE = `/games/${GAME_SLUG}/assets`;
 const OPPONENT_JOIN_EVENT = "kaboom:opponent-joined";
 const ROOM_READY_EVENT = "kaboom:room-ready";
-const SHARE_MODAL_EVENT = "kaboom:share-modal";
 let shareModalShown = false;
 
 function buildRoomUrl(roomId) {
@@ -47,23 +41,10 @@ function setRoomLink(url) {
   roomUrl = url;
 }
 
-function emitShareModalEvent(detail) {
-  if (!isEmbedded) return;
-  window.dispatchEvent(new CustomEvent(SHARE_MODAL_EVENT, { detail }));
-}
-
-if (isEmbedded) {
-  emitShareModalEvent({ managed: true });
-}
-
-function toggleShareModal() {
-  emitShareModalEvent({ toggle: true });
-}
-
 function openShareModalOnce() {
-  if (!isEmbedded || shareModalShown) return;
+  if (shareModalShown) return;
   shareModalShown = true;
-  emitShareModalEvent({ open: true });
+  openShareModal();
 }
 
 function setupCopyButton() {
@@ -164,48 +145,6 @@ function sendInputFlag(type, value) {
   socket.emit("input", { type, value });
 }
 
-function applyTheme(mode) {
-  if (mode === "dark") {
-    root.classList.add("dark");
-  } else {
-    root.classList.remove("dark");
-  }
-  localStorage.setItem(THEME_KEY, mode);
-}
-
-function toggleTheme() {
-  const isDark = root.classList.contains("dark");
-  applyTheme(isDark ? "light" : "dark");
-}
-
-function initTheme() {
-  const saved = localStorage.getItem(THEME_KEY);
-  if (saved === "dark" || saved === "light") {
-    applyTheme(saved);
-    return;
-  }
-  const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-  applyTheme(prefersDark ? "dark" : "light");
-}
-
-function bindHold(btn, onDown, onUp) {
-  const start = (e) => {
-    e.preventDefault();
-    onDown();
-  };
-  const end = (e) => {
-    e.preventDefault();
-    onUp();
-  };
-  btn.addEventListener("pointerdown", start);
-  btn.addEventListener("pointerup", end);
-  btn.addEventListener("pointerleave", end);
-  btn.addEventListener("pointercancel", end);
-  btn.addEventListener("touchstart", start, { passive: false });
-  btn.addEventListener("touchend", end, { passive: false });
-  btn.addEventListener("touchcancel", end, { passive: false });
-}
-
 function handleDirectionalInput(direction, active) {
   switch (direction) {
     case "left":
@@ -225,7 +164,9 @@ function handleDirectionalInput(direction, active) {
 
 function handleActionInput(action) {
   switch (action) {
-    case "confirm": {
+    case "a":
+    case "x":
+    case "y": {
       sendInputFlag("attack", true);
       setTimeout(() => sendInputFlag("attack", false), 120);
       break;
@@ -233,15 +174,8 @@ function handleActionInput(action) {
     case "start":
       startNewRoom();
       break;
-    case "back":
+    case "b":
       window.location.href = "/";
-      break;
-    case "select":
-      if (isEmbedded) {
-        toggleShareModal();
-      } else {
-        toggleTheme();
-      }
       break;
     default:
       break;
@@ -249,35 +183,30 @@ function handleActionInput(action) {
 }
 
 function initControllerNavigation() {
-  dpadButtons.forEach((btn) => {
-    bindHold(
-      btn,
-      () => handleDirectionalInput(btn.dataset.dir, true),
-      () => handleDirectionalInput(btn.dataset.dir, false),
-    );
-  });
+  dpad.left.onHold(
+    () => handleDirectionalInput("left", true),
+    () => handleDirectionalInput("left", false),
+  );
+  dpad.right.onHold(
+    () => handleDirectionalInput("right", true),
+    () => handleDirectionalInput("right", false),
+  );
+  dpad.up.onHold(
+    () => handleDirectionalInput("up", true),
+    () => handleDirectionalInput("up", false),
+  );
+  dpad.down.onHold(
+    () => handleDirectionalInput("down", true),
+    () => handleDirectionalInput("down", false),
+  );
 
-  controllerButtons.forEach((btn) => {
-    btn.addEventListener("click", () => handleActionInput(btn.dataset.action));
-  });
+  actions.a.onPress(() => handleActionInput("a"));
+  actions.b.onPress(() => handleActionInput("b"));
+  actions.x.onPress(() => handleActionInput("x"));
+  actions.y.onPress(() => handleActionInput("y"));
 
-  if (themeToggle) {
-    themeToggle.addEventListener("click", toggleTheme);
-  }
+  menu.start.onPress(() => handleActionInput("start"));
 
-  window.addEventListener("keydown", (evt) => {
-    const key = evt.key;
-    if (key === "Enter" || key === " ") {
-      evt.preventDefault();
-      handleActionInput("confirm");
-    } else if (key === "Escape" || key === "Backspace") {
-      evt.preventDefault();
-      handleActionInput("back");
-    } else if (key && key.toLowerCase() === "t") {
-      evt.preventDefault();
-      toggleTheme();
-    }
-  });
 }
 
 function tryJoinGame() {
@@ -680,84 +609,6 @@ socket.on("playerLeft", ({ playerId }) => {
   window.__kaboomOpponentJoined = null;
 });
 
-  // Input handlers
-  onKeyDown("d", () => {
-    if (myPlayerId !== "p1") return;
-    sendInputFlag("right", true);
-  });
-  onKeyRelease("d", () => {
-    if (myPlayerId !== "p1") return;
-    sendInputFlag("right", false);
-  });
-
-  onKeyDown("a", () => {
-    if (myPlayerId !== "p1") return;
-    sendInputFlag("left", true);
-  });
-  onKeyRelease("a", () => {
-    if (myPlayerId !== "p1") return;
-    sendInputFlag("left", false);
-  });
-
-  onKeyDown("w", () => {
-    if (myPlayerId !== "p1") return;
-    sendInputFlag("jump", true);
-  });
-  onKeyRelease("w", () => {
-    if (myPlayerId !== "p1") return;
-    sendInputFlag("jump", false);
-  });
-
-  onKeyDown("space", () => {
-    if (myPlayerId !== "p1") return;
-    sendInputFlag("attack", true);
-  });
-  onKeyRelease("space", () => {
-    if (myPlayerId !== "p1") return;
-    sendInputFlag("attack", false);
-  });
-
-  // Player 2 controls
-  onKeyDown("right", () => {
-    if (myPlayerId !== "p2") return;
-    sendInputFlag("right", true);
-  });
-  onKeyRelease("right", () => {
-    if (myPlayerId !== "p2") return;
-    sendInputFlag("right", false);
-  });
-
-  onKeyDown("left", () => {
-    if (myPlayerId !== "p2") return;
-    sendInputFlag("left", true);
-  });
-  onKeyRelease("left", () => {
-    if (myPlayerId !== "p2") return;
-    sendInputFlag("left", false);
-  });
-
-  onKeyDown("up", () => {
-    if (myPlayerId !== "p2") return;
-    sendInputFlag("jump", true);
-  });
-  onKeyRelease("up", () => {
-    if (myPlayerId !== "p2") return;
-    sendInputFlag("jump", false);
-  });
-
-  onKeyDown("down", () => {
-    if (myPlayerId !== "p2") return;
-    sendInputFlag("attack", true);
-  });
-  onKeyRelease("down", () => {
-    if (myPlayerId !== "p2") return;
-    sendInputFlag("attack", false);
-  });
-
-  onKeyDown("enter", () => {
-    if (gameOverFlag) go("fight");
-  });
-
   // Server state updates
   socket.on("state", (state) => {
     if (!player1 || !player2 || !player1HealthBar || !player2HealthBar) {
@@ -860,7 +711,6 @@ socket.on("playerLeft", ({ playerId }) => {
   }
 });
 
-initTheme();
 initControllerNavigation();
 
 go("fight");

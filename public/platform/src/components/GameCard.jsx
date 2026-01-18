@@ -26,12 +26,6 @@ const GameCard = React.forwardRef(function GameCard(
       onClick={onActivate}
       onMouseEnter={onSelect}
       onFocus={onSelect}
-      onKeyDown={(evt) => {
-        if (evt.key === "Enter" || evt.key === " ") {
-          evt.preventDefault();
-          onActivate();
-        }
-      }}
       ref={ref}
     >
       {featured && <div className={styles.arrow} aria-hidden="true" />}

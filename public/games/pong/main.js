@@ -1,4 +1,4 @@
-import { getGameDomRefs } from "/platform/shared/gameDom.js";
+import { getGameControls, getGameDomRefs } from "/platform/shared/gameDom.js";
 
 const GAME_SLUG = "pong";
 const WIDTH = 960;
@@ -9,10 +9,9 @@ const PADDLE_X1 = 70;
 const PADDLE_X2 = WIDTH - 70;
 
 // Use the in-app canvas so it stays inside the layout
-const { canvas, themeToggle, dpadButtons, controllerButtons, isEmbedded } = getGameDomRefs();
+const { canvas } = getGameDomRefs();
+const { dpad, menu, actions } = getGameControls();
 const gameCanvas = canvas;
-const root = document.documentElement;
-const THEME_KEY = "kaboom-preferred-theme";
 let roomUrl = "";
 
 // ---------- Kaboom init ----------
@@ -32,13 +31,8 @@ if (gameCanvas) {
   gameCanvas.style.display = "block";
   gameCanvas.style.objectFit = "contain";
   gameCanvas.style.objectPosition = "center";
-  if (isEmbedded) {
-    gameCanvas.style.height = "auto";
-    gameCanvas.style.maxHeight = "100%";
-  } else {
-    gameCanvas.style.height = "100%";
-    gameCanvas.style.maxHeight = "none";
-  }
+  gameCanvas.style.height = "auto";
+  gameCanvas.style.maxHeight = "100%";
 }
 
 function buildRoomUrl(roomId) {
@@ -126,48 +120,6 @@ function sendInput(type, value) {
   socket.emit("input", { type, value });
 }
 
-function applyTheme(mode) {
-  if (mode === "dark") {
-    root.classList.add("dark");
-  } else {
-    root.classList.remove("dark");
-  }
-  localStorage.setItem(THEME_KEY, mode);
-}
-
-function toggleTheme() {
-  const isDark = root.classList.contains("dark");
-  applyTheme(isDark ? "light" : "dark");
-}
-
-function initTheme() {
-  const saved = localStorage.getItem(THEME_KEY);
-  if (saved === "dark" || saved === "light") {
-    applyTheme(saved);
-    return;
-  }
-  const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-  applyTheme(prefersDark ? "dark" : "light");
-}
-
-function bindHold(btn, onDown, onUp) {
-  const start = (e) => {
-    e.preventDefault();
-    onDown();
-  };
-  const end = (e) => {
-    e.preventDefault();
-    onUp();
-  };
-  btn.addEventListener("pointerdown", start);
-  btn.addEventListener("pointerup", end);
-  btn.addEventListener("pointerleave", end);
-  btn.addEventListener("pointercancel", end);
-  btn.addEventListener("touchstart", start, { passive: false });
-  btn.addEventListener("touchend", end, { passive: false });
-  btn.addEventListener("touchcancel", end, { passive: false });
-}
-
 function handleDirectionalInput(direction, active) {
   // Map horizontal to vertical since Pong paddles move only up/down
   const mapped =
@@ -182,19 +134,16 @@ function handleDirectionalInput(direction, active) {
 
 function handleActionInput(action) {
   switch (action) {
-    case "confirm":
+    case "a":
+    case "x":
+    case "y":
       socket.emit("rematch");
       break;
     case "start":
       if (roomUrl) window.location.href = roomUrl;
       break;
-    case "back":
+    case "b":
       window.location.href = "/";
-      break;
-    case "select":
-      if (!isEmbedded) {
-        toggleTheme();
-      }
       break;
     default:
       break;
@@ -202,35 +151,30 @@ function handleActionInput(action) {
 }
 
 function initControllerNavigation() {
-  dpadButtons.forEach((btn) => {
-    bindHold(
-      btn,
-      () => handleDirectionalInput(btn.dataset.dir, true),
-      () => handleDirectionalInput(btn.dataset.dir, false),
-    );
-  });
+  dpad.left.onHold(
+    () => handleDirectionalInput("left", true),
+    () => handleDirectionalInput("left", false),
+  );
+  dpad.right.onHold(
+    () => handleDirectionalInput("right", true),
+    () => handleDirectionalInput("right", false),
+  );
+  dpad.up.onHold(
+    () => handleDirectionalInput("up", true),
+    () => handleDirectionalInput("up", false),
+  );
+  dpad.down.onHold(
+    () => handleDirectionalInput("down", true),
+    () => handleDirectionalInput("down", false),
+  );
 
-  controllerButtons.forEach((btn) => {
-    btn.addEventListener("click", () => handleActionInput(btn.dataset.action));
-  });
+  actions.a.onPress(() => handleActionInput("a"));
+  actions.b.onPress(() => handleActionInput("b"));
+  actions.x.onPress(() => handleActionInput("x"));
+  actions.y.onPress(() => handleActionInput("y"));
 
-  if (themeToggle) {
-    themeToggle.addEventListener("click", toggleTheme);
-  }
+  menu.start.onPress(() => handleActionInput("start"));
 
-  window.addEventListener("keydown", (evt) => {
-    const key = evt.key;
-    if (key === "Enter") {
-      evt.preventDefault();
-      handleActionInput("confirm");
-    } else if (key === "Escape") {
-      evt.preventDefault();
-      handleActionInput("back");
-    } else if (key && key.toLowerCase() === "t") {
-      evt.preventDefault();
-      toggleTheme();
-    }
-  });
 }
 
 // ---------- Scene ----------
@@ -435,42 +379,6 @@ scene("pong", () => {
     hasPlayedRound = false;
   });
 
-  onKeyDown("w", () => {
-    if (myPlayerId !== "p1") return;
-    sendInput("up", true);
-  });
-  onKeyRelease("w", () => {
-    if (myPlayerId !== "p1") return;
-    sendInput("up", false);
-  });
-
-  onKeyDown("s", () => {
-    if (myPlayerId !== "p1") return;
-    sendInput("down", true);
-  });
-  onKeyRelease("s", () => {
-    if (myPlayerId !== "p1") return;
-    sendInput("down", false);
-  });
-
-  onKeyDown("up", () => {
-    if (myPlayerId !== "p2") return;
-    sendInput("up", true);
-  });
-  onKeyRelease("up", () => {
-    if (myPlayerId !== "p2") return;
-    sendInput("up", false);
-  });
-
-  onKeyDown("down", () => {
-    if (myPlayerId !== "p2") return;
-    sendInput("down", true);
-  });
-  onKeyRelease("down", () => {
-    if (myPlayerId !== "p2") return;
-    sendInput("down", false);
-  });
-
 socket.on("state", (state) => {
   if (!state || !state.players || !state.ball) return;
   const { players, ball: ballState, gameOver, winner, started, startAt, lastLost } = state;
@@ -518,7 +426,6 @@ socket.on("state", (state) => {
   });
 });
 
-initTheme();
 initControllerNavigation();
 
 go("pong");

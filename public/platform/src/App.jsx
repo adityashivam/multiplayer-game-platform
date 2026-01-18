@@ -46,7 +46,6 @@ export default function App() {
   const [gameLoadError, setGameLoadError] = useState(null);
   const [shareOpen, setShareOpen] = useState(false);
   const cardRefs = useRef([]);
-  const shareModalManagedRef = useRef(false);
   const setShareModal = useCallback((nextOpen) => {
     setShareOpen((prev) => (typeof nextOpen === "boolean" ? nextOpen : !prev));
   }, []);
@@ -76,24 +75,25 @@ export default function App() {
   }, [theme]);
 
   useEffect(() => {
-    const handleShareModal = (event) => {
-      const detail = event?.detail || {};
-      if (typeof detail.managed === "boolean") {
-        shareModalManagedRef.current = detail.managed;
-      }
-      if (typeof detail.open === "boolean") {
-        setShareModal(detail.open);
-      } else if (detail.toggle) {
-        setShareModal();
+    let cancelled = false;
+    let bridgeModule = null;
+    // Load at runtime so the platform and game share the same module instance.
+    import(/* @vite-ignore */ "/platform/shared/shareModalBridge.js")
+      .then((bridge) => {
+        if (cancelled) return;
+        bridgeModule = bridge;
+        bridge.registerShareModalController(setShareModal);
+      })
+      .catch((err) => {
+        console.warn("Share modal bridge unavailable", err);
+      });
+    return () => {
+      cancelled = true;
+      if (bridgeModule?.registerShareModalController) {
+        bridgeModule.registerShareModalController(null);
       }
     };
-    window.addEventListener("kaboom:share-modal", handleShareModal);
-    return () => window.removeEventListener("kaboom:share-modal", handleShareModal);
   }, [setShareModal]);
-
-  useEffect(() => {
-    shareModalManagedRef.current = false;
-  }, [route?.gameId]);
 
   useEffect(() => {
     if (!isGameView) {
@@ -225,24 +225,23 @@ export default function App() {
   const handleActionInput = useCallback(
     (action) => {
       if (isGameView) {
-        if (action === "back") {
+        if (action === "b") {
           window.location.assign("/");
           return;
         }
         if (action === "select") {
-          if (shareModalManagedRef.current) {
-            return;
-          }
           setShareModal();
         }
         return;
       }
       switch (action) {
-        case "confirm":
+        case "a":
+        case "x":
+        case "y":
         case "start":
           activateSelected();
           break;
-        case "back":
+        case "b":
           handleDirectionalInput("left");
           break;
         case "select":
@@ -254,37 +253,6 @@ export default function App() {
     },
     [activateSelected, handleDirectionalInput, isGameView, setShareModal],
   );
-
-  useEffect(() => {
-    if (isGameView) return;
-    const onKeyDown = (evt) => {
-      const key = evt.key;
-      if (key === "ArrowUp" || key === "w" || key === "W") {
-        evt.preventDefault();
-        handleDirectionalInput("up");
-      } else if (key === "ArrowDown" || key === "s" || key === "S") {
-        evt.preventDefault();
-        handleDirectionalInput("down");
-      } else if (key === "ArrowLeft" || key === "a" || key === "A") {
-        evt.preventDefault();
-        handleDirectionalInput("left");
-      } else if (key === "ArrowRight" || key === "d" || key === "D") {
-        evt.preventDefault();
-        handleDirectionalInput("right");
-      } else if (key === "Enter" || key === " ") {
-        evt.preventDefault();
-        activateSelected();
-      } else if (key === "Escape" || key === "Backspace") {
-        evt.preventDefault();
-        handleDirectionalInput("left");
-      } else if (key.toLowerCase?.() === "t") {
-        evt.preventDefault();
-        setTheme((prev) => (prev === "dark" ? "light" : "dark"));
-      }
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [activateSelected, handleDirectionalInput, isGameView]);
 
   useEffect(() => {
     if (isGameView) return;
