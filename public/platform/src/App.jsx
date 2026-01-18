@@ -45,7 +45,15 @@ export default function App() {
   const [copyLabel, setCopyLabel] = useState("Copy");
   const [gameLoadError, setGameLoadError] = useState(null);
   const [shareOpen, setShareOpen] = useState(false);
+  const [endGameState, setEndGameState] = useState({
+    open: false,
+    title: "",
+    subtitle: "",
+    status: "",
+    phase: "idle",
+  });
   const cardRefs = useRef([]);
+  const endGameBridgeRef = useRef(null);
   const setShareModal = useCallback((nextOpen) => {
     setShareOpen((prev) => (typeof nextOpen === "boolean" ? nextOpen : !prev));
   }, []);
@@ -96,8 +104,41 @@ export default function App() {
   }, [setShareModal]);
 
   useEffect(() => {
+    let cancelled = false;
+    let unsubscribe = null;
+    import(/* @vite-ignore */ "/platform/shared/endGameBridge.js")
+      .then((bridge) => {
+        if (cancelled) return;
+        endGameBridgeRef.current = bridge;
+        unsubscribe = bridge.subscribeEndGame((nextState) => {
+          setEndGameState(nextState);
+        });
+      })
+      .catch((err) => {
+        console.warn("End game bridge unavailable", err);
+      });
+    return () => {
+      cancelled = true;
+      if (unsubscribe) unsubscribe();
+      endGameBridgeRef.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (endGameState.open) {
+      setShareModal(false);
+    }
+  }, [endGameState.open, setShareModal]);
+
+  useEffect(() => {
     if (!isGameView) {
       setTheme(getPreferredTheme());
+    }
+  }, [isGameView]);
+
+  useEffect(() => {
+    if (!isGameView) {
+      endGameBridgeRef.current?.hideEndGameModal?.();
     }
   }, [isGameView]);
 
@@ -276,6 +317,14 @@ export default function App() {
     }
   }, [shareUrl]);
 
+  const handleRematch = useCallback(() => {
+    endGameBridgeRef.current?.requestRematch?.();
+  }, []);
+
+  const handleBackHome = useCallback(() => {
+    window.location.assign("/");
+  }, []);
+
   const headerLeft = isGameView ? (
     <a id="back-to-lobby" className={styles.backLink} href="/">
       &larr; Lobby
@@ -287,6 +336,7 @@ export default function App() {
   );
 
   const roomLabel = route?.roomId ? `Room #${route.roomId}` : "Room #----";
+  const rematchDisabled = endGameState.phase === "waiting";
 
   return (
     <div className={styles.app}>
@@ -326,6 +376,13 @@ export default function App() {
                   copyLabel={copyLabel}
                   onCopyShare={handleCopyShare}
                   gameLoadError={gameLoadError}
+                  endGameOpen={endGameState.open}
+                  endGameTitle={endGameState.title}
+                  endGameSubtitle={endGameState.subtitle}
+                  endGameStatus={endGameState.status}
+                  onRematch={handleRematch}
+                  onBackHome={handleBackHome}
+                  rematchDisabled={rematchDisabled}
                 />
               )}
             </div>

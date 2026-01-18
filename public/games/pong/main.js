@@ -1,5 +1,11 @@
 import { getGameControls, getGameDomRefs } from "/platform/shared/gameDom.js";
 import { getGameSocket } from "/platform/shared/gameSocket.js";
+import {
+  hideEndGameModal,
+  registerRematchHandler,
+  showEndGameModal,
+  updateEndGameModal,
+} from "/platform/shared/endGameBridge.js";
 
 const GAME_SLUG = "pong";
 const WIDTH = 960;
@@ -80,6 +86,17 @@ let lastConnected = { p1: false, p2: false };
 let hasPlayedRound = false;
 
 const socket = getGameSocket(GAME_SLUG);
+let rematchPending = false;
+
+registerRematchHandler(() => {
+  if (rematchPending) return;
+  rematchPending = true;
+  updateEndGameModal({
+    status: "Waiting for opponent...",
+    phase: "waiting",
+  });
+  socket.send("rematch");
+});
 
 function tryJoinGame() {
   if (!socket.isConnected() || !gameId || hasJoined) return;
@@ -111,6 +128,14 @@ socket.onEvent("gameJoined", ({ playerId, gameId: joinedGameId }) => {
   console.log("Joined game", gameId, "as", playerId);
 });
 
+socket.onEvent("rematchRequested", ({ playerId }) => {
+  if (playerId === myPlayerId) return;
+  updateEndGameModal({
+    status: "Opponent requested a rematch.",
+    phase: "ready",
+  });
+});
+
 ensureRoomId().then((id) => {
   gameId = id;
   tryJoinGame();
@@ -135,11 +160,6 @@ function handleDirectionalInput(direction, active) {
 
 function handleActionInput(action) {
   switch (action) {
-    case "a":
-    case "x":
-    case "y":
-      socket.send("rematch");
-      break;
     case "start":
       if (roomUrl) window.location.href = roomUrl;
       break;
@@ -175,7 +195,6 @@ function initControllerNavigation() {
   actions.y.onPress(() => handleActionInput("y"));
 
   menu.start.onPress(() => handleActionInput("start"));
-
 }
 
 // ---------- Scene ----------
@@ -273,40 +292,7 @@ scene("pong", () => {
   const toastText = toast.add([text("", { size: 20 }), anchor("center")]);
   toast.hidden = true;
   let toastTimer = null;
-
-  const gameOverOverlay = add([
-    rect(WIDTH, HEIGHT),
-    color(0, 0, 0),
-    opacity(0.6),
-    pos(0, 0),
-    anchor("topleft"),
-    fixed(),
-    z(2000),
-  ]);
-  const gameOverText = gameOverOverlay.add([
-    text("", { size: 42 }),
-    anchor("center"),
-    pos(WIDTH / 2, HEIGHT / 2 - 40),
-  ]);
-  const newGameButton = gameOverOverlay.add([
-    rect(240, 70),
-    area(),
-    color(40, 140, 220),
-    anchor("center"),
-    pos(WIDTH / 2, HEIGHT / 2 + 40),
-    "new-game-button",
-  ]);
-  newGameButton.add([text("New Room", { size: 26 }), anchor("center")]);
-  const rematchButton = gameOverOverlay.add([
-    rect(240, 70),
-    area(),
-    color(80, 200, 140),
-    anchor("center"),
-    pos(WIDTH / 2, HEIGHT / 2 + 130),
-    "rematch-button",
-  ]);
-  rematchButton.add([text("Rematch", { size: 26 }), anchor("center")]);
-  gameOverOverlay.hidden = true;
+  let gameOverFlag = false;
 
   function showToast(msg) {
     if (!toast) return;
@@ -317,6 +303,14 @@ scene("pong", () => {
       toast.hidden = true;
       toastTimer = null;
     });
+  }
+
+  function getResultLabel(winner) {
+    if (!winner) return "Match complete.";
+    if (!myPlayerId) {
+      return winner === "p1" ? "Left player wins!" : "Right player wins!";
+    }
+    return winner === myPlayerId ? "You Win!" : "You Lose!";
   }
 
   function updateStartUI(started, startAt, connected, gameOver) {
@@ -351,33 +345,20 @@ scene("pong", () => {
     }
   }
 
-  async function startNewGame() {
-    try {
-      const res = await fetch(`/api/games/${GAME_SLUG}/new-room`);
-      const data = await res.json();
-      const roomId = data?.roomId || Math.random().toString(36).slice(2, 8);
-      const targetUrl = data?.url || buildRoomUrl(roomId);
-      window.location.href = targetUrl;
-    } catch (err) {
-      const fallback = Math.random().toString(36).slice(2, 8);
-      window.location.href = buildRoomUrl(fallback);
-    }
-  }
-
-  onClick("new-game-button", () => {
-    if (gameOverOverlay?.hidden) return;
-    startNewGame();
-  });
-
-  onClick("rematch-button", () => {
-    if (gameOverOverlay?.hidden) return;
-    socket.send("rematch");
-    showToast("Rematch requested...");
+  socket.onEvent("playerLeft", ({ playerId }) => {
+    showToast(`Player ${playerId === "p1" ? "1" : "2"} left the room`);
+    rematchPending = false;
+    hasPlayedRound = false;
+    gameOverFlag = false;
+    hideEndGameModal();
   });
 
   socket.onEvent("rematchStarted", () => {
     showToast("Rematch starting!");
+    rematchPending = false;
     hasPlayedRound = false;
+    gameOverFlag = false;
+    hideEndGameModal();
   });
 
   socket.onEvent("state", (state) => {
@@ -402,27 +383,32 @@ scene("pong", () => {
     ball.pos.y = ballState.y;
 
     scoreText.text = `${players.p1.score}   ${players.p2.score}`;
-    infoText.text = `You are ${myPlayerId ? myPlayerId.toUpperCase() : "spectator"} • Move: ${
-      myPlayerId === "p1" ? "W/S" : myPlayerId === "p2" ? "Arrow keys" : "N/A"
-    } • First to 10`;
+    infoText.text = `You are ${
+      myPlayerId ? myPlayerId.toUpperCase() : "spectator"
+    } • Move: D-pad • First to 10`;
 
     if (started) {
       hasPlayedRound = true;
     }
 
     updateStartUI(started, startAt, connected, gameOver);
-    updateInviteOverlay(connected);
 
     if (!gameOver && lastLost) {
       showToast(lastLost === "p1" ? "Left missed — point to Right" : "Right missed — point to Left");
     }
 
-    if (gameOver) {
-      gameOverOverlay.hidden = false;
-      gameOverText.text =
-        winner === "p1" ? "Left player wins!" : winner === "p2" ? "Right player wins!" : "Game over";
-    } else {
-      gameOverOverlay.hidden = true;
+    if (gameOver && !gameOverFlag) {
+      gameOverFlag = true;
+      rematchPending = false;
+      showEndGameModal({
+        title: "Match Over",
+        subtitle: getResultLabel(winner),
+        status: "",
+        phase: "ready",
+        winner,
+      });
+    } else if (!gameOver && gameOverFlag) {
+      gameOverFlag = false;
     }
   });
 });

@@ -1,5 +1,5 @@
 import { fightGameMeta } from "./metadata.js";
-import { registerGame, scheduleStart } from "../utils/utils.js";
+import { emitEvent, registerGame, scheduleStart } from "../utils/utils.js";
 
 const FPS = 60;
 const DT = 1 / FPS;
@@ -54,6 +54,7 @@ function createInitialGameState() {
     timer: GAME_DURATION,
     gameOver: false,
     winner: null,
+    rematchRequests: { p1: false, p2: false },
     lastUpdate: Date.now(),
     started: false,
     startAt: null,
@@ -250,6 +251,33 @@ export function registerFightGame(io) {
       state.timer = GAME_DURATION;
       state.gameOver = false;
       state.winner = null;
+      state.rematchRequests = { p1: false, p2: false };
+    },
+    handleRematch: ({ socket, games, nsp }) => {
+      const { gameId, playerId } = socket.data;
+      if (!gameId || !playerId) return;
+      const state = games.get(gameId);
+      if (!state || !state.players?.[playerId]) return;
+
+      if (!state.rematchRequests) {
+        state.rematchRequests = { p1: false, p2: false };
+      }
+      state.rematchRequests[playerId] = true;
+      emitEvent({ socket, gameId, type: "rematchRequested", payload: { playerId }, target: "others" });
+
+      const bothReady =
+        state.players.p1.connected &&
+        state.players.p2.connected &&
+        state.rematchRequests.p1 &&
+        state.rematchRequests.p2;
+      if (!bothReady) return;
+
+      const nextState = createInitialGameState();
+      nextState.players.p1.connected = state.players.p1.connected;
+      nextState.players.p2.connected = state.players.p2.connected;
+      initAttackTimestamps(nextState);
+      games.set(gameId, nextState);
+      emitEvent({ nsp, gameId, type: "rematchStarted", target: "game" });
     },
     beforeUpdate: scheduleFightStart,
     updateState: (state, dt) => {

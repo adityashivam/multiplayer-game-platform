@@ -286,6 +286,10 @@
   max-height: 80%;
 }
 
+.endGameModal {
+  max-width: 420px;
+}
+
 :global(.dark) .shareModal {
   background: #2c2520;
 }
@@ -373,6 +377,10 @@
   gap: 8px;
 }
 
+.endGameBody {
+  gap: 10px;
+}
+
 .shareField {
   display: flex;
   flex-direction: column;
@@ -454,6 +462,17 @@
   box-shadow: var(--shadow-sm);
   text-align: left;
   transition: transform 120ms ease, box-shadow 120ms ease;
+}
+
+.endGameAction {
+  width: 100%;
+}
+
+.endGameAction:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: var(--shadow-sm);
 }
 
 .shareActionPrimary {

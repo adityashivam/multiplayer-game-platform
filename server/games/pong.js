@@ -49,6 +49,7 @@ function createInitialGameState() {
     startAt: null,
     gameOver: false,
     winner: null,
+    rematchRequests: { p1: false, p2: false },
     lastUpdate: Date.now(),
   };
 }
@@ -205,21 +206,31 @@ export function registerPongGame(io) {
       state.gameOver = false;
       state.winner = null;
       state.ball = makeBall();
+      state.rematchRequests = { p1: false, p2: false };
     },
     handleRematch: ({ socket, games, nsp }) => {
-      const { gameId } = socket.data;
-      if (!gameId) return;
+      const { gameId, playerId } = socket.data;
+      if (!gameId || !playerId) return;
       const state = games.get(gameId);
-      if (!state) return;
-      state.players.p1.score = 0;
-      state.players.p2.score = 0;
-      state.gameOver = false;
-      state.winner = null;
-      state.started = false;
-      state.startAt = Date.now() + COUNTDOWN_MS;
-      state.ball = makeBall();
-      state.lastUpdate = Date.now();
-      state.lastLost = null;
+      if (!state || !state.players?.[playerId]) return;
+
+      if (!state.rematchRequests) {
+        state.rematchRequests = { p1: false, p2: false };
+      }
+      state.rematchRequests[playerId] = true;
+      emitEvent({ socket, gameId, type: "rematchRequested", payload: { playerId }, target: "others" });
+
+      const bothReady =
+        state.players.p1.connected &&
+        state.players.p2.connected &&
+        state.rematchRequests.p1 &&
+        state.rematchRequests.p2;
+      if (!bothReady) return;
+
+      const nextState = createInitialGameState();
+      nextState.players.p1.connected = state.players.p1.connected;
+      nextState.players.p2.connected = state.players.p2.connected;
+      games.set(gameId, nextState);
       emitEvent({ nsp, gameId, type: "rematchStarted", target: "game" });
     },
     updateState: updateGameState,

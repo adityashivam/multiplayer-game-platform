@@ -1,5 +1,11 @@
 import { getGameControls, getGameDomRefs } from "/platform/shared/gameDom.js";
 import { getGameSocket } from "/platform/shared/gameSocket.js";
+import {
+  hideEndGameModal,
+  registerRematchHandler,
+  showEndGameModal,
+  updateEndGameModal,
+} from "/platform/shared/endGameBridge.js";
 import { openShareModal } from "/platform/shared/shareModalBridge.js";
 
 // ---------- Kaboom init ----------
@@ -120,6 +126,17 @@ let readyToPlay = false;
 let lastConnected = { p1: false, p2: false };
 let opponentJoined = false;
 let currentRoomId = null;
+let rematchPending = false;
+
+registerRematchHandler(() => {
+  if (rematchPending) return;
+  rematchPending = true;
+  updateEndGameModal({
+    status: "Waiting for opponent...",
+    phase: "waiting",
+  });
+  socket.send("rematch");
+});
 
 function announceRoomReady(roomId) {
   if (!roomId) return;
@@ -234,6 +251,19 @@ socket.onEvent("gameJoined", ({ playerId, gameId: joinedGameId }) => {
   setRoomLink(buildRoomUrl(joinedGameId));
   announceRoomReady(joinedGameId);
   console.log("Joined game", joinedGameId, "as", playerId);
+});
+
+socket.onEvent("rematchRequested", ({ playerId }) => {
+  if (playerId === myPlayerId) return;
+  updateEndGameModal({
+    status: "Opponent requested a rematch.",
+    phase: "ready",
+  });
+});
+
+socket.onEvent("rematchStarted", () => {
+  rematchPending = false;
+  hideEndGameModal();
 });
 
 getOrCreateRoomId().then(() => {
@@ -395,7 +425,6 @@ scene("fight", () => {
   let player1HealthBar = null;
   let player2HealthBar = null;
   let counter = null;
-  let winningText = null;
   let gameOverFlag = false;
   let countInterval = null;
   let startOverlay = null;
@@ -404,9 +433,6 @@ scene("fight", () => {
   let joinToast = null;
   let joinToastText = null;
   let joinToastTimer = null;
-  let gameOverOverlay = null;
-  let gameOverText = null;
-  let newGameButton = null;
 
   function makePlayer(posX, posY, scaleFactor, id) {
     const p = add([
@@ -482,9 +508,6 @@ scene("fight", () => {
     },
   ]);
 
-  // Winner text
-  winningText = add([text(""), area(), anchor("center"), pos(center())]);
-
   // Start / countdown overlay
   startOverlay = add([
     rect(520, 160),
@@ -515,32 +538,6 @@ scene("fight", () => {
   joinToastText = joinToast.add([text(""), anchor("center")]);
   joinToast.hidden = true;
 
-  // Game over overlay and new game button
-  gameOverOverlay = add([
-    rect(width(), height()),
-    color(0, 0, 0),
-    opacity(0.6),
-    pos(0, 0),
-    anchor("topleft"),
-    fixed(),
-    z(2000),
-  ]);
-  gameOverText = gameOverOverlay.add([
-    text("", { size: 42 }),
-    anchor("center"),
-    pos(center().add(0, -40)),
-  ]);
-  newGameButton = gameOverOverlay.add([
-    rect(240, 70),
-    area(),
-    color(40, 140, 220),
-    anchor("center"),
-    pos(center().add(0, 60)),
-    "new-game-button",
-  ]);
-  newGameButton.add([text("New Game", { size: 26 }), anchor("center")]);
-  gameOverOverlay.hidden = true;
-
   function showJoinToast(message) {
     if (!joinToast) return;
     joinToast.hidden = false;
@@ -550,6 +547,14 @@ scene("fight", () => {
       joinToast.hidden = true;
       joinToastTimer = null;
     });
+  }
+
+  function getResultLabel(winner) {
+    if (winner === "tie") return "Tie game!";
+    if (!myPlayerId) {
+      return winner === "p1" ? "Player 1 Wins!" : "Player 2 Wins!";
+    }
+    return winner === myPlayerId ? "You Win!" : "You Lose!";
   }
 
   function updateStartUI(started, startAt, connected, gameOver) {
@@ -584,21 +589,6 @@ scene("fight", () => {
     }
   }
 
-  function showGameOverUI(winner) {
-    if (!gameOverOverlay || !gameOverText) return;
-    gameOverOverlay.hidden = false;
-    if (startOverlay) startOverlay.hidden = true;
-    let message = "Tie!";
-    if (winner === "p1") message = "Player 1 Wins!";
-    else if (winner === "p2") message = "Player 2 Wins!";
-    gameOverText.text = message;
-  }
-
-  onClick("new-game-button", () => {
-    if (gameOverOverlay?.hidden) return;
-    startNewRoom();
-  });
-
   socket.onEvent("playerJoined", ({ playerId }) => {
     showJoinToast(`Player ${playerId === "p1" ? "1" : "2"} joined the game`);
     announceOpponentJoined();
@@ -608,6 +598,9 @@ scene("fight", () => {
     showJoinToast(`Player ${playerId === "p1" ? "1" : "2"} left the game`);
     opponentJoined = false;
     window.__kaboomOpponentJoined = null;
+    rematchPending = false;
+    gameOverFlag = false;
+    hideEndGameModal();
   });
 
   // Server state updates
@@ -657,25 +650,18 @@ scene("fight", () => {
     // Game over
     if (gameOver && !gameOverFlag) {
       gameOverFlag = true;
+      rematchPending = false;
       if (countInterval) clearInterval(countInterval);
 
-      if (winner === "p1") {
-        winningText.text = "Player 1 won!";
-        if (s2.dead) {
-          player2.use(sprite(player2.sprites.death));
-          player2.play("death");
-        }
-      } else if (winner === "p2") {
-        winningText.text = "Player 2 won!";
-        if (s1.dead) {
-          player1.use(sprite(player1.sprites.death));
-          player1.play("death");
-        }
-      } else {
-        winningText.text = "Tie!";
-      }
-
-      showGameOverUI(winner);
+      showEndGameModal({
+        title: "Match Over",
+        subtitle: getResultLabel(winner),
+        status: "",
+        phase: "ready",
+        winner,
+      });
+    } else if (!gameOver && gameOverFlag) {
+      gameOverFlag = false;
     }
 
     // Update animations based on state
