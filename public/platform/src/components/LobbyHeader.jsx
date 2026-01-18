@@ -8,12 +8,26 @@ export default function LobbyHeader({
   onToggleTheme,
   onToggleFullscreen,
   isFullscreen,
+  showInstall,
+  onInstall,
 }) {
   return (
     <header className={styles.header}>
       <div className={styles.headerTop}>
         {headerLeft}
         <div className={styles.headerActions}>
+          {showInstall && (
+            <button
+              type="button"
+              className={styles.themeToggle}
+              onClick={onInstall}
+              aria-label="Install app"
+            >
+              <span className={classNames("material-symbols-outlined", styles.themeIcon)}>
+                download
+              </span>
+            </button>
+          )}
           <button
             type="button"
             className={styles.themeToggle}

@@ -55,6 +55,9 @@ export default function App() {
   });
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [pseudoFullscreen, setPseudoFullscreen] = useState(false);
+  const [installPrompt, setInstallPrompt] = useState(null);
+  const [canInstall, setCanInstall] = useState(false);
+  const [isStandalone, setIsStandalone] = useState(false);
   const cardRefs = useRef([]);
   const endGameBridgeRef = useRef(null);
   const autoFullscreenAttemptedRef = useRef(false);
@@ -157,6 +160,47 @@ export default function App() {
     };
   }, []);
 
+  useEffect(() => {
+    if (typeof window === "undefined") return () => {};
+    const media = window.matchMedia("(display-mode: standalone)");
+    const updateStandalone = () => {
+      setIsStandalone(media.matches || window.navigator.standalone === true);
+    };
+    updateStandalone();
+    if (media.addEventListener) {
+      media.addEventListener("change", updateStandalone);
+    } else if (media.addListener) {
+      media.addListener(updateStandalone);
+    }
+    return () => {
+      if (media.removeEventListener) {
+        media.removeEventListener("change", updateStandalone);
+      } else if (media.removeListener) {
+        media.removeListener(updateStandalone);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return () => {};
+    const handleBeforeInstall = (event) => {
+      event.preventDefault();
+      setInstallPrompt(event);
+      setCanInstall(true);
+    };
+    const handleInstalled = () => {
+      setInstallPrompt(null);
+      setCanInstall(false);
+      setIsStandalone(true);
+    };
+    window.addEventListener("beforeinstallprompt", handleBeforeInstall);
+    window.addEventListener("appinstalled", handleInstalled);
+    return () => {
+      window.removeEventListener("beforeinstallprompt", handleBeforeInstall);
+      window.removeEventListener("appinstalled", handleInstalled);
+    };
+  }, []);
+
   const applyPseudoFullscreen = useCallback((next) => {
     if (typeof document === "undefined") return;
     const root = document.documentElement;
@@ -199,6 +243,18 @@ export default function App() {
       requestFullscreen();
     }
   }, [exitFullscreen, pseudoFullscreen, requestFullscreen]);
+
+  const handleInstallApp = useCallback(async () => {
+    if (!installPrompt) return;
+    installPrompt.prompt();
+    try {
+      await installPrompt.userChoice;
+    } catch (err) {
+      // no-op
+    }
+    setInstallPrompt(null);
+    setCanInstall(false);
+  }, [installPrompt]);
 
   useEffect(() => {
     if (!isGameView) {
@@ -407,6 +463,7 @@ export default function App() {
   const rematchDisabled = endGameState.phase === "waiting";
 
   const fullscreenActive = isFullscreen || pseudoFullscreen;
+  const showInstallButton = canInstall && !isStandalone;
 
   return (
     <div className={classNames(styles.app, fullscreenActive && styles.appFullscreen)}>
@@ -422,7 +479,9 @@ export default function App() {
                   title={headerTitle}
                   onToggleTheme={() => setTheme((prev) => (prev === "dark" ? "light" : "dark"))}
                   onToggleFullscreen={handleFullscreenToggle}
-                  isFullscreen={isFullscreen}
+                  isFullscreen={fullscreenActive}
+                  showInstall={showInstallButton}
+                  onInstall={handleInstallApp}
                 />
               )}
 
@@ -456,7 +515,7 @@ export default function App() {
                   onRematch={handleRematch}
                   onBackHome={handleBackHome}
                   rematchDisabled={rematchDisabled}
-                  isFullscreen={isFullscreen}
+                  isFullscreen={fullscreenActive}
                   onToggleFullscreen={handleFullscreenToggle}
                 />
               )}
