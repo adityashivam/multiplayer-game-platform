@@ -46,6 +46,10 @@ export default function App() {
   const [gameLoadError, setGameLoadError] = useState(null);
   const [shareOpen, setShareOpen] = useState(false);
   const cardRefs = useRef([]);
+  const shareModalManagedRef = useRef(false);
+  const setShareModal = useCallback((nextOpen) => {
+    setShareOpen((prev) => (typeof nextOpen === "boolean" ? nextOpen : !prev));
+  }, []);
 
   const isGameView = Boolean(route?.gameId);
 
@@ -70,6 +74,26 @@ export default function App() {
     }
     localStorage.setItem(THEME_KEY, theme);
   }, [theme]);
+
+  useEffect(() => {
+    const handleShareModal = (event) => {
+      const detail = event?.detail || {};
+      if (typeof detail.managed === "boolean") {
+        shareModalManagedRef.current = detail.managed;
+      }
+      if (typeof detail.open === "boolean") {
+        setShareModal(detail.open);
+      } else if (detail.toggle) {
+        setShareModal();
+      }
+    };
+    window.addEventListener("kaboom:share-modal", handleShareModal);
+    return () => window.removeEventListener("kaboom:share-modal", handleShareModal);
+  }, [setShareModal]);
+
+  useEffect(() => {
+    shareModalManagedRef.current = false;
+  }, [route?.gameId]);
 
   useEffect(() => {
     if (!isGameView) {
@@ -131,24 +155,24 @@ export default function App() {
 
   useEffect(() => {
     if (!isGameView) {
-      setShareOpen(false);
+      setShareModal(false);
       return;
     }
     const joined = window.__kaboomOpponentJoined;
     if (joined && joined.gameId === route?.gameId && joined.roomId === route?.roomId) {
-      setShareOpen(false);
+      setShareModal(false);
       return;
     }
-    setShareOpen(true);
-  }, [isGameView, route?.gameId]);
+    setShareModal(true);
+  }, [isGameView, route?.gameId, route?.roomId, setShareModal]);
 
   useEffect(() => {
     const handleOpponentJoined = () => {
-      setShareOpen(false);
+      setShareModal(false);
     };
     window.addEventListener("kaboom:opponent-joined", handleOpponentJoined);
     return () => window.removeEventListener("kaboom:opponent-joined", handleOpponentJoined);
-  }, []);
+  }, [setShareModal]);
 
   useEffect(() => {
     const handleRoomReady = () => {
@@ -206,7 +230,10 @@ export default function App() {
           return;
         }
         if (action === "select") {
-          setShareOpen((prev) => !prev);
+          if (shareModalManagedRef.current) {
+            return;
+          }
+          setShareModal();
         }
         return;
       }
@@ -225,7 +252,7 @@ export default function App() {
           break;
       }
     },
-    [activateSelected, handleDirectionalInput, isGameView],
+    [activateSelected, handleDirectionalInput, isGameView, setShareModal],
   );
 
   useEffect(() => {
@@ -325,7 +352,7 @@ export default function App() {
               {isGameView && (
                 <GameView
                   shareOpen={shareOpen}
-                  onCloseShare={() => setShareOpen(false)}
+                  onCloseShare={() => setShareModal(false)}
                   roomLabel={roomLabel}
                   shareUrl={shareUrl}
                   copyLabel={copyLabel}

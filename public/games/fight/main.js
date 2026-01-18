@@ -38,6 +38,8 @@ const GAME_SLUG = "fight";
 const ASSET_BASE = `/games/${GAME_SLUG}/assets`;
 const OPPONENT_JOIN_EVENT = "kaboom:opponent-joined";
 const ROOM_READY_EVENT = "kaboom:room-ready";
+const SHARE_MODAL_EVENT = "kaboom:share-modal";
+let shareModalShown = false;
 
 function buildRoomUrl(roomId) {
   return `${window.location.origin}/games/${GAME_SLUG}/${roomId}`;
@@ -45,6 +47,25 @@ function buildRoomUrl(roomId) {
 
 function setRoomLink(url) {
   roomUrl = url;
+}
+
+function emitShareModalEvent(detail) {
+  if (!isEmbedded) return;
+  window.dispatchEvent(new CustomEvent(SHARE_MODAL_EVENT, { detail }));
+}
+
+if (isEmbedded) {
+  emitShareModalEvent({ managed: true });
+}
+
+function toggleShareModal() {
+  emitShareModalEvent({ toggle: true });
+}
+
+function openShareModalOnce() {
+  if (!isEmbedded || shareModalShown) return;
+  shareModalShown = true;
+  emitShareModalEvent({ open: true });
 }
 
 function setupCopyButton() {
@@ -130,6 +151,7 @@ function announceRoomReady(roomId) {
   window.dispatchEvent(
     new CustomEvent(ROOM_READY_EVENT, { detail: { gameId: GAME_SLUG, roomId } }),
   );
+  openShareModalOnce();
 }
 
 function announceOpponentJoined() {
@@ -217,7 +239,9 @@ function handleActionInput(action) {
       window.location.href = "/";
       break;
     case "select":
-      if (!isEmbedded) {
+      if (isEmbedded) {
+        toggleShareModal();
+      } else {
         toggleTheme();
       }
       break;
