@@ -6,6 +6,7 @@ export default function EndGameModal({
   title,
   subtitle,
   status,
+  actionLabel,
   onRematch,
   onBack,
   rematchDisabled,
@@ -30,7 +31,9 @@ export default function EndGameModal({
             </div>
             <div className={styles.shareActionText}>
               <span className={styles.shareActionEyebrow}>Rematch</span>
-              <span className={styles.shareActionTitle}>Challenge Opponent</span>
+              <span className={styles.shareActionTitle}>
+                {actionLabel || "Challenge Opponent"}
+              </span>
             </div>
           </button>
 

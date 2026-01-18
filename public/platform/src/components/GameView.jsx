@@ -15,6 +15,7 @@ export default function GameView({
   endGameTitle,
   endGameSubtitle,
   endGameStatus,
+  endGameActionLabel,
   onRematch,
   onBackHome,
   rematchDisabled,
@@ -29,6 +30,7 @@ export default function GameView({
             title={endGameTitle}
             subtitle={endGameSubtitle}
             status={endGameStatus}
+            actionLabel={endGameActionLabel}
             onRematch={onRematch}
             onBack={onBackHome}
             rematchDisabled={rematchDisabled}

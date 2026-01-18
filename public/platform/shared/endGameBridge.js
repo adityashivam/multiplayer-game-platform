@@ -3,6 +3,7 @@ const defaultState = {
   title: "",
   subtitle: "",
   status: "",
+  actionLabel: "",
   phase: "idle",
   winner: null,
   gameId: null,

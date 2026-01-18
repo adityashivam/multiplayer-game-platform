@@ -50,6 +50,7 @@ export default function App() {
     title: "",
     subtitle: "",
     status: "",
+    actionLabel: "",
     phase: "idle",
   });
   const cardRefs = useRef([]);
@@ -380,6 +381,7 @@ export default function App() {
                   endGameTitle={endGameState.title}
                   endGameSubtitle={endGameState.subtitle}
                   endGameStatus={endGameState.status}
+                  endGameActionLabel={endGameState.actionLabel}
                   onRematch={handleRematch}
                   onBackHome={handleBackHome}
                   rematchDisabled={rematchDisabled}

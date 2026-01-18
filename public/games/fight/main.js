@@ -256,7 +256,8 @@ socket.onEvent("gameJoined", ({ playerId, gameId: joinedGameId }) => {
 socket.onEvent("rematchRequested", ({ playerId }) => {
   if (playerId === myPlayerId) return;
   updateEndGameModal({
-    status: "Opponent requested a rematch.",
+    status: "Accept challenge.",
+    actionLabel: "Accept Challenge",
     phase: "ready",
   });
 });
