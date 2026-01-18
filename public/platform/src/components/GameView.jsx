@@ -19,12 +19,27 @@ export default function GameView({
   onRematch,
   onBackHome,
   rematchDisabled,
+  isFullscreen,
+  onToggleFullscreen,
 }) {
   return (
     <div id="game-view" className={styles.gameView}>
       <div className={styles.canvasFrame}>
         <canvas id="game-canvas" className={styles.gameCanvas} />
         <div className={styles.canvasOverlay} />
+        <button
+          type="button"
+          className={styles.fullscreenButton}
+          onClick={onToggleFullscreen}
+          aria-pressed={isFullscreen}
+        >
+          <span className="material-symbols-outlined" aria-hidden="true">
+            {isFullscreen ? "fullscreen_exit" : "fullscreen"}
+          </span>
+          <span className={styles.fullscreenLabel}>
+            {isFullscreen ? "Exit" : "Full Screen"}
+          </span>
+        </button>
         {endGameOpen && (
           <EndGameModal
             title={endGameTitle}

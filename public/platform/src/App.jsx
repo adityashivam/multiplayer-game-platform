@@ -53,8 +53,12 @@ export default function App() {
     actionLabel: "",
     phase: "idle",
   });
+  const [isFullscreen, setIsFullscreen] = useState(() =>
+    typeof document === "undefined" ? false : Boolean(document.fullscreenElement),
+  );
   const cardRefs = useRef([]);
   const endGameBridgeRef = useRef(null);
+  const autoFullscreenAttemptedRef = useRef(false);
   const setShareModal = useCallback((nextOpen) => {
     setShareOpen((prev) => (typeof nextOpen === "boolean" ? nextOpen : !prev));
   }, []);
@@ -142,6 +146,48 @@ export default function App() {
       endGameBridgeRef.current?.hideEndGameModal?.();
     }
   }, [isGameView]);
+
+  useEffect(() => {
+    if (typeof document === "undefined") return () => {};
+    const handleChange = () => {
+      setIsFullscreen(Boolean(document.fullscreenElement));
+    };
+    document.addEventListener("fullscreenchange", handleChange);
+    return () => {
+      document.removeEventListener("fullscreenchange", handleChange);
+    };
+  }, []);
+
+  const requestFullscreen = useCallback(() => {
+    if (typeof document === "undefined" || !document.fullscreenEnabled) return;
+    const target = document.getElementById("root") || document.documentElement;
+    if (!target?.requestFullscreen) return;
+    target.requestFullscreen().catch(() => {});
+  }, []);
+
+  const exitFullscreen = useCallback(() => {
+    if (typeof document === "undefined" || !document.exitFullscreen) return;
+    document.exitFullscreen().catch(() => {});
+  }, []);
+
+  const handleFullscreenToggle = useCallback(() => {
+    if (typeof document === "undefined") return;
+    if (document.fullscreenElement) {
+      exitFullscreen();
+    } else {
+      requestFullscreen();
+    }
+  }, [exitFullscreen, requestFullscreen]);
+
+  useEffect(() => {
+    if (!isGameView) {
+      autoFullscreenAttemptedRef.current = false;
+      return;
+    }
+    if (autoFullscreenAttemptedRef.current) return;
+    autoFullscreenAttemptedRef.current = true;
+    requestFullscreen();
+  }, [isGameView, requestFullscreen]);
 
   useEffect(() => {
     let cancelled = false;
@@ -352,6 +398,8 @@ export default function App() {
                   headerLeft={headerLeft}
                   title={headerTitle}
                   onToggleTheme={() => setTheme((prev) => (prev === "dark" ? "light" : "dark"))}
+                  onToggleFullscreen={handleFullscreenToggle}
+                  isFullscreen={isFullscreen}
                 />
               )}
 
@@ -385,6 +433,8 @@ export default function App() {
                   onRematch={handleRematch}
                   onBackHome={handleBackHome}
                   rematchDisabled={rematchDisabled}
+                  isFullscreen={isFullscreen}
+                  onToggleFullscreen={handleFullscreenToggle}
                 />
               )}
             </div>

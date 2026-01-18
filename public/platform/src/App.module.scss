@@ -118,6 +118,12 @@
   gap: 12px;
 }
 
+.headerActions {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
 .badge {
   background: #264653;
   color: #fff;
@@ -617,6 +623,39 @@
   inset: 0;
   pointer-events: none;
   background: linear-gradient(0deg, rgba(0, 0, 0, 0.35), transparent);
+}
+
+.fullscreenButton {
+  position: absolute;
+  top: clamp(10px, 2vw, 14px);
+  right: clamp(10px, 2vw, 14px);
+  z-index: 5;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  background: #264653;
+  color: #fff;
+  border: 2px solid #000;
+  box-shadow: var(--shadow-sm);
+  font-family: "Press Start 2P", cursive;
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.fullscreenButton:active {
+  transform: translateY(1px);
+}
+
+:global(.dark) .fullscreenButton {
+  background: #1f1a16;
+  border-color: #5c5046;
+}
+
+.fullscreenLabel {
+  display: inline-block;
 }
 
 .footerBar {
