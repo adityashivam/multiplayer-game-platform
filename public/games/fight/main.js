@@ -1,8 +1,7 @@
+import { getGameDomRefs } from "/platform/shared/gameDom.js";
+
 // ---------- Kaboom init ----------
-const canvasEl = document.getElementById("game-canvas");
-const themeToggle = document.getElementById("theme-toggle");
-const dpadButtons = document.querySelectorAll("[data-dir]");
-const controllerButtons = document.querySelectorAll("[data-action]");
+const { canvas, themeToggle, dpadButtons, controllerButtons, isEmbedded } = getGameDomRefs();
 const root = document.documentElement;
 const THEME_KEY = "kaboom-preferred-theme";
 let roomUrl = "";
@@ -12,12 +11,11 @@ kaboom({
   scale: 0.7,
   debug: false,
   global: true,
-  canvas: canvasEl || undefined,
+  canvas: canvas || undefined,
 });
 
 // Fit canvas into portrait-first layout (top half of screen)
-const gameCanvas = canvasEl || document.querySelector("canvas");
-const isEmbedded = Boolean(document.getElementById("game-view"));
+const gameCanvas = canvas;
 if (gameCanvas) {
   gameCanvas.style.width = "100%";
   gameCanvas.style.maxWidth = "100%";

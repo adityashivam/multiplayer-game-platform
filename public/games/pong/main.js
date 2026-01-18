@@ -1,3 +1,5 @@
+import { getGameDomRefs } from "/platform/shared/gameDom.js";
+
 const GAME_SLUG = "pong";
 const WIDTH = 960;
 const HEIGHT = 720;
@@ -7,10 +9,8 @@ const PADDLE_X1 = 70;
 const PADDLE_X2 = WIDTH - 70;
 
 // Use the in-app canvas so it stays inside the layout
-const gameCanvas = document.getElementById("game-canvas");
-const themeToggle = document.getElementById("theme-toggle");
-const dpadButtons = document.querySelectorAll("[data-dir]");
-const controllerButtons = document.querySelectorAll("[data-action]");
+const { canvas, themeToggle, dpadButtons, controllerButtons, isEmbedded } = getGameDomRefs();
+const gameCanvas = canvas;
 const root = document.documentElement;
 const THEME_KEY = "kaboom-preferred-theme";
 let roomUrl = "";
@@ -26,7 +26,6 @@ kaboom({
 });
 
 // Fit canvas into top-half layout (mobile-first)
-const isEmbedded = Boolean(document.getElementById("game-view"));
 if (gameCanvas) {
   gameCanvas.style.width = "100%";
   gameCanvas.style.maxWidth = "100%";

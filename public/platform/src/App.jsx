@@ -33,7 +33,7 @@ async function loadGameClient(gameId) {
   if (!window.kaboom) {
     await loadScript("https://unpkg.com/kaboom/dist/kaboom.js", { id: "kaboom-lib" });
   }
-  await loadScript(`/games/${gameId}/main.js`, { id: `game-${gameId}` });
+  await loadScript(`/games/${gameId}/main.js`, { id: `game-${gameId}`, type: "module" });
 }
 
 export default function App() {
