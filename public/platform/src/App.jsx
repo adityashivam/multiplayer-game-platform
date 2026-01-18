@@ -53,9 +53,8 @@ export default function App() {
     actionLabel: "",
     phase: "idle",
   });
-  const [isFullscreen, setIsFullscreen] = useState(() =>
-    typeof document === "undefined" ? false : Boolean(document.fullscreenElement),
-  );
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [pseudoFullscreen, setPseudoFullscreen] = useState(false);
   const cardRefs = useRef([]);
   const endGameBridgeRef = useRef(null);
   const autoFullscreenAttemptedRef = useRef(false);
@@ -158,26 +157,48 @@ export default function App() {
     };
   }, []);
 
-  const requestFullscreen = useCallback(() => {
-    if (typeof document === "undefined" || !document.fullscreenEnabled) return;
-    const target = document.getElementById("root") || document.documentElement;
-    if (!target?.requestFullscreen) return;
-    target.requestFullscreen().catch(() => {});
+  const applyPseudoFullscreen = useCallback((next) => {
+    if (typeof document === "undefined") return;
+    const root = document.documentElement;
+    const body = document.body;
+    if (next) {
+      root?.setAttribute("data-pseudo-fullscreen", "true");
+      body?.setAttribute("data-pseudo-fullscreen", "true");
+    } else {
+      root?.removeAttribute("data-pseudo-fullscreen");
+      body?.removeAttribute("data-pseudo-fullscreen");
+    }
+    setPseudoFullscreen(next);
   }, []);
 
+  const requestFullscreen = useCallback(() => {
+    if (typeof document === "undefined") return;
+    const target = document.getElementById("root") || document.documentElement;
+    if (!document.fullscreenEnabled || !target?.requestFullscreen) {
+      applyPseudoFullscreen(true);
+      return;
+    }
+    target.requestFullscreen().catch(() => {});
+  }, [applyPseudoFullscreen]);
+
   const exitFullscreen = useCallback(() => {
-    if (typeof document === "undefined" || !document.exitFullscreen) return;
-    document.exitFullscreen().catch(() => {});
-  }, []);
+    if (typeof document === "undefined") return;
+    if (document.fullscreenElement && document.exitFullscreen) {
+      document.exitFullscreen().catch(() => {});
+      return;
+    }
+    applyPseudoFullscreen(false);
+  }, [applyPseudoFullscreen]);
 
   const handleFullscreenToggle = useCallback(() => {
     if (typeof document === "undefined") return;
-    if (document.fullscreenElement) {
+    const active = Boolean(document.fullscreenElement) || pseudoFullscreen;
+    if (active) {
       exitFullscreen();
     } else {
       requestFullscreen();
     }
-  }, [exitFullscreen, requestFullscreen]);
+  }, [exitFullscreen, pseudoFullscreen, requestFullscreen]);
 
   useEffect(() => {
     if (!isGameView) {
@@ -385,8 +406,10 @@ export default function App() {
   const roomLabel = route?.roomId ? `Room #${route.roomId}` : "Room #----";
   const rematchDisabled = endGameState.phase === "waiting";
 
+  const fullscreenActive = isFullscreen || pseudoFullscreen;
+
   return (
-    <div className={styles.app}>
+    <div className={classNames(styles.app, fullscreenActive && styles.appFullscreen)}>
       <div className={styles.console}>
         <div className={styles.screen}>
           <div className={styles.scanlines} aria-hidden="true" />

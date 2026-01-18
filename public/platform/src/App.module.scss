@@ -1,5 +1,20 @@
+:global(html),
+:global(body),
+:global(#root) {
+  height: 100%;
+  width: 100%;
+}
+
 :global(body) {
   background: var(--color-background);
+}
+
+:global(html[data-pseudo-fullscreen="true"]),
+:global(body[data-pseudo-fullscreen="true"]) {
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
 }
 
 .app {
@@ -16,6 +31,11 @@
     ),
     var(--color-background);
   overflow: hidden;
+}
+
+.appFullscreen {
+  height: 100dvh;
+  width: 100vw;
 }
 
 :global(.dark) .app {
