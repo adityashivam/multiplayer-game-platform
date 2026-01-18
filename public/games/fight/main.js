@@ -1,4 +1,5 @@
 import { getGameControls, getGameDomRefs } from "/platform/shared/gameDom.js";
+import { getGameSocket } from "/platform/shared/gameSocket.js";
 import { openShareModal } from "/platform/shared/shareModalBridge.js";
 
 // ---------- Kaboom init ----------
@@ -111,7 +112,7 @@ async function startNewRoom() {
 
 let gameId = null;
 let hasJoined = false;
-const socket = io(`/${GAME_SLUG}`);
+const socket = getGameSocket(GAME_SLUG);
 let roomReadyPromise = null;
 
 let myPlayerId = null;
@@ -142,7 +143,7 @@ function announceOpponentJoined() {
 
 function sendInputFlag(type, value) {
   if (!readyToPlay) return;
-  socket.emit("input", { type, value });
+  socket.send("input", { type, value });
 }
 
 function handleDirectionalInput(direction, active) {
@@ -210,23 +211,23 @@ function initControllerNavigation() {
 }
 
 function tryJoinGame() {
-  if (!socket.connected || !gameId || hasJoined) return;
-  socket.emit("joinGame", { gameId });
+  if (!socket.isConnected() || !gameId || hasJoined) return;
+  socket.send("joinGame", { gameId });
   hasJoined = true;
 }
 
-socket.on("connect", () => {
+socket.onEvent("connect", () => {
   hasJoined = false;
   getOrCreateRoomId().then(() => {
     tryJoinGame();
   });
 });
 
-socket.on("roomFull", () => {
+socket.onEvent("roomFull", () => {
   alert("Room is full!");
 });
 
-socket.on("gameJoined", ({ playerId, gameId: joinedGameId }) => {
+socket.onEvent("gameJoined", ({ playerId, gameId: joinedGameId }) => {
   myPlayerId = playerId;
   readyToPlay = true;
   gameId = joinedGameId;
@@ -342,9 +343,9 @@ const PLAYER2_Y_OFFSET = 0;
 
 scene("fight", () => {
   setGravity(0); // Server handles physics
-  socket.off("state");
-  socket.off("playerJoined");
-  socket.off("playerLeft");
+  socket.offEvent("state");
+  socket.offEvent("playerJoined");
+  socket.offEvent("playerLeft");
 
   const background = add([sprite("background"), scale(4)]);
   background.add([sprite("trees")]);
@@ -598,19 +599,19 @@ scene("fight", () => {
     startNewRoom();
   });
 
-socket.on("playerJoined", ({ playerId }) => {
-  showJoinToast(`Player ${playerId === "p1" ? "1" : "2"} joined the game`);
-  announceOpponentJoined();
-});
+  socket.onEvent("playerJoined", ({ playerId }) => {
+    showJoinToast(`Player ${playerId === "p1" ? "1" : "2"} joined the game`);
+    announceOpponentJoined();
+  });
 
-socket.on("playerLeft", ({ playerId }) => {
-  showJoinToast(`Player ${playerId === "p1" ? "1" : "2"} left the game`);
-  opponentJoined = false;
-  window.__kaboomOpponentJoined = null;
-});
+  socket.onEvent("playerLeft", ({ playerId }) => {
+    showJoinToast(`Player ${playerId === "p1" ? "1" : "2"} left the game`);
+    opponentJoined = false;
+    window.__kaboomOpponentJoined = null;
+  });
 
   // Server state updates
-  socket.on("state", (state) => {
+  socket.onEvent("state", (state) => {
     if (!player1 || !player2 || !player1HealthBar || !player2HealthBar) {
       return;
     }

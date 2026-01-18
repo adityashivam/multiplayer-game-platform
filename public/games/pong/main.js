@@ -1,4 +1,5 @@
 import { getGameControls, getGameDomRefs } from "/platform/shared/gameDom.js";
+import { getGameSocket } from "/platform/shared/gameSocket.js";
 
 const GAME_SLUG = "pong";
 const WIDTH = 960;
@@ -78,15 +79,15 @@ let readyToPlay = false;
 let lastConnected = { p1: false, p2: false };
 let hasPlayedRound = false;
 
-const socket = io(`/${GAME_SLUG}`);
+const socket = getGameSocket(GAME_SLUG);
 
 function tryJoinGame() {
-  if (!socket.connected || !gameId || hasJoined) return;
-  socket.emit("joinGame", { gameId });
+  if (!socket.isConnected() || !gameId || hasJoined) return;
+  socket.send("joinGame", { gameId });
   hasJoined = true;
 }
 
-socket.on("connect", () => {
+socket.onEvent("connect", () => {
   hasJoined = false;
   if (gameId) {
     tryJoinGame();
@@ -98,11 +99,11 @@ socket.on("connect", () => {
   }
 });
 
-socket.on("roomFull", () => {
+socket.onEvent("roomFull", () => {
   alert("Room is full!");
 });
 
-socket.on("gameJoined", ({ playerId, gameId: joinedGameId }) => {
+socket.onEvent("gameJoined", ({ playerId, gameId: joinedGameId }) => {
   myPlayerId = playerId;
   readyToPlay = true;
   gameId = gameId || joinedGameId;
@@ -117,7 +118,7 @@ ensureRoomId().then((id) => {
 
 function sendInput(type, value) {
   if (!readyToPlay) return;
-  socket.emit("input", { type, value });
+  socket.send("input", { type, value });
 }
 
 function handleDirectionalInput(direction, active) {
@@ -137,7 +138,7 @@ function handleActionInput(action) {
     case "a":
     case "x":
     case "y":
-      socket.emit("rematch");
+      socket.send("rematch");
       break;
     case "start":
       if (roomUrl) window.location.href = roomUrl;
@@ -180,9 +181,9 @@ function initControllerNavigation() {
 // ---------- Scene ----------
 scene("pong", () => {
   setGravity(0);
-  socket.off("state");
-  socket.off("playerJoined");
-  socket.off("playerLeft");
+  socket.offEvent("state");
+  socket.offEvent("playerJoined");
+  socket.offEvent("playerLeft");
 
   add([
     rect(WIDTH, HEIGHT),
@@ -370,19 +371,19 @@ scene("pong", () => {
 
   onClick("rematch-button", () => {
     if (gameOverOverlay?.hidden) return;
-    socket.emit("rematch");
+    socket.send("rematch");
     showToast("Rematch requested...");
   });
 
-  socket.on("rematchStarted", () => {
+  socket.onEvent("rematchStarted", () => {
     showToast("Rematch starting!");
     hasPlayedRound = false;
   });
 
-socket.on("state", (state) => {
-  if (!state || !state.players || !state.ball) return;
-  const { players, ball: ballState, gameOver, winner, started, startAt, lastLost } = state;
-  const connected = { p1: players.p1.connected, p2: players.p2.connected };
+  socket.onEvent("state", (state) => {
+    if (!state || !state.players || !state.ball) return;
+    const { players, ball: ballState, gameOver, winner, started, startAt, lastLost } = state;
+    const connected = { p1: players.p1.connected, p2: players.p2.connected };
 
     if (connected.p1 !== lastConnected.p1 || connected.p2 !== lastConnected.p2) {
       // Only toast on net new connections, not repeated start cycles
