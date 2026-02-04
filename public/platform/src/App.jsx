@@ -359,10 +359,6 @@ export default function App() {
   const handleActionInput = useCallback(
     (action) => {
       if (isGameView) {
-        if (action === "b") {
-          window.location.assign("/");
-          return;
-        }
         if (action === "select") {
           setShareModal();
         }

@@ -178,6 +178,7 @@ function handleDirectionalInput(direction, active) {
       sendInputFlag("jump", active);
       break;
     case "down":
+      // D-pad down = light attack
       sendInputFlag("attack", active);
       break;
     default:
@@ -187,18 +188,28 @@ function handleDirectionalInput(direction, active) {
 
 function handleActionInput(action) {
   switch (action) {
-    case "a":
-    case "x":
-    case "y": {
+    case "a": {
+      // A = light attack
       sendInputFlag("attack", true);
-      setTimeout(() => sendInputFlag("attack", false), 120);
+      setTimeout(() => sendInputFlag("attack", false), 150);
+      break;
+    }
+    case "x": {
+      // X = heavy attack (slower, more damage)
+      sendInputFlag("heavyAttack", true);
+      setTimeout(() => sendInputFlag("heavyAttack", false), 300);
+      break;
+    }
+    case "y": {
+      // Y = aerial attack
+      sendInputFlag("aerialAttack", true);
+      setTimeout(() => sendInputFlag("aerialAttack", false), 200);
       break;
     }
     case "start":
       startNewRoom();
       break;
     case "b":
-      window.location.href = "/";
       break;
     default:
       break;
@@ -523,11 +534,11 @@ scene("fight", () => {
   ]);
 
   const count = counter.add([
-    text("60"),
+    text("300"),
     area(),
     anchor("center"),
     {
-      timeLeft: 60,
+      timeLeft: 300,
     },
   ]);
 
@@ -695,8 +706,8 @@ scene("fight", () => {
     }
 
     // Animations (discrete)
-    updatePlayerAnimation(player1, s1);
-    updatePlayerAnimation(player2, s2);
+    updatePlayerAnimation(player1, s1, "player1");
+    updatePlayerAnimation(player2, s2, "player2");
   });
 
   // Per-frame interpolated position updates
@@ -712,10 +723,13 @@ scene("fight", () => {
     player2.pos.y = positions.p2y + PLAYER2_Y_OFFSET;
   });
 
-  function updatePlayerAnimation(player, state) {
+  // Track per-player attack animation state to vary speed by type
+  const attackAnimState = { player1: null, player2: null };
+
+  function updatePlayerAnimation(player, state, playerId) {
     if (!player || !state) return;
 
-    const { attacking, dead, vx } = state;
+    const { attacking, attackType, dead, vx } = state;
 
     if (dead) {
       if (player.curAnim() !== "death") {
@@ -723,19 +737,26 @@ scene("fight", () => {
         player.play("death");
       }
     } else if (attacking) {
-      if (player.curAnim() !== "attack") {
+      // Vary animation speed by attack type for a different feel
+      const prevType = attackAnimState[playerId];
+      if (player.curAnim() !== "attack" || prevType !== attackType) {
+        attackAnimState[playerId] = attackType;
         player.use(sprite(player.sprites.attack));
-        player.play("attack");
-      }
-    } else if (Math.abs(vx) > 5) {
-      if (player.curAnim() !== "run") {
-        player.use(sprite(player.sprites.run));
-        player.play("run");
+        const speed = attackType === "heavy" ? 10 : attackType === "aerial" ? 22 : 18;
+        player.play("attack", { speed });
       }
     } else {
-      if (player.curAnim() !== "idle") {
-        player.use(sprite(player.sprites.idle));
-        player.play("idle");
+      attackAnimState[playerId] = null;
+      if (Math.abs(vx) > 5) {
+        if (player.curAnim() !== "run") {
+          player.use(sprite(player.sprites.run));
+          player.play("run");
+        }
+      } else {
+        if (player.curAnim() !== "idle") {
+          player.use(sprite(player.sprites.idle));
+          player.play("idle");
+        }
       }
     }
   }
