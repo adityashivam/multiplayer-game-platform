@@ -7,6 +7,8 @@ import {
   updateEndGameModal,
 } from "/platform/shared/endGameBridge.js";
 import { openShareModal } from "/platform/shared/shareModalBridge.js";
+import { createInterpolator } from "/platform/shared/interpolation.js";
+import { updateConnectionState } from "/platform/shared/connectionBridge.js";
 
 // ---------- Kaboom init ----------
 const { canvas } = getGameDomRefs();
@@ -119,14 +121,17 @@ async function startNewRoom() {
 let gameId = null;
 let hasJoined = false;
 const socket = getGameSocket(GAME_SLUG);
+socket.onConnectionChange((snapshot) => updateConnectionState(snapshot));
 let roomReadyPromise = null;
 
 let myPlayerId = null;
+let myRejoinToken = null;
 let readyToPlay = false;
 let lastConnected = { p1: false, p2: false };
 let opponentJoined = false;
 let currentRoomId = null;
 let rematchPending = false;
+const interpolator = createInterpolator({ interpDelayMs: 50, maxBufferSize: 10 });
 
 registerRematchHandler(() => {
   if (rematchPending) return;
@@ -229,12 +234,23 @@ function initControllerNavigation() {
 
 function tryJoinGame() {
   if (!socket.isConnected() || !gameId || hasJoined) return;
-  socket.send("joinGame", { gameId });
+  let token = myRejoinToken;
+  if (!token) {
+    try { token = sessionStorage.getItem(`rejoinToken:${GAME_SLUG}:${gameId}`); } catch (e) { /* noop */ }
+  }
+  socket.send("joinGame", { gameId, rejoinToken: token || undefined });
   hasJoined = true;
 }
 
 socket.onEvent("connect", () => {
   hasJoined = false;
+  // Check if the URL room ID changed (e.g., back/forward navigation)
+  const pathRoomId = getRoomIdFromPath();
+  if (pathRoomId && gameId && pathRoomId !== gameId) {
+    roomReadyPromise = null;
+    gameId = null;
+    myRejoinToken = null;
+  }
   getOrCreateRoomId().then(() => {
     tryJoinGame();
   });
@@ -244,10 +260,14 @@ socket.onEvent("roomFull", () => {
   alert("Room is full!");
 });
 
-socket.onEvent("gameJoined", ({ playerId, gameId: joinedGameId }) => {
+socket.onEvent("gameJoined", ({ playerId, gameId: joinedGameId, rejoinToken: token }) => {
   myPlayerId = playerId;
+  myRejoinToken = token || null;
   readyToPlay = true;
   gameId = joinedGameId;
+  if (token && joinedGameId) {
+    try { sessionStorage.setItem(`rejoinToken:${GAME_SLUG}:${joinedGameId}`, token); } catch (e) { /* noop */ }
+  }
   setRoomLink(buildRoomUrl(joinedGameId));
   announceRoomReady(joinedGameId);
   console.log("Joined game", joinedGameId, "as", playerId);
@@ -264,6 +284,7 @@ socket.onEvent("rematchRequested", ({ playerId }) => {
 
 socket.onEvent("rematchStarted", () => {
   rematchPending = false;
+  interpolator.reset();
   hideEndGameModal();
 });
 
@@ -374,6 +395,7 @@ const PLAYER2_Y_OFFSET = 0;
 
 scene("fight", () => {
   setGravity(0); // Server handles physics
+  interpolator.reset();
   socket.offEvent("state");
   socket.offEvent("playerJoined");
   socket.offEvent("playerLeft");
@@ -604,12 +626,25 @@ scene("fight", () => {
     hideEndGameModal();
   });
 
+  function extractFightPositions(state) {
+    return {
+      p1x: state.players.p1.x,
+      p1y: state.players.p1.y,
+      p2x: state.players.p2.x,
+      p2y: state.players.p2.y,
+    };
+  }
+
   // Server state updates
   socket.onEvent("state", (state) => {
     if (!player1 || !player2 || !player1HealthBar || !player2HealthBar) {
       return;
     }
 
+    // Buffer state for interpolated rendering
+    interpolator.pushState(state);
+
+    // Discrete updates use latest state immediately
     const { players, timer, gameOver, winner, started, startAt, connected } = state;
     if (connected) {
       if (connected.p1 !== lastConnected.p1 || connected.p2 !== lastConnected.p2) {
@@ -631,24 +666,18 @@ scene("fight", () => {
     const s1 = players.p1;
     const s2 = players.p2;
 
-    // Update positions
-    player1.pos.x = s1.x;
-    player1.pos.y = s1.y + PLAYER1_Y_OFFSET;
-    player2.pos.x = s2.x;
-    player2.pos.y = s2.y + PLAYER2_Y_OFFSET;
-
-    // Facing direction
+    // Facing direction (discrete)
     player1.flipX = s1.dir === -1;
     player2.flipX = s2.dir === -1;
 
-    // Health bars
+    // Health bars (discrete)
     player1HealthBar.width = s1.health;
     player2HealthBar.width = s2.health;
 
-    // Timer
+    // Timer (discrete)
     count.text = String(Math.ceil(timer));
 
-    // Game over
+    // Game over (discrete)
     if (gameOver && !gameOverFlag) {
       gameOverFlag = true;
       rematchPending = false;
@@ -665,9 +694,22 @@ scene("fight", () => {
       gameOverFlag = false;
     }
 
-    // Update animations based on state
+    // Animations (discrete)
     updatePlayerAnimation(player1, s1);
     updatePlayerAnimation(player2, s2);
+  });
+
+  // Per-frame interpolated position updates
+  onUpdate(() => {
+    if (!player1 || !player2) return;
+
+    const positions = interpolator.getInterpolatedPositions(extractFightPositions);
+    if (!positions) return;
+
+    player1.pos.x = positions.p1x;
+    player1.pos.y = positions.p1y + PLAYER1_Y_OFFSET;
+    player2.pos.x = positions.p2x;
+    player2.pos.y = positions.p2y + PLAYER2_Y_OFFSET;
   });
 
   function updatePlayerAnimation(player, state) {

@@ -53,11 +53,12 @@ export default function App() {
     actionLabel: "",
     phase: "idle",
   });
+  const [connectionState, setConnectionState] = useState({
+    status: "connecting",
+    ping: null,
+  });
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [pseudoFullscreen, setPseudoFullscreen] = useState(false);
-  const [installPrompt, setInstallPrompt] = useState(null);
-  const [canInstall, setCanInstall] = useState(false);
-  const [isStandalone, setIsStandalone] = useState(false);
   const cardRefs = useRef([]);
   const endGameBridgeRef = useRef(null);
   const autoFullscreenAttemptedRef = useRef(false);
@@ -113,6 +114,25 @@ export default function App() {
   useEffect(() => {
     let cancelled = false;
     let unsubscribe = null;
+    import(/* @vite-ignore */ "/platform/shared/connectionBridge.js")
+      .then((bridge) => {
+        if (cancelled) return;
+        unsubscribe = bridge.subscribeConnectionState((nextState) => {
+          setConnectionState(nextState);
+        });
+      })
+      .catch((err) => {
+        console.warn("Connection bridge unavailable", err);
+      });
+    return () => {
+      cancelled = true;
+      if (unsubscribe) unsubscribe();
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    let unsubscribe = null;
     import(/* @vite-ignore */ "/platform/shared/endGameBridge.js")
       .then((bridge) => {
         if (cancelled) return;
@@ -160,46 +180,6 @@ export default function App() {
     };
   }, []);
 
-  useEffect(() => {
-    if (typeof window === "undefined") return () => {};
-    const media = window.matchMedia("(display-mode: standalone)");
-    const updateStandalone = () => {
-      setIsStandalone(media.matches || window.navigator.standalone === true);
-    };
-    updateStandalone();
-    if (media.addEventListener) {
-      media.addEventListener("change", updateStandalone);
-    } else if (media.addListener) {
-      media.addListener(updateStandalone);
-    }
-    return () => {
-      if (media.removeEventListener) {
-        media.removeEventListener("change", updateStandalone);
-      } else if (media.removeListener) {
-        media.removeListener(updateStandalone);
-      }
-    };
-  }, []);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return () => {};
-    const handleBeforeInstall = (event) => {
-      event.preventDefault();
-      setInstallPrompt(event);
-      setCanInstall(true);
-    };
-    const handleInstalled = () => {
-      setInstallPrompt(null);
-      setCanInstall(false);
-      setIsStandalone(true);
-    };
-    window.addEventListener("beforeinstallprompt", handleBeforeInstall);
-    window.addEventListener("appinstalled", handleInstalled);
-    return () => {
-      window.removeEventListener("beforeinstallprompt", handleBeforeInstall);
-      window.removeEventListener("appinstalled", handleInstalled);
-    };
-  }, []);
 
   const applyPseudoFullscreen = useCallback((next) => {
     if (typeof document === "undefined") return;
@@ -244,17 +224,6 @@ export default function App() {
     }
   }, [exitFullscreen, pseudoFullscreen, requestFullscreen]);
 
-  const handleInstallApp = useCallback(async () => {
-    if (!installPrompt) return;
-    installPrompt.prompt();
-    try {
-      await installPrompt.userChoice;
-    } catch (err) {
-      // no-op
-    }
-    setInstallPrompt(null);
-    setCanInstall(false);
-  }, [installPrompt]);
 
   useEffect(() => {
     if (!isGameView) {
@@ -463,7 +432,6 @@ export default function App() {
   const rematchDisabled = endGameState.phase === "waiting";
 
   const fullscreenActive = isFullscreen || pseudoFullscreen;
-  const showInstallButton = canInstall && !isStandalone;
 
   return (
     <div className={classNames(styles.app, fullscreenActive && styles.appFullscreen)}>
@@ -480,8 +448,6 @@ export default function App() {
                   onToggleTheme={() => setTheme((prev) => (prev === "dark" ? "light" : "dark"))}
                   onToggleFullscreen={handleFullscreenToggle}
                   isFullscreen={fullscreenActive}
-                  showInstall={showInstallButton}
-                  onInstall={handleInstallApp}
                 />
               )}
 
@@ -517,6 +483,8 @@ export default function App() {
                   rematchDisabled={rematchDisabled}
                   isFullscreen={fullscreenActive}
                   onToggleFullscreen={handleFullscreenToggle}
+                  connectionStatus={connectionState.status}
+                  connectionPing={connectionState.ping}
                 />
               )}
             </div>

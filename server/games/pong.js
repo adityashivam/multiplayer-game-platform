@@ -15,6 +15,7 @@ const PADDLE_SPEED = 900;
 const BALL_BASE_SPEED = 450;
 const COUNTDOWN_MS = 1500;
 const WIN_SCORE = 10;
+const ROOM_CLEANUP_DELAY_MS = 30000;
 
 function makeBall(initialDir = 1) {
   const angle = (Math.random() * Math.PI) / 3 - Math.PI / 6; // -30deg..+30deg
@@ -181,6 +182,7 @@ export function registerPongGame(io) {
     createState: createInitialGameState,
     onPlayerConnected: (state, playerId) => {
       state.players[playerId].connected = true;
+      state.abandonedAt = null;
       state.gameOver = false;
       state.winner = null;
       scheduleStart(state, COUNTDOWN_MS);
@@ -201,12 +203,23 @@ export function registerPongGame(io) {
     },
     handleDisconnect: (state, playerId) => {
       state.players[playerId].connected = false;
-      state.started = false;
-      state.startAt = null;
-      state.gameOver = false;
-      state.winner = null;
-      state.ball = makeBall();
-      state.rematchRequests = { p1: false, p2: false };
+      const otherPlayer = playerId === "p1" ? "p2" : "p1";
+      const bothDisconnected = !state.players[otherPlayer].connected;
+      if (bothDisconnected) {
+        state.started = false;
+        state.startAt = null;
+        state.gameOver = false;
+        state.winner = null;
+        state.ball = makeBall();
+        state.rematchRequests = { p1: false, p2: false };
+        state.abandonedAt = Date.now();
+      } else {
+        // Pause the game while waiting for reconnect
+        state.started = false;
+        state.startAt = null;
+        state.rematchRequests = { p1: false, p2: false };
+        state.abandonedAt = null;
+      }
     },
     handleRematch: ({ socket, games, nsp }) => {
       const { gameId, playerId } = socket.data;
@@ -232,6 +245,10 @@ export function registerPongGame(io) {
       nextState.players.p2.connected = state.players.p2.connected;
       games.set(gameId, nextState);
       emitEvent({ nsp, gameId, type: "rematchStarted", target: "game" });
+    },
+    shouldCleanup: (state, now) => {
+      if (!state.abandonedAt) return false;
+      return now - state.abandonedAt > ROOM_CLEANUP_DELAY_MS;
     },
     updateState: updateGameState,
     serializeState: sanitize,

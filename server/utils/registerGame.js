@@ -16,6 +16,7 @@ export function registerGame({
   updateState,
   serializeState,
   afterEmit,
+  shouldCleanup,
   tickMs = 1000 / 60,
   dtFallback = 1 / 60,
   stateEvent = "state",
@@ -34,6 +35,7 @@ export function registerGame({
         serializeState,
         afterEmit,
         stateEvent,
+        shouldCleanup,
       }),
     tickMs,
   );
@@ -61,7 +63,7 @@ export function registerGame({
 }
 
 function createJoinHandler({ nsp, socket, games, createState, onStateCreated, onPlayerConnected }) {
-  return ({ gameId }) =>
+  return ({ gameId, rejoinToken }) =>
     handleJoinGame({
       nsp,
       socket,
@@ -70,6 +72,7 @@ function createJoinHandler({ nsp, socket, games, createState, onStateCreated, on
       createState,
       onStateCreated,
       onPlayerConnected,
+      rejoinToken,
     });
 }
 

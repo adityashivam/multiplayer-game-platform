@@ -9,10 +9,17 @@ export function tickGames({
   serializeState,
   afterEmit,
   stateEvent = "state",
+  shouldCleanup,
 }) {
   const now = Date.now();
+  const toDelete = [];
 
   for (const [gameId, state] of games.entries()) {
+    if (shouldCleanup && shouldCleanup(state, now)) {
+      toDelete.push(gameId);
+      continue;
+    }
+
     const dt = (now - state.lastUpdate) / 1000 || dtFallback;
     state.lastUpdate = now;
 
@@ -31,5 +38,9 @@ export function tickGames({
     if (afterEmit) {
       afterEmit(state, dt);
     }
+  }
+
+  for (const id of toDelete) {
+    games.delete(id);
   }
 }

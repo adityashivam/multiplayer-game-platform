@@ -645,6 +645,55 @@
   background: linear-gradient(0deg, rgba(0, 0, 0, 0.35), transparent);
 }
 
+.connectionIndicator {
+  position: absolute;
+  top: clamp(10px, 2vw, 14px);
+  left: clamp(10px, 2vw, 14px);
+  z-index: 5;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px;
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  border: 2px solid rgba(255, 255, 255, 0.15);
+  font-family: "Press Start 2P", cursive;
+  font-size: 8px;
+  letter-spacing: 0.06em;
+  pointer-events: none;
+}
+
+.connectionIcon {
+  font-size: 16px;
+}
+
+.connectionConnected .connectionIcon {
+  color: #4ade80;
+}
+
+.connectionReconnecting .connectionIcon {
+  color: #facc15;
+  animation: connectionPulse 1s infinite;
+}
+
+.connectionDisconnected .connectionIcon {
+  color: #f87171;
+}
+
+.connectionLabel {
+  color: rgba(255, 255, 255, 0.85);
+}
+
+@keyframes connectionPulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.3;
+  }
+}
+
 .fullscreenButton {
   position: absolute;
   top: clamp(10px, 2vw, 14px);

@@ -12,6 +12,7 @@ const ATTACK_COOLDOWN = 0.4;
 const MIN_SEPARATION = 120;
 const GAME_DURATION = 60;
 const COUNTDOWN_MS = 3000;
+const ROOM_CLEANUP_DELAY_MS = 30000;
 
 function createInitialGameState() {
   return {
@@ -78,6 +79,7 @@ function sanitizeStateForClients(state) {
       p1: {
         x: state.players.p1.x,
         y: state.players.p1.y,
+        vx: state.players.p1.vx,
         dir: state.players.p1.dir,
         health: state.players.p1.health,
         attacking: state.players.p1.attacking,
@@ -86,6 +88,7 @@ function sanitizeStateForClients(state) {
       p2: {
         x: state.players.p2.x,
         y: state.players.p2.y,
+        vx: state.players.p2.vx,
         dir: state.players.p2.dir,
         health: state.players.p2.health,
         attacking: state.players.p2.attacking,
@@ -226,6 +229,7 @@ export function registerFightGame(io) {
     onStateCreated: initAttackTimestamps,
     onPlayerConnected: (state, playerId) => {
       state.players[playerId].connected = true;
+      state.abandonedAt = null;
       scheduleFightStart(state);
     },
     handleInput: ({ state, playerId, payload }) => {
@@ -246,12 +250,24 @@ export function registerFightGame(io) {
     },
     handleDisconnect: (state, playerId) => {
       state.players[playerId].connected = false;
-      state.started = false;
-      state.startAt = null;
-      state.timer = GAME_DURATION;
-      state.gameOver = false;
-      state.winner = null;
-      state.rematchRequests = { p1: false, p2: false };
+      // Only fully reset if both players are disconnected
+      const otherPlayer = playerId === "p1" ? "p2" : "p1";
+      const bothDisconnected = !state.players[otherPlayer].connected;
+      if (bothDisconnected) {
+        state.started = false;
+        state.startAt = null;
+        state.timer = GAME_DURATION;
+        state.gameOver = false;
+        state.winner = null;
+        state.rematchRequests = { p1: false, p2: false };
+        state.abandonedAt = Date.now();
+      } else {
+        // Pause the game while waiting for reconnect
+        state.started = false;
+        state.startAt = null;
+        state.rematchRequests = { p1: false, p2: false };
+        state.abandonedAt = null;
+      }
     },
     handleRematch: ({ socket, games, nsp }) => {
       const { gameId, playerId } = socket.data;
@@ -284,6 +300,10 @@ export function registerFightGame(io) {
       if (!state.gameOver) {
         updateGameState(state, dt);
       }
+    },
+    shouldCleanup: (state, now) => {
+      if (!state.abandonedAt) return false;
+      return now - state.abandonedAt > ROOM_CLEANUP_DELAY_MS;
     },
     serializeState: sanitizeStateForClients,
     dtFallback: DT,

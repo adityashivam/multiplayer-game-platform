@@ -13,7 +13,7 @@ export default defineConfig({
     outDir: path.resolve(root, "dist"),
     emptyOutDir: true,
     rollupOptions: {
-      external: ["/platform/shared/shareModalBridge.js", "/platform/shared/endGameBridge.js"],
+      external: ["/platform/shared/shareModalBridge.js", "/platform/shared/endGameBridge.js", "/platform/shared/connectionBridge.js"],
     },
   },
   server: {

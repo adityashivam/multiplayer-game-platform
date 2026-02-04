@@ -6,6 +6,8 @@ import {
   showEndGameModal,
   updateEndGameModal,
 } from "/platform/shared/endGameBridge.js";
+import { createInterpolator } from "/platform/shared/interpolation.js";
+import { updateConnectionState } from "/platform/shared/connectionBridge.js";
 
 const GAME_SLUG = "pong";
 const WIDTH = 960;
@@ -81,12 +83,15 @@ async function ensureRoomId() {
 let gameId = null;
 let hasJoined = false;
 let myPlayerId = null;
+let myRejoinToken = null;
 let readyToPlay = false;
 let lastConnected = { p1: false, p2: false };
 let hasPlayedRound = false;
 
 const socket = getGameSocket(GAME_SLUG);
+socket.onConnectionChange((snapshot) => updateConnectionState(snapshot));
 let rematchPending = false;
+const interpolator = createInterpolator({ interpDelayMs: 50, maxBufferSize: 10 });
 
 registerRematchHandler(() => {
   if (rematchPending) return;
@@ -100,12 +105,22 @@ registerRematchHandler(() => {
 
 function tryJoinGame() {
   if (!socket.isConnected() || !gameId || hasJoined) return;
-  socket.send("joinGame", { gameId });
+  let token = myRejoinToken;
+  if (!token) {
+    try { token = sessionStorage.getItem(`rejoinToken:${GAME_SLUG}:${gameId}`); } catch (e) { /* noop */ }
+  }
+  socket.send("joinGame", { gameId, rejoinToken: token || undefined });
   hasJoined = true;
 }
 
 socket.onEvent("connect", () => {
   hasJoined = false;
+  // Check if the URL room ID changed (e.g., back/forward navigation)
+  const pathRoomId = getRoomIdFromPath();
+  if (pathRoomId && gameId && pathRoomId !== gameId) {
+    gameId = null;
+    myRejoinToken = null;
+  }
   if (gameId) {
     tryJoinGame();
   } else {
@@ -120,10 +135,14 @@ socket.onEvent("roomFull", () => {
   alert("Room is full!");
 });
 
-socket.onEvent("gameJoined", ({ playerId, gameId: joinedGameId }) => {
+socket.onEvent("gameJoined", ({ playerId, gameId: joinedGameId, rejoinToken: token }) => {
   myPlayerId = playerId;
+  myRejoinToken = token || null;
   readyToPlay = true;
   gameId = gameId || joinedGameId;
+  if (token && gameId) {
+    try { sessionStorage.setItem(`rejoinToken:${GAME_SLUG}:${gameId}`, token); } catch (e) { /* noop */ }
+  }
   setRoomLink(buildRoomUrl(gameId));
   console.log("Joined game", gameId, "as", playerId);
 });
@@ -201,6 +220,7 @@ function initControllerNavigation() {
 // ---------- Scene ----------
 scene("pong", () => {
   setGravity(0);
+  interpolator.reset();
   socket.offEvent("state");
   socket.offEvent("playerJoined");
   socket.offEvent("playerLeft");
@@ -359,16 +379,30 @@ scene("pong", () => {
     rematchPending = false;
     hasPlayedRound = false;
     gameOverFlag = false;
+    interpolator.reset();
     hideEndGameModal();
   });
 
+  function extractPongPositions(state) {
+    return {
+      p1y: state.players.p1.y,
+      p2y: state.players.p2.y,
+      ballx: state.ball.x,
+      bally: state.ball.y,
+    };
+  }
+
   socket.onEvent("state", (state) => {
     if (!state || !state.players || !state.ball) return;
+
+    // Buffer state for interpolated rendering
+    interpolator.pushState(state);
+
+    // Discrete updates use latest state immediately
     const { players, ball: ballState, gameOver, winner, started, startAt, lastLost } = state;
     const connected = { p1: players.p1.connected, p2: players.p2.connected };
 
     if (connected.p1 !== lastConnected.p1 || connected.p2 !== lastConnected.p2) {
-      // Only toast on net new connections, not repeated start cycles
       if (connected.p1 && !lastConnected.p1 && connected.p2) {
         showToast("Player 1 connected");
       }
@@ -377,11 +411,6 @@ scene("pong", () => {
       }
       lastConnected = connected;
     }
-
-    paddle1.pos.y = players.p1.y;
-    paddle2.pos.y = players.p2.y;
-    ball.pos.x = ballState.x;
-    ball.pos.y = ballState.y;
 
     scoreText.text = `${players.p1.score}   ${players.p2.score}`;
     infoText.text = `You are ${
@@ -411,6 +440,17 @@ scene("pong", () => {
     } else if (!gameOver && gameOverFlag) {
       gameOverFlag = false;
     }
+  });
+
+  // Per-frame interpolated position updates
+  onUpdate(() => {
+    const positions = interpolator.getInterpolatedPositions(extractPongPositions);
+    if (!positions) return;
+
+    paddle1.pos.y = positions.p1y;
+    paddle2.pos.y = positions.p2y;
+    ball.pos.x = positions.ballx;
+    ball.pos.y = positions.bally;
   });
 });
 
