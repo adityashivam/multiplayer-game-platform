@@ -4,16 +4,16 @@ import { emitEvent, registerGame, scheduleStart } from "../utils/utils.js";
 const FPS = 60;
 const DT = 1 / FPS;
 const MOVE_SPEED = 500;
-const JUMP_SPEED = -800;
-const GRAVITY = 2000;
+const JUMP_SPEED = -1300;
+const GRAVITY = 1600;
 const GROUND_Y = 870; // Ground height for physics
 const MIN_SEPARATION = 120;
 const GAME_DURATION = 300;
 const COUNTDOWN_MS = 3000;
 const ROOM_CLEANUP_DELAY_MS = 30000;
 const MAX_HEALTH = 500;
-const REGEN_DELAY = 3; // seconds after last hit before regen starts
-const REGEN_RATE = 8; // health per second
+const REGEN_DELAY = 0.5; // seconds after last hit before regen starts
+const REGEN_RATE = 25; // health per second
 
 // Attack type definitions
 const ATTACKS = {
@@ -224,9 +224,11 @@ function updateGameState(state, dt) {
   }
 
   if (gameActive) {
-    // Push apart if too close
+    // Push apart if too close (only when both near ground, allow jump-over)
+    const dy = Math.abs(p1.y - p2.y);
+    const bothGrounded = dy < 100;
     const dx = p1.x - p2.x;
-    if (Math.abs(dx) < MIN_SEPARATION) {
+    if (Math.abs(dx) < MIN_SEPARATION && bothGrounded) {
       const push = (MIN_SEPARATION - Math.abs(dx)) / 2;
       const dir = dx === 0 ? 1 : Math.sign(dx);
       p1.x += push * dir;
