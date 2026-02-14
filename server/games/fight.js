@@ -81,6 +81,7 @@ function sanitizePlayer(p) {
     x: p.x,
     y: p.y,
     vx: p.vx,
+    vy: p.vy,
     dir: p.dir,
     health: p.health,
     attacking: p.attacking,

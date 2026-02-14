@@ -141,6 +141,7 @@ export function getGameSocket(namespace) {
     lastValues: null,
     lastSeq: null,
   };
+  let lastDeliveredStateSeq = null;
 
   function pushLossSample(expected, received) {
     lossWindow.push({ expected, received });
@@ -171,6 +172,7 @@ export function getGameSocket(namespace) {
     decodeTransport.schemaTokens = null;
     decodeTransport.lastValues = null;
     decodeTransport.lastSeq = null;
+    lastDeliveredStateSeq = null;
     cachedSnapshot = null;
     snapshotDirty = true;
   }
@@ -334,6 +336,10 @@ export function getGameSocket(namespace) {
     if (kind === "f") {
       const schemaPaths = Array.isArray(payload.p) ? payload.p : decodeTransport.schemaPaths;
       if (!Array.isArray(schemaPaths) || schemaPaths.length === 0) return null;
+      const seq = toFiniteNumber(payload.s);
+      if (seq != null && Number.isFinite(decodeTransport.lastSeq) && seq <= decodeTransport.lastSeq) {
+        return null;
+      }
       const schemaTokens = schemaPaths.map((path) => String(path).split("."));
       const values = Array.isArray(payload.v) ? payload.v : [];
       const state = inflateStateFromSchema(schemaTokens, values);
@@ -341,7 +347,7 @@ export function getGameSocket(namespace) {
       decodeTransport.schemaPaths = schemaPaths;
       decodeTransport.schemaTokens = schemaTokens;
       decodeTransport.lastValues = values.slice();
-      decodeTransport.lastSeq = toFiniteNumber(payload.s);
+      decodeTransport.lastSeq = seq;
 
       if (!state.net && payload.n && typeof payload.n === "object") {
         state.net = payload.n;
@@ -529,6 +535,13 @@ export function getGameSocket(namespace) {
         // Record metrics for state packets (replaces the removed onAny handler)
         if (isStateEvent) {
           recordStatePacket(args[0]);
+          const seq = toFiniteNumber(args[0]?.net?.seq);
+          if (seq != null) {
+            if (lastDeliveredStateSeq != null && seq <= lastDeliveredStateSeq) {
+              return;
+            }
+            lastDeliveredStateSeq = seq;
+          }
         }
         handler(...args);
       };

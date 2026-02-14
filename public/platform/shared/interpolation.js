@@ -2,6 +2,7 @@ import { getConnectionState } from "./connectionBridge.js";
 
 const DEFAULT_STATE_INTERVAL_MS = 1000 / 60;
 const STATE_SAMPLE_WINDOW = 180;
+const MIN_SAMPLE_SPACING_MS = 0.01;
 
 function lerp(a, b, t) {
   return a + (b - a) * t;
@@ -199,15 +200,52 @@ export function createInterpolator(config = {}) {
   const _reusableResult = {};
   let prevRenderSampleMs = null;
   let renderIntervalEwmaMs = DEFAULT_STATE_INTERVAL_MS;
+  let serverTimeOffsetMs = null;
+  let lastServerSampleTimeMs = null;
+  let lastStateSeq = null;
 
   /**
    * Buffer a new server state snapshot.
    * @param {Object} state Raw server state.
    */
   function pushState(state, options = {}) {
-    const timestampMs = Number.isFinite(options?.timestampMs) ? options.timestampMs : performance.now();
-    const nowMs = timestampMs;
-    buffer.push({ timestamp: nowMs, data: state });
+    const nowMs = Number.isFinite(options?.timestampMs) ? options.timestampMs : performance.now();
+    const net = state?.net && typeof state.net === "object" ? state.net : null;
+    const seq = toFiniteNumber(net?.seq);
+    if (seq != null) {
+      if (lastStateSeq != null && seq <= lastStateSeq) {
+        return;
+      }
+      lastStateSeq = seq;
+    }
+
+    let sampleTimestampMs = nowMs;
+    const serverTimeMs = toFiniteNumber(net?.serverTime);
+    if (serverTimeMs != null) {
+      if (serverTimeOffsetMs == null) {
+        serverTimeOffsetMs = nowMs - serverTimeMs;
+      } else {
+        // Track server clock drift slowly; avoid jitter from one packet's transit spike.
+        const observedOffsetMs = nowMs - serverTimeMs;
+        serverTimeOffsetMs += (observedOffsetMs - serverTimeOffsetMs) * 0.08;
+      }
+
+      let stableServerTimeMs = serverTimeMs;
+      if (lastServerSampleTimeMs != null && stableServerTimeMs <= lastServerSampleTimeMs) {
+        stableServerTimeMs = lastServerSampleTimeMs + MIN_SAMPLE_SPACING_MS;
+      }
+      lastServerSampleTimeMs = stableServerTimeMs;
+      sampleTimestampMs = stableServerTimeMs + serverTimeOffsetMs;
+    }
+
+    if (buffer.length > 0) {
+      const lastTimestamp = buffer[buffer.length - 1].timestamp;
+      if (sampleTimestampMs <= lastTimestamp) {
+        sampleTimestampMs = lastTimestamp + MIN_SAMPLE_SPACING_MS;
+      }
+    }
+
+    buffer.push({ timestamp: sampleTimestampMs, data: state });
     metrics.record(state, nowMs);
     if (buffer.length > maxBufferSize) {
       buffer.splice(0, buffer.length - maxBufferSize);
@@ -351,6 +389,9 @@ export function createInterpolator(config = {}) {
     metrics.reset();
     prevRenderSampleMs = null;
     renderIntervalEwmaMs = DEFAULT_STATE_INTERVAL_MS;
+    serverTimeOffsetMs = null;
+    lastServerSampleTimeMs = null;
+    lastStateSeq = null;
   }
 
   return { pushState, getInterpolatedPositions, getLatestState, getNetworkStats, reset };

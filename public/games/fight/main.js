@@ -764,6 +764,7 @@ scene("fight", () => {
   let joinToastTimer = null;
   let lastNetworkHudPaint = 0;
   let latestServerState = null;
+  let latestStateSeq = null;
   const netEstimator = createNetworkEstimator();
   let latestNetStats = netEstimator.getStats();
   let smoothingConfig = { interpDelayMs: 55, extrapolateMs: 14 };
@@ -838,6 +839,7 @@ scene("fight", () => {
     latestNetStats = netEstimator.getStats();
     smoothingConfig = { interpDelayMs: 55, extrapolateMs: 14 };
     latestServerState = null;
+    latestStateSeq = null;
     resetLocalInputState();
     predictor.reset(null);
     lastNetworkHudPaint = 0;
@@ -1029,6 +1031,12 @@ scene("fight", () => {
     const seq = toFiniteNumber(netMeta.seq);
     const serverTimeMs = toFiniteNumber(netMeta.serverTime);
     netEstimator.recordSnapshot({ arrivalMs: arrivalWallClockMs, seq, serverTimeMs });
+    if (seq != null) {
+      if (latestStateSeq != null && seq <= latestStateSeq) {
+        return;
+      }
+      latestStateSeq = seq;
+    }
     latestNetStats = netEstimator.getStats();
     smoothingConfig = deriveSmoothingConfig(latestNetStats, latestConnectionSnapshot?.ping);
     latestServerState = state;
@@ -1129,8 +1137,15 @@ scene("fight", () => {
         localInputState.heavyAttack ||
         localInputState.aerialAttack,
     );
-    _predictionOpts.opponentX = myPlayerId === "p1" ? positions.p2x : myPlayerId === "p2" ? positions.p1x : undefined;
-    _predictionOpts.opponentY = myPlayerId === "p1" ? positions.p2y : myPlayerId === "p2" ? positions.p1y : undefined;
+    const remoteServerPlayer = myPlayerId === "p1"
+      ? latestServerState?.players?.p2
+      : myPlayerId === "p2"
+        ? latestServerState?.players?.p1
+        : null;
+    _predictionOpts.opponentX = remoteServerPlayer?.x ??
+      (myPlayerId === "p1" ? positions.p2x : myPlayerId === "p2" ? positions.p1x : undefined);
+    _predictionOpts.opponentY = remoteServerPlayer?.y ??
+      (myPlayerId === "p1" ? positions.p2y : myPlayerId === "p2" ? positions.p1y : undefined);
     const predicted = predictor.step(deltaSec, localServerPlayer, localInputState, _predictionOpts);
 
     if (myPlayerId === "p1") {

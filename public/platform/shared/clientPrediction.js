@@ -34,6 +34,7 @@ function clampNumber(value, min, max) {
  * @param {number} [config.hardSnapDistSq=40000]
  * @param {number} [config.hardSnapVerticalError=100]
  * @param {number} [config.correctionBlendFactor=0.18]
+ * @param {number} [config.correctionDeadzone=0.75]
  * @param {number} [config.correctionClampMin=-90]
  * @param {number} [config.correctionClampMax=90]
  * @param {number} [config.correctionDecayCoeff=14]
@@ -53,6 +54,7 @@ export function createClientPredictor(config = {}) {
   const hardSnapDistSq = config.hardSnapDistSq ?? 40000;
   const hardSnapVerticalError = config.hardSnapVerticalError ?? 100;
   const correctionBlendFactor = config.correctionBlendFactor ?? 0.18;
+  const correctionDeadzone = config.correctionDeadzone ?? 0.75;
   const correctionClampMin = config.correctionClampMin ?? -90;
   const correctionClampMax = config.correctionClampMax ?? 90;
   const correctionDecayCoeff = config.correctionDecayCoeff ?? 14;
@@ -85,7 +87,7 @@ export function createClientPredictor(config = {}) {
     x = serverPlayerState.x;
     y = serverPlayerState.y;
     vx = serverPlayerState.vx || 0;
-    vy = 0;
+    vy = serverPlayerState.vy || 0;
     correctionX = 0;
     correctionY = 0;
   }
@@ -101,8 +103,14 @@ export function createClientPredictor(config = {}) {
       return;
     }
 
-    const errorX = serverPlayerState.x - x;
-    const errorY = serverPlayerState.y - y;
+    // Reconcile against the rendered prediction (sim position + correction),
+    // not against raw simulation state, to avoid correction overshoot loops.
+    const renderedX = x + correctionX;
+    const renderedY = y + correctionY;
+    let errorX = serverPlayerState.x - renderedX;
+    let errorY = serverPlayerState.y - renderedY;
+    if ((errorX < 0 ? -errorX : errorX) <= correctionDeadzone) errorX = 0;
+    if ((errorY < 0 ? -errorY : errorY) <= correctionDeadzone) errorY = 0;
     const errorDistSq = errorX * errorX + errorY * errorY;
     const absErrorY = errorY < 0 ? -errorY : errorY;
 
@@ -128,7 +136,7 @@ export function createClientPredictor(config = {}) {
    * Advance prediction by one frame. Call every render tick.
    *
    * @param {number} deltaSec
-   * @param {Object|null} serverPlayerState  { x, y, vx, attacking }
+   * @param {Object|null} serverPlayerState  { x, y, vx, vy, attacking }
    * @param {Object} inputState              { left, right, jump }
    * @param {Object} opts                    Pre-allocated: { active, attackSlowdown, opponentX, opponentY }
    * @returns {{ x: number, y: number } | null}
@@ -201,7 +209,7 @@ export function createClientPredictor(config = {}) {
     }
 
     // --- Correction decay ---
-    const correctionDecay = Math.max(0, 1 - clampedDt * correctionDecayCoeff);
+    const correctionDecay = Math.exp(-clampedDt * correctionDecayCoeff);
     correctionX *= correctionDecay;
     correctionY *= correctionDecay;
 
@@ -211,8 +219,8 @@ export function createClientPredictor(config = {}) {
       correctionX *= (1 - proximityT);
     }
 
-    _result.x = x + correctionX;
-    _result.y = y + correctionY;
+    _result.x = clampNumber(x + correctionX, worldMinX, worldMaxX);
+    _result.y = Math.min(groundY, y + correctionY);
     return _result;
   }
 
