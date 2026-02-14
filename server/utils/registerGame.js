@@ -23,9 +23,13 @@ export function registerGame({
 }) {
   const nsp = io.of(meta.namespace);
   const games = getGamesStore(nsp);
+  let lastTickInvokeMs = Date.now();
 
   setInterval(
-    () =>
+    () => {
+      const nowMs = Date.now();
+      const loopLagMs = Math.max(0, nowMs - lastTickInvokeMs - tickMs);
+      lastTickInvokeMs = nowMs;
       tickGames({
         games,
         nsp,
@@ -37,7 +41,9 @@ export function registerGame({
         afterEmit,
         stateEvent,
         shouldCleanup,
-      }),
+        loopLagMs,
+      });
+    },
     tickMs,
   );
 

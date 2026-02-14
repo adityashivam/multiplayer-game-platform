@@ -114,11 +114,12 @@ function createStateMetrics() {
   };
 }
 
-function deriveAdaptiveSmoothing(baseInterpDelayMs, metrics) {
+function deriveAdaptiveSmoothing(baseInterpDelayMs, metrics, runtimePingMs, connectionProvider) {
   const avgIntervalMs = metrics?.avgIntervalMs ?? DEFAULT_STATE_INTERVAL_MS;
   const jitterMs = metrics?.jitterMs ?? 0;
   const packetLossPct = metrics?.packetLossPct ?? 0;
-  const rttMs = toFiniteNumber(getConnectionState()?.ping) ?? 0;
+  const connectionPingMs = toFiniteNumber(connectionProvider?.()?.ping);
+  const rttMs = toFiniteNumber(runtimePingMs) ?? connectionPingMs ?? 0;
 
   let interpDelayMs =
     Math.max(baseInterpDelayMs, 45) + avgIntervalMs * 1.25 + jitterMs * 2.6 + packetLossPct * 3;
@@ -149,6 +150,9 @@ export function createInterpolator(config = {}) {
   const baseInterpDelayMs = config.interpDelayMs ?? 50;
   const maxBufferSize = config.maxBufferSize ?? 10;
   const adaptive = config.adaptive ?? true;
+  const connectionProvider = typeof config.connectionProvider === "function"
+    ? config.connectionProvider
+    : getConnectionState;
   const metrics = createStateMetrics();
   let buffer = [];
 
@@ -156,8 +160,9 @@ export function createInterpolator(config = {}) {
    * Buffer a new server state snapshot.
    * @param {Object} state Raw server state.
    */
-  function pushState(state) {
-    const nowMs = performance.now();
+  function pushState(state, options = {}) {
+    const timestampMs = Number.isFinite(options?.timestampMs) ? options.timestampMs : performance.now();
+    const nowMs = timestampMs;
     buffer.push({ timestamp: nowMs, data: state });
     metrics.record(state, nowMs);
     if (buffer.length > maxBufferSize) {
@@ -172,7 +177,12 @@ export function createInterpolator(config = {}) {
         extrapolateMs: runtimeOptions.extrapolateMs ?? 0,
       };
     }
-    const tuned = deriveAdaptiveSmoothing(baseInterpDelayMs, metrics.getSnapshot());
+    const tuned = deriveAdaptiveSmoothing(
+      baseInterpDelayMs,
+      metrics.getSnapshot(),
+      runtimeOptions.pingMs,
+      connectionProvider,
+    );
     return {
       interpDelayMs: runtimeOptions.interpDelayMs ?? tuned.interpDelayMs,
       extrapolateMs: runtimeOptions.extrapolateMs ?? tuned.extrapolateMs,
@@ -268,7 +278,7 @@ export function createInterpolator(config = {}) {
 
   function getNetworkStats() {
     const snapshot = metrics.getSnapshot();
-    const tuned = deriveAdaptiveSmoothing(baseInterpDelayMs, snapshot);
+    const tuned = deriveAdaptiveSmoothing(baseInterpDelayMs, snapshot, null, connectionProvider);
     return {
       ...snapshot,
       interpDelayMs: tuned.interpDelayMs,

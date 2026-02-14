@@ -7,7 +7,7 @@ import {
   updateEndGameModal,
 } from "/platform/shared/endGameBridge.js";
 import { openShareModal } from "/platform/shared/shareModalBridge.js";
-import { createInterpolator } from "/platform/shared/interpolation.js";
+import { createWorkerInterpolator } from "/platform/shared/interpolationWorker.js";
 import { updateConnectionState } from "/platform/shared/connectionBridge.js";
 
 // ---------- Kaboom init ----------
@@ -63,6 +63,15 @@ const localInputState = {
   heavyAttack: false,
   aerialAttack: false,
 };
+
+function extractFightPositions(state) {
+  return {
+    p1x: state.players.p1.x,
+    p1y: state.players.p1.y,
+    p2x: state.players.p2.x,
+    p2y: state.players.p2.y,
+  };
+}
 
 function clampNumber(value, min, max) {
   return Math.max(min, Math.min(max, value));
@@ -409,7 +418,11 @@ let lastConnected = { p1: false, p2: false };
 let opponentJoined = false;
 let currentRoomId = null;
 let rematchPending = false;
-const interpolator = createInterpolator({ interpDelayMs: 50, maxBufferSize: 10 });
+const interpolator = createWorkerInterpolator({
+  extractPositions: extractFightPositions,
+  interpDelayMs: 50,
+  maxBufferSize: 12,
+});
 
 registerRematchHandler(() => {
   if (rematchPending) return;
@@ -1104,15 +1117,6 @@ scene("fight", () => {
     hideEndGameModal();
   });
 
-  function extractFightPositions(state) {
-    return {
-      p1x: state.players.p1.x,
-      p1y: state.players.p1.y,
-      p2x: state.players.p2.x,
-      p2y: state.players.p2.y,
-    };
-  }
-
   // Server state updates
   socket.onEvent("state", (state) => {
     if (!player1 || !player2 || !player1HealthBar || !player2HealthBar) {
@@ -1196,7 +1200,11 @@ scene("fight", () => {
   onUpdate(() => {
     if (!player1 || !player2) return;
 
-    const positions = interpolator.getInterpolatedPositions(extractFightPositions);
+    const positions = interpolator.getInterpolatedPositions({
+      pingMs: latestConnectionSnapshot?.ping,
+      interpDelayMs: smoothingConfig.interpDelayMs,
+      extrapolateMs: smoothingConfig.extrapolateMs,
+    });
     if (!positions) {
       refreshNetworkHud(performance.now());
       return;
@@ -1264,6 +1272,7 @@ function disposeGameRuntime() {
   registerRematchHandler(null);
   hideEndGameModal();
   resetLocalInputState();
+  interpolator.destroy?.();
   unsubscribeConnection?.();
   updateConnectionState({ status: "disconnected", ping: null });
   window.__kaboomOpponentJoined = null;

@@ -7,7 +7,7 @@ import {
   updateEndGameModal,
 } from "/platform/shared/endGameBridge.js";
 import { openShareModal } from "/platform/shared/shareModalBridge.js";
-import { createInterpolator } from "/platform/shared/interpolation.js";
+import { createWorkerInterpolator } from "/platform/shared/interpolationWorker.js";
 import { updateConnectionState } from "/platform/shared/connectionBridge.js";
 
 const GAME_SLUG = "pong";
@@ -19,6 +19,15 @@ const PADDLE_W = 26;
 const PADDLE_H = 160;
 const PADDLE_X1 = 70;
 const PADDLE_X2 = WIDTH - 70;
+
+function extractPongPositions(state) {
+  return {
+    p1y: state.players.p1.y,
+    p2y: state.players.p2.y,
+    ballx: state.ball.x,
+    bally: state.ball.y,
+  };
+}
 
 // Use the in-app canvas so it stays inside the layout
 const { canvas } = getGameDomRefs();
@@ -103,9 +112,20 @@ let lastConnected = { p1: false, p2: false };
 let hasPlayedRound = false;
 
 const socket = getGameSocket(GAME_SLUG);
-socket.onConnectionChange((snapshot) => updateConnectionState(snapshot));
+let latestConnectionSnapshot = {
+  status: socket.getConnectionState(),
+  ping: socket.getPing(),
+};
+const unsubscribeConnection = socket.onConnectionChange((snapshot) => {
+  latestConnectionSnapshot = { ...latestConnectionSnapshot, ...snapshot };
+  updateConnectionState(snapshot);
+});
 let rematchPending = false;
-const interpolator = createInterpolator({ interpDelayMs: 50, maxBufferSize: 10 });
+const interpolator = createWorkerInterpolator({
+  extractPositions: extractPongPositions,
+  interpDelayMs: 50,
+  maxBufferSize: 12,
+});
 
 registerRematchHandler(() => {
   if (rematchPending) return;
@@ -415,15 +435,6 @@ scene("pong", () => {
     hideEndGameModal();
   });
 
-  function extractPongPositions(state) {
-    return {
-      p1y: state.players.p1.y,
-      p2y: state.players.p2.y,
-      ballx: state.ball.x,
-      bally: state.ball.y,
-    };
-  }
-
   socket.onEvent("state", (state) => {
     if (!state || !state.players || !state.ball) return;
 
@@ -476,7 +487,9 @@ scene("pong", () => {
 
   // Per-frame interpolated position updates
   onUpdate(() => {
-    const positions = interpolator.getInterpolatedPositions(extractPongPositions);
+    const positions = interpolator.getInterpolatedPositions({
+      pingMs: latestConnectionSnapshot?.ping,
+    });
     if (!positions) return;
 
     paddle1.pos.y = positions.p1y;
@@ -497,6 +510,8 @@ function disposeGameRuntime() {
   cleanupControllerNavigation?.();
   registerRematchHandler(null);
   hideEndGameModal();
+  interpolator.destroy?.();
+  unsubscribeConnection?.();
   updateConnectionState({ status: "disconnected", ping: null });
 
   socket.offEvent("connect");

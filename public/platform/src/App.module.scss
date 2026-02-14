@@ -835,6 +835,8 @@
   box-shadow: 0 10px 18px rgba(0, 0, 0, 0.35);
   backdrop-filter: blur(3px);
   -webkit-backdrop-filter: blur(3px);
+  max-height: min(72vh, 360px);
+  overflow-y: auto;
 }
 
 :global(.dark) .networkPanel {

@@ -8,6 +8,7 @@ import LobbyList from "./components/LobbyList.jsx";
 import { fallbackGames, gameTitles } from "./data/games.js";
 import { resolveThemeIcons } from "./data/themes/icons.js";
 import { builtInThemes, getThemeById } from "./data/themes/index.js";
+import { TOGGLE_NETWORK_PANEL_EVENT } from "./constants/events.js";
 import classNames from "./utils/classNames.js";
 import { loadScript } from "./utils/loadScript.js";
 import { applyTheme, getSelectedThemeId, removeTheme, saveSelectedTheme } from "./utils/themeEngine.js";
@@ -808,6 +809,9 @@ export default function App() {
         if (isHomeAction) {
           setShareModal(false);
           setExitConfirmOpen(true);
+        }
+        if (action === "b") {
+          window.dispatchEvent(new CustomEvent(TOGGLE_NETWORK_PANEL_EVENT));
         }
         return;
       }

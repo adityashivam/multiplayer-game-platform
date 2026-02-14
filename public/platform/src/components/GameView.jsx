@@ -3,6 +3,7 @@ import ConnectionIndicator from "./ConnectionIndicator.jsx";
 import EndGameModal from "./EndGameModal.jsx";
 import ExitConfirmModal from "./ExitConfirmModal.jsx";
 import ShareModal from "./ShareModal.jsx";
+import { TOGGLE_NETWORK_PANEL_EVENT } from "../constants/events.js";
 import styles from "../App.module.scss";
 
 export default function GameView({
@@ -44,8 +45,17 @@ export default function GameView({
       event.preventDefault();
       setNetworkPanelOpen((prev) => !prev);
     };
+
+    const handleToggleNetworkPanel = () => {
+      setNetworkPanelOpen((prev) => !prev);
+    };
+
     window.addEventListener("keydown", handleKeydown);
-    return () => window.removeEventListener("keydown", handleKeydown);
+    window.addEventListener(TOGGLE_NETWORK_PANEL_EVENT, handleToggleNetworkPanel);
+    return () => {
+      window.removeEventListener("keydown", handleKeydown);
+      window.removeEventListener(TOGGLE_NETWORK_PANEL_EVENT, handleToggleNetworkPanel);
+    };
   }, []);
 
   const networkRows = useMemo(
@@ -53,14 +63,35 @@ export default function GameView({
       { label: "Status", value: (connectionStatus || "connecting").toUpperCase() },
       { label: "Ping", value: Number.isFinite(connectionPing) ? `${connectionPing} ms` : "--" },
       {
+        label: "Ping p95/p99",
+        value:
+          Number.isFinite(connection?.pingP95Ms) && Number.isFinite(connection?.pingP99Ms)
+            ? `${connection.pingP95Ms.toFixed(0)} / ${connection.pingP99Ms.toFixed(0)} ms`
+            : "--",
+      },
+      {
         label: "Jitter",
         value: Number.isFinite(connection?.jitterMs) ? `${connection.jitterMs.toFixed(1)} ms` : "--",
+      },
+      {
+        label: "Jitter p95/p99",
+        value:
+          Number.isFinite(connection?.jitterP95Ms) && Number.isFinite(connection?.jitterP99Ms)
+            ? `${connection.jitterP95Ms.toFixed(1)} / ${connection.jitterP99Ms.toFixed(1)} ms`
+            : "--",
       },
       {
         label: "Packet Loss",
         value: Number.isFinite(connection?.packetLossPct)
           ? `${connection.packetLossPct.toFixed(1)}%`
           : "--",
+      },
+      {
+        label: "Loss p95/p99",
+        value:
+          Number.isFinite(connection?.packetLossP95Pct) && Number.isFinite(connection?.packetLossP99Pct)
+            ? `${connection.packetLossP95Pct.toFixed(1)} / ${connection.packetLossP99Pct.toFixed(1)}%`
+            : "--",
       },
       {
         label: "Update Rate",
@@ -74,11 +105,48 @@ export default function GameView({
         label: "Out-of-order",
         value: Number.isFinite(connection?.outOfOrderCount) ? String(connection.outOfOrderCount) : "--",
       },
+      {
+        label: "Loop Lag",
+        value: Number.isFinite(connection?.server?.eventLoopLagMs)
+          ? `${connection.server.eventLoopLagMs.toFixed(2)} ms`
+          : "--",
+      },
+      {
+        label: "Tick Drift",
+        value: Number.isFinite(connection?.server?.tickDriftMs)
+          ? `${connection.server.tickDriftMs.toFixed(2)} ms`
+          : "--",
+      },
+      {
+        label: "Room CPU",
+        value: Number.isFinite(connection?.server?.roomCpuMs)
+          ? `${connection.server.roomCpuMs.toFixed(2)} ms`
+          : "--",
+      },
+      {
+        label: "Room CPU p95/p99",
+        value:
+          Number.isFinite(connection?.server?.roomCpuP95Ms) &&
+          Number.isFinite(connection?.server?.roomCpuP99Ms)
+            ? `${connection.server.roomCpuP95Ms.toFixed(2)} / ${connection.server.roomCpuP99Ms.toFixed(2)} ms`
+            : "--",
+      },
     ],
     [
       connection?.jitterMs,
+      connection?.jitterP95Ms,
+      connection?.jitterP99Ms,
       connection?.outOfOrderCount,
       connection?.packetLossPct,
+      connection?.packetLossP95Pct,
+      connection?.packetLossP99Pct,
+      connection?.pingP95Ms,
+      connection?.pingP99Ms,
+      connection?.server?.eventLoopLagMs,
+      connection?.server?.roomCpuMs,
+      connection?.server?.roomCpuP95Ms,
+      connection?.server?.roomCpuP99Ms,
+      connection?.server?.tickDriftMs,
       connection?.serverTickRate,
       connection?.updateRateHz,
       connectionPing,
