@@ -2,7 +2,7 @@ import React from "react";
 import classNames from "../utils/classNames.js";
 import styles from "../App.module.scss";
 
-export default function ExitConfirmModal({ onConfirm, onCancel }) {
+export default function ExitConfirmModal({ onConfirm, onCancel, icons }) {
   return (
     <div className={styles.shareOverlay} role="dialog" aria-modal="true" aria-label="Exit game confirmation">
       <div className={classNames(styles.shareModal, styles.endGameModal)}>
@@ -18,7 +18,7 @@ export default function ExitConfirmModal({ onConfirm, onCancel }) {
             onClick={onConfirm}
           >
             <div className={styles.shareActionIcon}>
-              <span className="material-symbols-outlined">home</span>
+              <span className="material-symbols-outlined">{icons?.goHome || "home"}</span>
             </div>
             <div className={styles.shareActionText}>
               <span className={styles.shareActionEyebrow}>Confirm</span>
@@ -32,7 +32,7 @@ export default function ExitConfirmModal({ onConfirm, onCancel }) {
             onClick={onCancel}
           >
             <span className={classNames("material-symbols-outlined", styles.shareGhostIcon)}>
-              sports_esports
+              {icons?.stay || "sports_esports"}
             </span>
             <span className={styles.shareGhostLabel}>Stay in Game</span>
           </button>

@@ -52,7 +52,7 @@ const GameCard = React.forwardRef(function GameCard(
           </span>
         </div>
         <p className={styles.cardDescription}>{game.description}</p>
-        {featured && (
+        {selected && (
           <div className={styles.featuredFooter}>
             <span className={styles.cta}>&gt; PRESS A TO START</span>
           </div>

@@ -1,0 +1,103 @@
+{
+  "id": "neon-nights",
+  "name": "Neon Nights",
+  "author": "Kaboom Team",
+  "version": "1.0",
+  "description": "Industrial cyber tones with restrained neon highlights",
+  "preview": {
+    "primary": "#a464c0",
+    "secondary": "#3f9fb6",
+    "background": "#cfd4e1"
+  },
+  "icons": {
+    "header": {
+      "muteOn": "graphic_eq",
+      "muteOff": "volume_off",
+      "fullscreenOn": "open_in_full",
+      "fullscreenOff": "close_fullscreen",
+      "themeToggle": "flare"
+    },
+    "nav": {
+      "solo": "sports_esports",
+      "multi": "hub",
+      "profile": "person",
+      "friends": "groups",
+      "config": "tune"
+    },
+    "config": {
+      "selectedTheme": "verified"
+    },
+    "game": {
+      "fullscreenOn": "open_in_full",
+      "fullscreenOff": "close_fullscreen"
+    },
+    "share": {
+      "close": "close",
+      "copy": "content_copy",
+      "invite": "person_add",
+      "chat": "chat",
+      "sms": "sms",
+      "more": "share"
+    },
+    "endGame": {
+      "rematch": "swords",
+      "backHome": "home"
+    },
+    "exitConfirm": {
+      "goHome": "home",
+      "stay": "stadia_controller"
+    },
+    "connection": {
+      "connected": "wifi",
+      "reconnecting": "sync",
+      "connecting": "sync",
+      "disconnected": "wifi_off"
+    }
+  },
+  "light": {
+    "color-primary": "#a464c0",
+    "color-secondary": "#3f9fb6",
+    "color-background": "#cfd4e1",
+    "color-body": "#cfd4e1",
+    "color-body-gradient": "linear-gradient(180deg, #d9deea 0%, #bcc5d9 58%, #9ea8bf 100%)",
+    "color-surface": "#edf0f6",
+    "color-surface-alt": "#9aa6c2",
+    "color-surface-dark": "#313a52",
+    "color-text": "#1d2433",
+    "color-muted": "#5a6683",
+    "color-divider": "#566182",
+    "color-accent": "#4f5f84",
+    "color-border": "#4a5471",
+    "color-border-dark": "#7f8cb0",
+    "color-card-from": "#f3f5fa",
+    "color-card-to": "#dde3ef",
+    "color-title-accent": "#a464c0",
+    "color-console": "#9aa3b8",
+    "screen-shadow": "0 10px 24px rgba(49, 58, 82, 0.34)",
+    "screen-shadow-dark": "0 10px 24px rgba(27, 34, 50, 0.5)",
+    "shadow-sm": "0 3px 8px rgba(49, 58, 82, 0.34)"
+  },
+  "dark": {
+    "color-primary": "#9a63c4",
+    "color-secondary": "#5ea7bf",
+    "color-background": "#0f1320",
+    "color-body": "#0f1320",
+    "color-body-gradient": "linear-gradient(180deg, #151a2b 0%, #0e1322 55%, #080c16 100%)",
+    "color-surface": "#1a2030",
+    "color-surface-alt": "#24304a",
+    "color-surface-dark": "#101523",
+    "color-text": "#d9e0f2",
+    "color-muted": "#9ca9c9",
+    "color-divider": "#4f5c7e",
+    "color-accent": "#3a4a6c",
+    "color-border": "#3f4b67",
+    "color-border-dark": "#5b6f9a",
+    "color-card-from": "#24304a",
+    "color-card-to": "#171e2e",
+    "color-title-accent": "#84d2e6",
+    "color-console": "#141a29",
+    "screen-shadow": "0 12px 28px rgba(0, 0, 0, 0.62)",
+    "screen-shadow-dark": "0 12px 30px rgba(0, 0, 0, 0.72)",
+    "shadow-sm": "0 3px 8px rgba(0, 0, 0, 0.46)"
+  }
+}

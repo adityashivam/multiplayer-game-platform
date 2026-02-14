@@ -1,0 +1,109 @@
+{
+  "id": "industrial-alloy",
+  "name": "Industrial Alloy",
+  "author": "Kaboom Team",
+  "version": "1.0",
+  "description": "Brushed-metal shell with a textured industrial finish",
+  "preview": {
+    "primary": "#b5724f",
+    "secondary": "#64798a",
+    "background": "#7a746c"
+  },
+  "icons": {
+    "header": {
+      "muteOn": "equalizer",
+      "muteOff": "volume_off",
+      "fullscreenOn": "open_in_full",
+      "fullscreenOff": "close_fullscreen",
+      "themeToggle": "build"
+    },
+    "nav": {
+      "solo": "sports_esports",
+      "multi": "hub",
+      "profile": "badge",
+      "friends": "groups",
+      "config": "tune"
+    },
+    "config": {
+      "selectedTheme": "verified"
+    },
+    "game": {
+      "fullscreenOn": "open_in_full",
+      "fullscreenOff": "close_fullscreen"
+    },
+    "share": {
+      "close": "close",
+      "copy": "content_copy",
+      "invite": "person_add",
+      "chat": "chat",
+      "sms": "sms",
+      "more": "share"
+    },
+    "endGame": {
+      "rematch": "swords",
+      "backHome": "home"
+    },
+    "exitConfirm": {
+      "goHome": "home",
+      "stay": "sports_esports"
+    },
+    "connection": {
+      "connected": "wifi",
+      "reconnecting": "sync",
+      "connecting": "sync",
+      "disconnected": "wifi_off"
+    }
+  },
+  "light": {
+    "color-primary": "#b5724f",
+    "color-secondary": "#64798a",
+    "color-background": "#7a746c",
+    "color-body": "#7a746c",
+    "color-body-image": "linear-gradient(rgba(30, 24, 20, 0.32), rgba(30, 24, 20, 0.32)), url(https://lh3.googleusercontent.com/aida-public/AB6AXuCD_J62fXfNYv6CbTN3jDGxxgZaRc6Expr9E-AZWEiMsAS4uU9cBC1OUDu2uWGwCPEMOAMQ9f7fvrkc9HFj_HAw1_4Lim39PwweA73e38WFLvOeJVHYaWwAw-alz3sF8Jg81jrAOJ8QnXI8kXhdQKrsEuCSMtUddEegfKu4Q1V3Irxf71uD6muUCNR967OZ5U7C0mH9Epi7HJIiLfzbiES-PyEhGLSTJRaPiuC0FLQzgXrkbO_P3Kahzt5VkritqrjeTGCccUiMoC46)",
+    "color-body-gradient": "linear-gradient(180deg, #958f87 0%, #7a746c 55%, #625d56 100%)",
+    "color-surface": "#d6d0c6",
+    "color-surface-alt": "#9b9489",
+    "color-surface-dark": "#3a342f",
+    "color-text": "#1d1a18",
+    "color-muted": "#605a54",
+    "color-divider": "#504a43",
+    "color-accent": "#495866",
+    "color-border": "#4b453f",
+    "color-border-dark": "#71695f",
+    "color-card-from": "#e2ddd4",
+    "color-card-to": "#cfc8bd",
+    "color-title-accent": "#b5724f",
+    "color-console": "#868076",
+    "color-console-image": "url(https://lh3.googleusercontent.com/aida-public/AB6AXuCD_J62fXfNYv6CbTN3jDGxxgZaRc6Expr9E-AZWEiMsAS4uU9cBC1OUDu2uWGwCPEMOAMQ9f7fvrkc9HFj_HAw1_4Lim39PwweA73e38WFLvOeJVHYaWwAw-alz3sF8Jg81jrAOJ8QnXI8kXhdQKrsEuCSMtUddEegfKu4Q1V3Irxf71uD6muUCNR967OZ5U7C0mH9Epi7HJIiLfzbiES-PyEhGLSTJRaPiuC0FLQzgXrkbO_P3Kahzt5VkritqrjeTGCccUiMoC46)",
+    "color-console-image-opacity": "0.34",
+    "screen-shadow": "0 10px 24px rgba(31, 25, 21, 0.4)",
+    "screen-shadow-dark": "0 10px 24px rgba(0, 0, 0, 0.55)",
+    "shadow-sm": "0 3px 8px rgba(31, 25, 21, 0.4)"
+  },
+  "dark": {
+    "color-primary": "#c78c67",
+    "color-secondary": "#8296a8",
+    "color-background": "#12100e",
+    "color-body": "#12100e",
+    "color-body-image": "linear-gradient(rgba(8, 8, 8, 0.56), rgba(8, 8, 8, 0.56)), url(https://lh3.googleusercontent.com/aida-public/AB6AXuCD_J62fXfNYv6CbTN3jDGxxgZaRc6Expr9E-AZWEiMsAS4uU9cBC1OUDu2uWGwCPEMOAMQ9f7fvrkc9HFj_HAw1_4Lim39PwweA73e38WFLvOeJVHYaWwAw-alz3sF8Jg81jrAOJ8QnXI8kXhdQKrsEuCSMtUddEegfKu4Q1V3Irxf71uD6muUCNR967OZ5U7C0mH9Epi7HJIiLfzbiES-PyEhGLSTJRaPiuC0FLQzgXrkbO_P3Kahzt5VkritqrjeTGCccUiMoC46)",
+    "color-body-gradient": "linear-gradient(180deg, #171412 0%, #12100e 58%, #0b0908 100%)",
+    "color-surface": "#211d19",
+    "color-surface-alt": "#322c27",
+    "color-surface-dark": "#171411",
+    "color-text": "#e1dad0",
+    "color-muted": "#b6aca1",
+    "color-divider": "#645a50",
+    "color-accent": "#566576",
+    "color-border": "#4e463f",
+    "color-border-dark": "#6a6055",
+    "color-card-from": "#302a25",
+    "color-card-to": "#221f1b",
+    "color-title-accent": "#c78c67",
+    "color-console": "#1a1714",
+    "color-console-image": "url(https://lh3.googleusercontent.com/aida-public/AB6AXuCD_J62fXfNYv6CbTN3jDGxxgZaRc6Expr9E-AZWEiMsAS4uU9cBC1OUDu2uWGwCPEMOAMQ9f7fvrkc9HFj_HAw1_4Lim39PwweA73e38WFLvOeJVHYaWwAw-alz3sF8Jg81jrAOJ8QnXI8kXhdQKrsEuCSMtUddEegfKu4Q1V3Irxf71uD6muUCNR967OZ5U7C0mH9Epi7HJIiLfzbiES-PyEhGLSTJRaPiuC0FLQzgXrkbO_P3Kahzt5VkritqrjeTGCccUiMoC46)",
+    "color-console-image-opacity": "0.24",
+    "screen-shadow": "0 12px 28px rgba(0, 0, 0, 0.66)",
+    "screen-shadow-dark": "0 12px 28px rgba(0, 0, 0, 0.74)",
+    "shadow-sm": "0 3px 8px rgba(0, 0, 0, 0.52)"
+  }
+}

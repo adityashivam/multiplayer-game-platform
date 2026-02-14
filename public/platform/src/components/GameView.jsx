@@ -28,13 +28,18 @@ export default function GameView({
   onToggleFullscreen,
   connectionStatus,
   connectionPing,
+  icons,
 }) {
+  const fullscreenIcon = isFullscreen
+    ? icons?.game?.fullscreenOff || "fullscreen_exit"
+    : icons?.game?.fullscreenOn || "fullscreen";
+
   return (
     <div id="game-view" className={styles.gameView}>
       <div className={styles.canvasFrame}>
         <canvas id="game-canvas" className={styles.gameCanvas} />
         <div className={styles.canvasOverlay} />
-        <ConnectionIndicator status={connectionStatus} ping={connectionPing} />
+        <ConnectionIndicator status={connectionStatus} ping={connectionPing} icons={icons?.connection} />
         <button
           type="button"
           className={styles.fullscreenButton}
@@ -42,7 +47,7 @@ export default function GameView({
           aria-pressed={isFullscreen}
         >
           <span className="material-symbols-outlined" aria-hidden="true">
-            {isFullscreen ? "fullscreen_exit" : "fullscreen"}
+            {fullscreenIcon}
           </span>
           <span className={styles.fullscreenLabel}>
             {isFullscreen ? "Exit" : "Full Screen"}
@@ -57,6 +62,7 @@ export default function GameView({
             onRematch={onRematch}
             onBack={onBackHome}
             rematchDisabled={rematchDisabled}
+            icons={icons?.endGame}
           />
         )}
         {shareOpen && (
@@ -66,9 +72,12 @@ export default function GameView({
             copyLabel={copyLabel}
             onCopyShare={onCopyShare}
             onClose={onCloseShare}
+            icons={icons?.share}
           />
         )}
-        {exitConfirmOpen && <ExitConfirmModal onConfirm={onConfirmExit} onCancel={onCancelExit} />}
+        {exitConfirmOpen && (
+          <ExitConfirmModal onConfirm={onConfirmExit} onCancel={onCancelExit} icons={icons?.exitConfirm} />
+        )}
         {gameLoadError && <div className={styles.emptyState}>{gameLoadError}</div>}
       </div>
     </div>

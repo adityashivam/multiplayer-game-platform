@@ -2,7 +2,7 @@ import React from "react";
 import classNames from "../utils/classNames.js";
 import styles from "../App.module.scss";
 
-export default function ShareModal({ onClose, roomLabel, shareUrl, copyLabel, onCopyShare }) {
+export default function ShareModal({ onClose, roomLabel, shareUrl, copyLabel, onCopyShare, icons }) {
   const copyDisabled = !shareUrl;
 
   return (
@@ -14,7 +14,9 @@ export default function ShareModal({ onClose, roomLabel, shareUrl, copyLabel, on
           onClick={onClose}
           aria-label="Close invite dialog"
         >
-          <span className={classNames("material-symbols-outlined", styles.shareCloseIcon)}>close</span>
+          <span className={classNames("material-symbols-outlined", styles.shareCloseIcon)}>
+            {icons?.close || "close"}
+          </span>
         </button>
         <div className={styles.shareHeader}>
           <div className={styles.sharePattern} aria-hidden="true" />
@@ -39,7 +41,7 @@ export default function ShareModal({ onClose, roomLabel, shareUrl, copyLabel, on
                 title={copyLabel}
                 disabled={copyDisabled}
               >
-                <span className="material-symbols-outlined">content_copy</span>
+                <span className="material-symbols-outlined">{icons?.copy || "content_copy"}</span>
               </button>
             </div>
           </div>
@@ -50,7 +52,7 @@ export default function ShareModal({ onClose, roomLabel, shareUrl, copyLabel, on
           </div>
           <button type="button" className={styles.shareActionPrimary}>
             <div className={styles.shareActionIcon}>
-              <span className="material-symbols-outlined">person_add</span>
+              <span className="material-symbols-outlined">{icons?.invite || "person_add"}</span>
             </div>
             <div className={styles.shareActionText}>
               <span className={styles.shareActionEyebrow}>Online</span>
@@ -59,7 +61,7 @@ export default function ShareModal({ onClose, roomLabel, shareUrl, copyLabel, on
           </button>
           <button type="button" className={styles.shareActionWhatsApp}>
             <div className={styles.shareActionIcon}>
-              <span className="material-symbols-outlined">chat</span>
+              <span className="material-symbols-outlined">{icons?.chat || "chat"}</span>
             </div>
             <div className={styles.shareActionText}>
               <span className={styles.shareActionEyebrow}>Send via</span>
@@ -68,11 +70,15 @@ export default function ShareModal({ onClose, roomLabel, shareUrl, copyLabel, on
           </button>
           <div className={styles.shareActionGrid}>
             <button type="button" className={styles.shareActionGhost}>
-              <span className={classNames("material-symbols-outlined", styles.shareGhostIcon)}>sms</span>
+              <span className={classNames("material-symbols-outlined", styles.shareGhostIcon)}>
+                {icons?.sms || "sms"}
+              </span>
               <span className={styles.shareGhostLabel}>SMS</span>
             </button>
             <button type="button" className={styles.shareActionGhost}>
-              <span className={classNames("material-symbols-outlined", styles.shareGhostIcon)}>share</span>
+              <span className={classNames("material-symbols-outlined", styles.shareGhostIcon)}>
+                {icons?.more || "share"}
+              </span>
               <span className={styles.shareGhostLabel}>More</span>
             </button>
           </div>

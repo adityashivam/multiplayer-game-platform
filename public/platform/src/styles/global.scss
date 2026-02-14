@@ -1,25 +1,70 @@
 :root {
-  --color-primary: #e76f51;
-  --color-secondary: #2a9d8f;
-  --color-background: #d4c5a8;
-  --color-surface: #f4f1de;
-  --color-surface-alt: #e9c46a;
-  --color-surface-dark: #2c2520;
-  --color-text: #1b1918;
-  --color-muted: #4a413a;
-  --color-divider: #000000;
-  --screen-shadow: 4px 4px 0 0 rgba(0, 0, 0, 1);
-  --screen-shadow-dark: 4px 4px 0 0 #000000;
-  --shadow-sm: 2px 2px 0 0 rgba(0, 0, 0, 1);
+  --color-primary: #c7684f;
+  --color-secondary: #3c8b83;
+  --color-background: #c8b9a0;
+  --color-body: #c8b9a0;
+  --color-body-image: none;
+  --color-body-gradient: linear-gradient(180deg, #e1d6c2 0%, #cdbb9d 55%, #b49f7f 100%);
+  --color-surface: #f1e9da;
+  --color-surface-alt: #c8ab72;
+  --color-surface-dark: #2f2823;
+  --color-text: #1f1b18;
+  --color-muted: #5e5349;
+  --color-divider: #3f362f;
+  --color-accent: #2f4f56;
+  --color-border: #3b332d;
+  --color-border-dark: #706154;
+  --color-card-from: #f7f0e2;
+  --color-card-to: #e9dcc5;
+  --color-title-accent: #c7684f;
+  --color-console: #bca98f;
+  --color-console-image: url(https://lh3.googleusercontent.com/aida-public/AB6AXuCD_J62fXfNYv6CbTN3jDGxxgZaRc6Expr9E-AZWEiMsAS4uU9cBC1OUDu2uWGwCPEMOAMQ9f7fvrkc9HFj_HAw1_4Lim39PwweA73e38WFLvOeJVHYaWwAw-alz3sF8Jg81jrAOJ8QnXI8kXhdQKrsEuCSMtUddEegfKu4Q1V3Irxf71uD6muUCNR967OZ5U7C0mH9Epi7HJIiLfzbiES-PyEhGLSTJRaPiuC0FLQzgXrkbO_P3Kahzt5VkritqrjeTGCccUiMoC46);
+  --color-console-image-opacity: 0.26;
+  --surface-list-background-color: transparent;
+  --surface-list-image: none;
+  --surface-list-image-size: cover;
+  --surface-list-image-position: center;
+  --surface-list-image-repeat: no-repeat;
+  --surface-list-image-opacity: 0.45;
+  --surface-list-overlay: none;
+  --surface-list-overlay-opacity: 1;
+  --surface-card-muted-opacity: 0.86;
+  --surface-card-featured-opacity: 1;
+  --surface-card-selected-opacity: 1;
+  --home-layout-gap: 0px;
+  --home-showcase-height: 0%;
+  --home-showcase-image: none;
+  --home-showcase-background: transparent;
+  --home-showcase-image-size: cover;
+  --home-showcase-image-position: center;
+  --home-showcase-overlay: none;
+  --home-showcase-border-width: 0;
+  --home-showcase-border-color: transparent;
+  --home-showcase-radius: 0;
+  --home-showcase-shadow: none;
+  --home-showcase-backdrop-filter: none;
+  --screen-shadow: 0 10px 24px rgba(36, 28, 20, 0.35);
+  --screen-shadow-dark: 0 10px 24px rgba(0, 0, 0, 0.5);
+  --shadow-sm: 0 3px 7px rgba(36, 28, 20, 0.35);
 }
 
 :global(.dark) {
-  --color-background: #12100f;
-  --color-surface: #1d1918;
-  --color-surface-alt: #2c2520;
-  --color-text: #f4f1de;
-  --color-muted: #cfc2b8;
-  --screen-shadow: 4px 4px 0 0 #e76f51;
+  --color-background: #13100d;
+  --color-body: #13100d;
+  --color-body-image: none;
+  --color-body-gradient: linear-gradient(180deg, #191512 0%, #12100d 58%, #090806 100%);
+  --color-surface: #1f1a16;
+  --color-surface-alt: #312822;
+  --color-text: #e7dfd2;
+  --color-muted: #b9ac9f;
+  --color-border-dark: #68584c;
+  --color-card-from: #2d251f;
+  --color-card-to: #221c17;
+  --color-title-accent: #d38763;
+  --color-console: #191410;
+  --color-console-image: url(https://lh3.googleusercontent.com/aida-public/AB6AXuA9TKKKBhjhmDp7Gkgdl55fmGRBaTc3TL7YOieDM38a_Hh0v1JEG9UxBgxZJogPetTGGx5cJp8PwKHxOzQsz4v4QC-fJd73QeuC0XmAuRZZHnmgx5M7qFnbx-3oBxW6vhDXQcnoekC0TYDq_ipWhaSdSqCT-ZvXQQJoRX__Cy6B8NUfSK0izY2-iPMTNcInEjyzNXd6m4jiUUBM4mKXleN2ocHBL5YAic155dgP4MInypPo8RJhdyjxa3CU1NejRvMn0A6U1YpX81Of);
+  --color-console-image-opacity: 0.2;
+  --screen-shadow: 0 12px 26px rgba(0, 0, 0, 0.62);
 }
 
 *,
@@ -35,7 +80,12 @@ body {
 
 body {
   margin: 0;
-  background: var(--color-background);
+  background-color: var(--color-body, var(--color-background));
+  background-image: var(--color-body-image, none),
+    var(--color-body-gradient, var(--color-body, var(--color-background)));
+  background-size: cover, cover;
+  background-position: center, center;
+  background-repeat: no-repeat, no-repeat;
   color: var(--color-text);
   font-family: "VT323", monospace;
   overflow: hidden;

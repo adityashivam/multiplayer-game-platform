@@ -9,8 +9,8 @@ const iconMap = {
   connecting: "wifi_find",
 };
 
-export default function ConnectionIndicator({ status, ping }) {
-  const icon = iconMap[status] || "wifi_find";
+export default function ConnectionIndicator({ status, ping, icons }) {
+  const icon = icons?.[status] || iconMap[status] || "wifi_find";
   const isConnected = status === "connected";
   const isReconnecting = status === "reconnecting" || status === "connecting";
 

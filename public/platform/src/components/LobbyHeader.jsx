@@ -5,12 +5,19 @@ import styles from "../App.module.scss";
 export default function LobbyHeader({
   headerLeft,
   title,
+  icons,
   onToggleTheme,
   onToggleFullscreen,
   isFullscreen,
   muted,
   onToggleMute,
 }) {
+  const muteIcon = muted ? icons?.muteOff || "volume_off" : icons?.muteOn || "volume_up";
+  const fullscreenIcon = isFullscreen
+    ? icons?.fullscreenOff || "fullscreen_exit"
+    : icons?.fullscreenOn || "fullscreen";
+  const themeIcon = icons?.themeToggle || "contrast";
+
   return (
     <header className={styles.header}>
       <div className={styles.headerTop}>
@@ -24,7 +31,7 @@ export default function LobbyHeader({
             aria-pressed={muted}
           >
             <span className={classNames("material-symbols-outlined", styles.themeIcon)}>
-              {muted ? "volume_off" : "volume_up"}
+              {muteIcon}
             </span>
           </button>
           <button
@@ -35,7 +42,7 @@ export default function LobbyHeader({
             aria-pressed={isFullscreen}
           >
             <span className={classNames("material-symbols-outlined", styles.themeIcon)}>
-              {isFullscreen ? "fullscreen_exit" : "fullscreen"}
+              {fullscreenIcon}
             </span>
           </button>
           <button
@@ -46,7 +53,7 @@ export default function LobbyHeader({
             aria-label="Toggle theme"
           >
             <span className={classNames("material-symbols-outlined", styles.themeIcon)}>
-              contrast
+              {themeIcon}
             </span>
           </button>
         </div>

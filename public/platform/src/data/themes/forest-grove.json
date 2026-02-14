@@ -1,0 +1,103 @@
+{
+  "id": "forest-grove",
+  "name": "Forest Grove",
+  "author": "Kaboom Team",
+  "version": "1.0",
+  "description": "Natural foliage palette with grounded, realistic depth",
+  "preview": {
+    "primary": "#4f7550",
+    "secondary": "#7a9f7c",
+    "background": "#cfd7cb"
+  },
+  "icons": {
+    "header": {
+      "muteOn": "music_note",
+      "muteOff": "music_off",
+      "fullscreenOn": "open_in_full",
+      "fullscreenOff": "close_fullscreen",
+      "themeToggle": "eco"
+    },
+    "nav": {
+      "solo": "sports_esports",
+      "multi": "hub",
+      "profile": "badge",
+      "friends": "group",
+      "config": "build"
+    },
+    "config": {
+      "selectedTheme": "task_alt"
+    },
+    "game": {
+      "fullscreenOn": "open_in_full",
+      "fullscreenOff": "close_fullscreen"
+    },
+    "share": {
+      "close": "close",
+      "copy": "content_copy",
+      "invite": "person_add",
+      "chat": "chat",
+      "sms": "sms",
+      "more": "share"
+    },
+    "endGame": {
+      "rematch": "sports_martial_arts",
+      "backHome": "home"
+    },
+    "exitConfirm": {
+      "goHome": "home",
+      "stay": "sports_esports"
+    },
+    "connection": {
+      "connected": "wifi",
+      "reconnecting": "sync",
+      "connecting": "wifi",
+      "disconnected": "wifi_off"
+    }
+  },
+  "light": {
+    "color-primary": "#4f7550",
+    "color-secondary": "#7a9f7c",
+    "color-background": "#cfd7cb",
+    "color-body": "#cfd7cb",
+    "color-body-gradient": "linear-gradient(180deg, #dde5d9 0%, #c7d2c4 55%, #b2bfaf 100%)",
+    "color-surface": "#eef2eb",
+    "color-surface-alt": "#a9b8a2",
+    "color-surface-dark": "#334236",
+    "color-text": "#1d2a1f",
+    "color-muted": "#56695a",
+    "color-divider": "#4d5f50",
+    "color-accent": "#3e5543",
+    "color-border": "#4b5e4d",
+    "color-border-dark": "#6f8572",
+    "color-card-from": "#f3f7f1",
+    "color-card-to": "#d9e2d5",
+    "color-title-accent": "#4f7550",
+    "color-console": "#a9b6a8",
+    "screen-shadow": "0 10px 24px rgba(45, 62, 48, 0.32)",
+    "screen-shadow-dark": "0 10px 24px rgba(0, 0, 0, 0.5)",
+    "shadow-sm": "0 3px 7px rgba(45, 62, 48, 0.32)"
+  },
+  "dark": {
+    "color-primary": "#6f9771",
+    "color-secondary": "#88ad8a",
+    "color-background": "#10170f",
+    "color-body": "#10170f",
+    "color-body-gradient": "linear-gradient(180deg, #162117 0%, #10190f 55%, #0a1009 100%)",
+    "color-surface": "#1d2a1f",
+    "color-surface-alt": "#2b3d2f",
+    "color-surface-dark": "#121b14",
+    "color-text": "#d5dfd1",
+    "color-muted": "#9eb19e",
+    "color-divider": "#4f6352",
+    "color-accent": "#38503d",
+    "color-border": "#405544",
+    "color-border-dark": "#5c715e",
+    "color-card-from": "#2b3d2f",
+    "color-card-to": "#1b291d",
+    "color-title-accent": "#8fb38f",
+    "color-console": "#141f15",
+    "screen-shadow": "0 12px 28px rgba(0, 0, 0, 0.6)",
+    "screen-shadow-dark": "0 12px 28px rgba(0, 0, 0, 0.7)",
+    "shadow-sm": "0 3px 7px rgba(0, 0, 0, 0.48)"
+  }
+}

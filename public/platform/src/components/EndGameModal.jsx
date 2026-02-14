@@ -10,6 +10,7 @@ export default function EndGameModal({
   onRematch,
   onBack,
   rematchDisabled,
+  icons,
 }) {
   return (
     <div className={styles.shareOverlay} role="dialog" aria-modal="true" aria-label="Match results">
@@ -27,7 +28,7 @@ export default function EndGameModal({
             disabled={rematchDisabled}
           >
             <div className={styles.shareActionIcon}>
-              <span className="material-symbols-outlined">sports_mma</span>
+              <span className="material-symbols-outlined">{icons?.rematch || "sports_mma"}</span>
             </div>
             <div className={styles.shareActionText}>
               <span className={styles.shareActionEyebrow}>Rematch</span>
@@ -42,7 +43,9 @@ export default function EndGameModal({
             className={classNames(styles.shareActionGhost, styles.endGameAction)}
             onClick={onBack}
           >
-            <span className={classNames("material-symbols-outlined", styles.shareGhostIcon)}>home</span>
+            <span className={classNames("material-symbols-outlined", styles.shareGhostIcon)}>
+              {icons?.backHome || "home"}
+            </span>
             <span className={styles.shareGhostLabel}>Back to Home</span>
           </button>
         </div>

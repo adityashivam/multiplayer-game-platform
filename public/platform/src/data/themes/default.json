@@ -1,0 +1,103 @@
+{
+  "id": "default",
+  "name": "Retro Arcade",
+  "author": "Kaboom Team",
+  "version": "1.0",
+  "description": "Warm brushed-metal tones with subtle arcade nostalgia",
+  "preview": {
+    "primary": "#c7684f",
+    "secondary": "#3c8b83",
+    "background": "#c8b9a0"
+  },
+  "icons": {
+    "header": {
+      "muteOn": "volume_up",
+      "muteOff": "volume_off",
+      "fullscreenOn": "fullscreen",
+      "fullscreenOff": "fullscreen_exit",
+      "themeToggle": "contrast"
+    },
+    "nav": {
+      "solo": "videogame_asset",
+      "multi": "hub",
+      "profile": "id_card",
+      "friends": "group",
+      "config": "settings"
+    },
+    "config": {
+      "selectedTheme": "check_circle"
+    },
+    "game": {
+      "fullscreenOn": "fullscreen",
+      "fullscreenOff": "fullscreen_exit"
+    },
+    "share": {
+      "close": "close",
+      "copy": "content_copy",
+      "invite": "person_add",
+      "chat": "chat",
+      "sms": "sms",
+      "more": "share"
+    },
+    "endGame": {
+      "rematch": "sports_mma",
+      "backHome": "home"
+    },
+    "exitConfirm": {
+      "goHome": "home",
+      "stay": "sports_esports"
+    },
+    "connection": {
+      "connected": "wifi",
+      "reconnecting": "wifi_find",
+      "connecting": "wifi_find",
+      "disconnected": "wifi_off"
+    }
+  },
+  "light": {
+    "color-primary": "#c7684f",
+    "color-secondary": "#3c8b83",
+    "color-background": "#c8b9a0",
+    "color-body": "#c8b9a0",
+    "color-body-gradient": "linear-gradient(180deg, #e1d6c2 0%, #cdbb9d 55%, #b49f7f 100%)",
+    "color-surface": "#f1e9da",
+    "color-surface-alt": "#c8ab72",
+    "color-surface-dark": "#2f2823",
+    "color-text": "#1f1b18",
+    "color-muted": "#5e5349",
+    "color-divider": "#3f362f",
+    "color-accent": "#2f4f56",
+    "color-border": "#3b332d",
+    "color-border-dark": "#706154",
+    "color-card-from": "#f7f0e2",
+    "color-card-to": "#e9dcc5",
+    "color-title-accent": "#c7684f",
+    "color-console": "#bca98f",
+    "screen-shadow": "0 10px 24px rgba(36, 28, 20, 0.35)",
+    "screen-shadow-dark": "0 10px 24px rgba(0, 0, 0, 0.5)",
+    "shadow-sm": "0 3px 7px rgba(36, 28, 20, 0.35)"
+  },
+  "dark": {
+    "color-primary": "#d38763",
+    "color-secondary": "#5d9a93",
+    "color-background": "#13100d",
+    "color-body": "#13100d",
+    "color-body-gradient": "linear-gradient(180deg, #191512 0%, #12100d 58%, #090806 100%)",
+    "color-surface": "#1f1a16",
+    "color-surface-alt": "#312822",
+    "color-surface-dark": "#17120f",
+    "color-text": "#e7dfd2",
+    "color-muted": "#b9ac9f",
+    "color-divider": "#5a4b40",
+    "color-accent": "#3b5860",
+    "color-border": "#4a3d33",
+    "color-border-dark": "#68584c",
+    "color-card-from": "#2d251f",
+    "color-card-to": "#221c17",
+    "color-title-accent": "#d38763",
+    "color-console": "#191410",
+    "screen-shadow": "0 12px 26px rgba(0, 0, 0, 0.62)",
+    "screen-shadow-dark": "0 12px 26px rgba(0, 0, 0, 0.72)",
+    "shadow-sm": "0 3px 7px rgba(0, 0, 0, 0.55)"
+  }
+}
