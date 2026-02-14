@@ -1,3 +1,5 @@
+import msgpackParser from "/platform/shared/msgpackParser.js";
+
 const socketCache = new Map();
 
 const STATE_SAMPLE_WINDOW = 240;
@@ -99,6 +101,7 @@ export function getGameSocket(namespace) {
   const io = resolveSocketIo();
   const raw = io(normalized, {
     transports: ["websocket"],
+    parser: msgpackParser,
     reconnection: true,
     reconnectionAttempts: Infinity,
     reconnectionDelay: 500,

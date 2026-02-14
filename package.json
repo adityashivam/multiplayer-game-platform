@@ -10,8 +10,9 @@
     "platform:dev": "vite --config public/platform/vite.config.js",
     "platform:build": "vite build --config public/platform/vite.config.js",
     "platform:preview": "vite preview --config public/platform/vite.config.js",
-    "build": "npm run platform:build",
-    "postinstall": "npm run platform:build"
+    "build:msgpack": "esbuild node_modules/socket.io-msgpack-parser/index.js --bundle --format=esm --outfile=public/platform/shared/msgpackParser.js --platform=browser --minify",
+    "build": "npm run build:msgpack && npm run platform:build",
+    "postinstall": "npm run build"
   },
   "engines": {
     "node": ">=18"
@@ -20,7 +21,8 @@
     "express": "^4.18.2",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
-    "socket.io": "^4.8.0"
+    "socket.io": "^4.8.0",
+    "socket.io-msgpack-parser": "^3.0.2"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^5.1.2",

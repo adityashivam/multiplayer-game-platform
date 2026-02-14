@@ -1,5 +1,6 @@
 import { createServer } from "http";
 import { Server } from "socket.io";
+import msgpackParser from "socket.io-msgpack-parser";
 import express from "express";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -17,11 +18,9 @@ const httpServer = createServer(app);
 const io = new Server(httpServer, {
   cors: { origin: "*" },
   transports: ["websocket"],
+  parser: msgpackParser,
   pingInterval: 5000,
   pingTimeout: 10000,
-  perMessageDeflate: {
-    threshold: 128,
-  },
 });
 
 const catalog = [
