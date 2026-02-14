@@ -1,6 +1,7 @@
 import React from "react";
 import ConnectionIndicator from "./ConnectionIndicator.jsx";
 import EndGameModal from "./EndGameModal.jsx";
+import ExitConfirmModal from "./ExitConfirmModal.jsx";
 import ShareModal from "./ShareModal.jsx";
 import styles from "../App.module.scss";
 
@@ -20,6 +21,9 @@ export default function GameView({
   onRematch,
   onBackHome,
   rematchDisabled,
+  exitConfirmOpen,
+  onConfirmExit,
+  onCancelExit,
   isFullscreen,
   onToggleFullscreen,
   connectionStatus,
@@ -64,6 +68,7 @@ export default function GameView({
             onClose={onCloseShare}
           />
         )}
+        {exitConfirmOpen && <ExitConfirmModal onConfirm={onConfirmExit} onCancel={onCancelExit} />}
         {gameLoadError && <div className={styles.emptyState}>{gameLoadError}</div>}
       </div>
     </div>

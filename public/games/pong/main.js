@@ -10,6 +10,7 @@ import { createInterpolator } from "/platform/shared/interpolation.js";
 import { updateConnectionState } from "/platform/shared/connectionBridge.js";
 
 const GAME_SLUG = "pong";
+const ROOM_READY_EVENT = "kaboom:room-ready";
 const WIDTH = 960;
 const HEIGHT = 720;
 const PADDLE_W = 26;
@@ -52,6 +53,13 @@ function setRoomLink(url) {
   roomUrl = url;
 }
 
+function announceRoomReady(roomId) {
+  if (!roomId) return;
+  window.dispatchEvent(
+    new CustomEvent(ROOM_READY_EVENT, { detail: { gameId: GAME_SLUG, roomId } }),
+  );
+}
+
 function getRoomIdFromPath() {
   const match = window.location.pathname.match(new RegExp(`/games/${GAME_SLUG}/([a-z0-9]+)`, "i"));
   return match && match[1] ? match[1] : null;
@@ -61,21 +69,25 @@ async function ensureRoomId() {
   const existing = getRoomIdFromPath();
   if (existing) {
     setRoomLink(buildRoomUrl(existing));
+    announceRoomReady(existing);
     return existing;
   }
   try {
     const res = await fetch(`/api/games/${GAME_SLUG}/new-room`);
+    if (!res.ok) throw new Error("Failed to create room");
     const data = await res.json();
     const roomId = data?.roomId || Math.random().toString(36).slice(2, 8);
     const url = data?.url || buildRoomUrl(roomId);
     window.history.replaceState({}, "", `/games/${GAME_SLUG}/${roomId}`);
     setRoomLink(url);
+    announceRoomReady(roomId);
     return roomId;
   } catch (err) {
     const fallback = Math.random().toString(36).slice(2, 8);
     const url = buildRoomUrl(fallback);
     window.history.replaceState({}, "", `/games/${GAME_SLUG}/${fallback}`);
     setRoomLink(url);
+    announceRoomReady(fallback);
     return fallback;
   }
 }
@@ -144,6 +156,7 @@ socket.onEvent("gameJoined", ({ playerId, gameId: joinedGameId, rejoinToken: tok
     try { sessionStorage.setItem(`rejoinToken:${GAME_SLUG}:${gameId}`, token); } catch (e) { /* noop */ }
   }
   setRoomLink(buildRoomUrl(gameId));
+  announceRoomReady(gameId);
   console.log("Joined game", gameId, "as", playerId);
 });
 

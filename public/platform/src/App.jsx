@@ -45,6 +45,8 @@ export default function App() {
   const [copyLabel, setCopyLabel] = useState("Copy");
   const [gameLoadError, setGameLoadError] = useState(null);
   const [shareOpen, setShareOpen] = useState(false);
+  const [exitConfirmOpen, setExitConfirmOpen] = useState(false);
+  const [routeTransitioning, setRouteTransitioning] = useState(false);
   const [endGameState, setEndGameState] = useState({
     open: false,
     title: "",
@@ -61,12 +63,30 @@ export default function App() {
   const [pseudoFullscreen, setPseudoFullscreen] = useState(false);
   const cardRefs = useRef([]);
   const endGameBridgeRef = useRef(null);
-  const autoFullscreenAttemptedRef = useRef(false);
   const setShareModal = useCallback((nextOpen) => {
     setShareOpen((prev) => (typeof nextOpen === "boolean" ? nextOpen : !prev));
   }, []);
 
   const isGameView = Boolean(route?.gameId);
+  const routeViewKey = route?.gameId ? `game:${route.gameId}` : "lobby";
+
+  const navigateTo = useCallback((path, { replace = false } = {}) => {
+    if (typeof window === "undefined" || !path) return;
+    const nextPath = path.startsWith("/") ? path : `/${path}`;
+    const currentPath = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+    if (nextPath === currentPath) return;
+
+    const commit = () => {
+      if (replace) {
+        window.history.replaceState({}, "", nextPath);
+      } else {
+        window.history.pushState({}, "", nextPath);
+      }
+      setRoute(getGameRoute());
+    };
+
+    commit();
+  }, []);
 
   const headerTitle = useMemo(() => {
     if (isGameView) {
@@ -164,6 +184,39 @@ export default function App() {
   }, [isGameView]);
 
   useEffect(() => {
+    if (!isGameView || route?.roomId) return () => {};
+    const syncRouteFromPath = () => {
+      const nextRoute = getGameRoute();
+      if (nextRoute?.gameId === route?.gameId && nextRoute?.roomId) {
+        setRoute(nextRoute);
+        return true;
+      }
+      return false;
+    };
+    if (syncRouteFromPath()) return () => {};
+    const timer = setInterval(() => {
+      if (syncRouteFromPath()) {
+        clearInterval(timer);
+      }
+    }, 250);
+    return () => clearInterval(timer);
+  }, [isGameView, route?.gameId, route?.roomId]);
+
+  useEffect(() => {
+    setRouteTransitioning(true);
+    const timer = setTimeout(() => {
+      setRouteTransitioning(false);
+    }, 260);
+    return () => clearTimeout(timer);
+  }, [routeViewKey]);
+
+  useEffect(() => {
+    if (!isGameView) {
+      setExitConfirmOpen(false);
+    }
+  }, [isGameView]);
+
+  useEffect(() => {
     if (!isGameView) {
       endGameBridgeRef.current?.hideEndGameModal?.();
     }
@@ -224,16 +277,6 @@ export default function App() {
     }
   }, [exitFullscreen, pseudoFullscreen, requestFullscreen]);
 
-
-  useEffect(() => {
-    if (!isGameView) {
-      autoFullscreenAttemptedRef.current = false;
-      return;
-    }
-    if (autoFullscreenAttemptedRef.current) return;
-    autoFullscreenAttemptedRef.current = true;
-    requestFullscreen();
-  }, [isGameView, requestFullscreen]);
 
   useEffect(() => {
     let cancelled = false;
@@ -352,15 +395,17 @@ export default function App() {
     if (!games.length) return;
     const game = games[selectedIndex];
     if (game?.path) {
-      window.location.href = game.path;
+      navigateTo(game.path);
     }
-  }, [games, selectedIndex]);
+  }, [games, navigateTo, selectedIndex]);
 
   const handleActionInput = useCallback(
     (action) => {
+      const isHomeAction = action === "home" || action === "select";
       if (isGameView) {
-        if (action === "select") {
-          setShareModal();
+        if (isHomeAction) {
+          setShareModal(false);
+          setExitConfirmOpen(true);
         }
         return;
       }
@@ -373,6 +418,9 @@ export default function App() {
           break;
         case "b":
           handleDirectionalInput("left");
+          break;
+        case "home":
+          // Already in lobby view.
           break;
         case "select":
           setTheme((prev) => (prev === "dark" ? "light" : "dark"));
@@ -411,11 +459,28 @@ export default function App() {
   }, []);
 
   const handleBackHome = useCallback(() => {
-    window.location.assign("/");
+    navigateTo("/");
+  }, [navigateTo]);
+
+  const handleConfirmExit = useCallback(() => {
+    setExitConfirmOpen(false);
+    navigateTo("/");
+  }, [navigateTo]);
+
+  const handleCancelExit = useCallback(() => {
+    setExitConfirmOpen(false);
   }, []);
 
   const headerLeft = isGameView ? (
-    <a id="back-to-lobby" className={styles.backLink} href="/">
+    <a
+      id="back-to-lobby"
+      className={styles.backLink}
+      href="/"
+      onClick={(event) => {
+        event.preventDefault();
+        navigateTo("/");
+      }}
+    >
       &larr; Lobby
     </a>
   ) : (
@@ -436,7 +501,13 @@ export default function App() {
           <div className={styles.scanlines} aria-hidden="true" />
           <div className={styles.screenOverlay} aria-hidden="true" />
           <div className={styles.screenBody}>
-            <div className={classNames(styles.screenScroll, isGameView && styles.screenScrollGame)}>
+            <div
+              className={classNames(
+                styles.screenScroll,
+                isGameView && styles.screenScrollGame,
+                routeTransitioning && styles.routeTransition,
+              )}
+            >
               {!isGameView && (
                 <LobbyHeader
                   headerLeft={headerLeft}
@@ -453,7 +524,7 @@ export default function App() {
                   games={games}
                   selectedIndex={selectedIndex}
                   onSelectIndex={setSelectedIndex}
-                  onActivate={(path) => window.location.assign(path)}
+                  onActivate={(path) => navigateTo(path)}
                   registerCardRef={(index, node) => {
                     cardRefs.current[index] = node;
                   }}
@@ -477,6 +548,9 @@ export default function App() {
                   onRematch={handleRematch}
                   onBackHome={handleBackHome}
                   rematchDisabled={rematchDisabled}
+                  exitConfirmOpen={exitConfirmOpen}
+                  onConfirmExit={handleConfirmExit}
+                  onCancelExit={handleCancelExit}
                   isFullscreen={fullscreenActive}
                   onToggleFullscreen={handleFullscreenToggle}
                   connectionStatus={connectionState.status}
@@ -485,7 +559,7 @@ export default function App() {
               )}
             </div>
           </div>
-          <BottomNav />
+          {!isGameView && <BottomNav />}
         </div>
 
         <Controller onDirectional={handleDirectionalInput} onAction={handleActionInput} disabled={false} />

@@ -81,10 +81,11 @@ function Controller({ onDirectional, onAction, disabled }) {
             <button
               type="button"
               className={styles.miniButton}
-              data-action="select"
-              onClick={() => actionHandler?.("select")}
+              data-action="home"
+              onClick={() => actionHandler?.("home")}
+              aria-label="Home"
             />
-            <span className={styles.miniLabel}>SELECT</span>
+            <span className={styles.miniLabel}>HOME</span>
           </div>
           <div className={styles.selectStartGroup}>
             <button

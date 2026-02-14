@@ -52,6 +52,7 @@ function bindHold(button, onDown, onUp) {
 }
 
 export function getGameControls() {
+  const homeButtons = document.querySelectorAll('[data-action="home"], [data-action="select"]');
   return {
     dpad: {
       up: createControl(document.querySelectorAll('[data-dir="up"]')),
@@ -60,7 +61,8 @@ export function getGameControls() {
       right: createControl(document.querySelectorAll('[data-dir="right"]')),
     },
     menu: {
-      select: createControl(document.querySelectorAll('[data-action="select"]')),
+      select: createControl(homeButtons),
+      home: createControl(homeButtons),
       start: createControl(document.querySelectorAll('[data-action="start"]')),
     },
     actions: {
