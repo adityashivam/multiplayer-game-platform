@@ -6,11 +6,13 @@ import {
   showEndGameModal,
   updateEndGameModal,
 } from "/platform/shared/endGameBridge.js";
+import { openShareModal } from "/platform/shared/shareModalBridge.js";
 import { createInterpolator } from "/platform/shared/interpolation.js";
 import { updateConnectionState } from "/platform/shared/connectionBridge.js";
 
 const GAME_SLUG = "pong";
 const ROOM_READY_EVENT = "kaboom:room-ready";
+const DISPOSE_GAME_EVENT = "kaboom:dispose-game";
 const WIDTH = 960;
 const HEIGHT = 720;
 const PADDLE_W = 26;
@@ -194,10 +196,19 @@ function handleDirectionalInput(direction, active) {
 function handleActionInput(action) {
   switch (action) {
     case "start":
-      if (roomUrl) window.location.href = roomUrl;
+      if (roomUrl) {
+        openShareModal();
+      } else {
+        ensureRoomId().finally(() => {
+          openShareModal();
+        });
+      }
       break;
     case "b":
-      window.location.href = "/";
+      break;
+    case "a":
+    case "x":
+    case "y":
       break;
     default:
       break;
@@ -205,29 +216,37 @@ function handleActionInput(action) {
 }
 
 function initControllerNavigation() {
-  dpad.left.onHold(
+  const cleanups = [];
+
+  cleanups.push(dpad.left.onHold(
     () => handleDirectionalInput("left", true),
     () => handleDirectionalInput("left", false),
-  );
-  dpad.right.onHold(
+  ));
+  cleanups.push(dpad.right.onHold(
     () => handleDirectionalInput("right", true),
     () => handleDirectionalInput("right", false),
-  );
-  dpad.up.onHold(
+  ));
+  cleanups.push(dpad.up.onHold(
     () => handleDirectionalInput("up", true),
     () => handleDirectionalInput("up", false),
-  );
-  dpad.down.onHold(
+  ));
+  cleanups.push(dpad.down.onHold(
     () => handleDirectionalInput("down", true),
     () => handleDirectionalInput("down", false),
-  );
+  ));
 
-  actions.a.onPress(() => handleActionInput("a"));
-  actions.b.onPress(() => handleActionInput("b"));
-  actions.x.onPress(() => handleActionInput("x"));
-  actions.y.onPress(() => handleActionInput("y"));
+  cleanups.push(actions.a.onPress(() => handleActionInput("a")));
+  cleanups.push(actions.b.onPress(() => handleActionInput("b")));
+  cleanups.push(actions.x.onPress(() => handleActionInput("x")));
+  cleanups.push(actions.y.onPress(() => handleActionInput("y")));
 
-  menu.start.onPress(() => handleActionInput("start"));
+  cleanups.push(menu.start.onPress(() => handleActionInput("start")));
+
+  return () => {
+    cleanups.forEach((cleanup) => {
+      if (typeof cleanup === "function") cleanup();
+    });
+  };
 }
 
 // ---------- Scene ----------
@@ -467,6 +486,46 @@ scene("pong", () => {
   });
 });
 
-initControllerNavigation();
+const cleanupControllerNavigation = initControllerNavigation();
+
+let disposed = false;
+
+function disposeGameRuntime() {
+  if (disposed) return;
+  disposed = true;
+
+  cleanupControllerNavigation?.();
+  registerRematchHandler(null);
+  hideEndGameModal();
+  updateConnectionState({ status: "disconnected", ping: null });
+
+  socket.offEvent("connect");
+  socket.offEvent("roomFull");
+  socket.offEvent("gameJoined");
+  socket.offEvent("rematchRequested");
+  socket.offEvent("rematchStarted");
+  socket.offEvent("playerJoined");
+  socket.offEvent("playerLeft");
+  socket.offEvent("state");
+  socket.destroy?.();
+
+  window.removeEventListener(DISPOSE_GAME_EVENT, handleDisposeEvent);
+  if (typeof quit === "function") {
+    try {
+      quit();
+    } catch (err) {
+      // no-op
+    }
+  }
+}
+
+function handleDisposeEvent(event) {
+  const targetGameId = event?.detail?.gameId;
+  if (!targetGameId || targetGameId === GAME_SLUG) {
+    disposeGameRuntime();
+  }
+}
+
+window.addEventListener(DISPOSE_GAME_EVENT, handleDisposeEvent);
 
 go("pong");

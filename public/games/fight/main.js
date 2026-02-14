@@ -40,6 +40,7 @@ const GAME_SLUG = "fight";
 const ASSET_BASE = `/games/${GAME_SLUG}/assets`;
 const OPPONENT_JOIN_EVENT = "kaboom:opponent-joined";
 const ROOM_READY_EVENT = "kaboom:room-ready";
+const DISPOSE_GAME_EVENT = "kaboom:dispose-game";
 let shareModalShown = false;
 
 function buildRoomUrl(roomId) {
@@ -103,19 +104,6 @@ function getOrCreateRoomId() {
     });
   }
   return roomReadyPromise;
-}
-
-async function startNewRoom() {
-  try {
-    const res = await fetch(`/api/games/${GAME_SLUG}/new-room`);
-    const data = await res.json();
-    const roomId = data?.roomId || Math.random().toString(36).slice(2, 8);
-    const targetUrl = data?.url || buildRoomUrl(roomId);
-    window.location.href = targetUrl;
-  } catch (err) {
-    const fallbackId = Math.random().toString(36).slice(2, 8);
-    window.location.href = buildRoomUrl(fallbackId);
-  }
 }
 
 let gameId = null;
@@ -207,7 +195,13 @@ function handleActionInput(action) {
       break;
     }
     case "start":
-      startNewRoom();
+      if (roomUrl) {
+        openShareModal();
+      } else {
+        getOrCreateRoomId().finally(() => {
+          openShareModal();
+        });
+      }
       break;
     case "b":
       break;
@@ -217,30 +211,37 @@ function handleActionInput(action) {
 }
 
 function initControllerNavigation() {
-  dpad.left.onHold(
+  const cleanups = [];
+
+  cleanups.push(dpad.left.onHold(
     () => handleDirectionalInput("left", true),
     () => handleDirectionalInput("left", false),
-  );
-  dpad.right.onHold(
+  ));
+  cleanups.push(dpad.right.onHold(
     () => handleDirectionalInput("right", true),
     () => handleDirectionalInput("right", false),
-  );
-  dpad.up.onHold(
+  ));
+  cleanups.push(dpad.up.onHold(
     () => handleDirectionalInput("up", true),
     () => handleDirectionalInput("up", false),
-  );
-  dpad.down.onHold(
+  ));
+  cleanups.push(dpad.down.onHold(
     () => handleDirectionalInput("down", true),
     () => handleDirectionalInput("down", false),
-  );
+  ));
 
-  actions.a.onPress(() => handleActionInput("a"));
-  actions.b.onPress(() => handleActionInput("b"));
-  actions.x.onPress(() => handleActionInput("x"));
-  actions.y.onPress(() => handleActionInput("y"));
+  cleanups.push(actions.a.onPress(() => handleActionInput("a")));
+  cleanups.push(actions.b.onPress(() => handleActionInput("b")));
+  cleanups.push(actions.x.onPress(() => handleActionInput("x")));
+  cleanups.push(actions.y.onPress(() => handleActionInput("y")));
 
-  menu.start.onPress(() => handleActionInput("start"));
+  cleanups.push(menu.start.onPress(() => handleActionInput("start")));
 
+  return () => {
+    cleanups.forEach((cleanup) => {
+      if (typeof cleanup === "function") cleanup();
+    });
+  };
 }
 
 function tryJoinGame() {
@@ -762,6 +763,47 @@ scene("fight", () => {
   }
 });
 
-initControllerNavigation();
+const cleanupControllerNavigation = initControllerNavigation();
+
+let disposed = false;
+
+function disposeGameRuntime() {
+  if (disposed) return;
+  disposed = true;
+
+  cleanupControllerNavigation?.();
+  registerRematchHandler(null);
+  hideEndGameModal();
+  updateConnectionState({ status: "disconnected", ping: null });
+  window.__kaboomOpponentJoined = null;
+
+  socket.offEvent("connect");
+  socket.offEvent("roomFull");
+  socket.offEvent("gameJoined");
+  socket.offEvent("rematchRequested");
+  socket.offEvent("rematchStarted");
+  socket.offEvent("playerJoined");
+  socket.offEvent("playerLeft");
+  socket.offEvent("state");
+  socket.destroy?.();
+
+  window.removeEventListener(DISPOSE_GAME_EVENT, handleDisposeEvent);
+  if (typeof quit === "function") {
+    try {
+      quit();
+    } catch (err) {
+      // no-op
+    }
+  }
+}
+
+function handleDisposeEvent(event) {
+  const targetGameId = event?.detail?.gameId;
+  if (!targetGameId || targetGameId === GAME_SLUG) {
+    disposeGameRuntime();
+  }
+}
+
+window.addEventListener(DISPOSE_GAME_EVENT, handleDisposeEvent);
 
 go("fight");

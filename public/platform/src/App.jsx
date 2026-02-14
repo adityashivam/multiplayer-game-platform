@@ -10,6 +10,8 @@ import { loadScript } from "./utils/loadScript.js";
 import styles from "./App.module.scss";
 
 const THEME_KEY = "kaboom-preferred-theme";
+const DISPOSE_GAME_EVENT = "kaboom:dispose-game";
+const GAME_SCRIPT_PREFIX = "game-runtime-";
 
 function getGameRoute() {
   const match = window.location.pathname.match(/^\/games\/([^/]+)(?:\/([^/]+))?/);
@@ -33,7 +35,21 @@ async function loadGameClient(gameId) {
   if (!window.kaboom) {
     await loadScript("https://unpkg.com/kaboom/dist/kaboom.js", { id: "kaboom-lib" });
   }
-  await loadScript(`/games/${gameId}/main.js`, { id: `game-${gameId}`, type: "module" });
+  const sessionKey = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const scriptId = `${GAME_SCRIPT_PREFIX}${gameId}-${sessionKey}`;
+  await loadScript(`/games/${gameId}/main.js?session=${sessionKey}`, { id: scriptId, type: "module" });
+  return scriptId;
+}
+
+function removeGameClientScripts(gameId) {
+  if (!gameId || typeof document === "undefined") return;
+  const selector = `script[id^="${GAME_SCRIPT_PREFIX}${gameId}-"], script[id="game-${gameId}"]`;
+  document.querySelectorAll(selector).forEach((node) => node.remove());
+}
+
+function disposeGameRuntime(gameId) {
+  if (!gameId || typeof window === "undefined") return;
+  window.dispatchEvent(new CustomEvent(DISPOSE_GAME_EVENT, { detail: { gameId } }));
 }
 
 export default function App() {
@@ -63,6 +79,7 @@ export default function App() {
   const [pseudoFullscreen, setPseudoFullscreen] = useState(false);
   const cardRefs = useRef([]);
   const endGameBridgeRef = useRef(null);
+  const activeGameRef = useRef({ gameId: null, scriptId: null });
   const setShareModal = useCallback((nextOpen) => {
     setShareOpen((prev) => (typeof nextOpen === "boolean" ? nextOpen : !prev));
   }, []);
@@ -87,6 +104,19 @@ export default function App() {
 
     commit();
   }, []);
+
+  const disposeGameSession = useCallback(
+    (gameId) => {
+      if (!gameId) return;
+      disposeGameRuntime(gameId);
+      removeGameClientScripts(gameId);
+      if (activeGameRef.current.gameId === gameId) {
+        activeGameRef.current = { gameId: null, scriptId: null };
+      }
+      setShareModal(false);
+    },
+    [setShareModal],
+  );
 
   const headerTitle = useMemo(() => {
     if (isGameView) {
@@ -215,6 +245,14 @@ export default function App() {
       setExitConfirmOpen(false);
     }
   }, [isGameView]);
+
+  useEffect(() => {
+    const prevGameId = activeGameRef.current.gameId;
+    const nextGameId = route?.gameId || null;
+    if (prevGameId && prevGameId !== nextGameId) {
+      disposeGameSession(prevGameId);
+    }
+  }, [disposeGameSession, route?.gameId]);
 
   useEffect(() => {
     if (!isGameView) {
@@ -367,7 +405,15 @@ export default function App() {
     let cancelled = false;
     async function start() {
       try {
-        await loadGameClient(route.gameId);
+        disposeGameRuntime(route.gameId);
+        removeGameClientScripts(route.gameId);
+        const scriptId = await loadGameClient(route.gameId);
+        if (cancelled) {
+          removeGameClientScripts(route.gameId);
+          return;
+        }
+        activeGameRef.current = { gameId: route.gameId, scriptId };
+        setGameLoadError(null);
       } catch (err) {
         console.error(err);
         if (!cancelled) setGameLoadError("Failed to load game.");
@@ -378,6 +424,15 @@ export default function App() {
       cancelled = true;
     };
   }, [route?.gameId]);
+
+  useEffect(() => {
+    return () => {
+      const activeGameId = activeGameRef.current.gameId;
+      if (activeGameId) {
+        disposeGameSession(activeGameId);
+      }
+    };
+  }, [disposeGameSession]);
 
   const handleDirectionalInput = useCallback(
     (direction) => {
@@ -459,13 +514,19 @@ export default function App() {
   }, []);
 
   const handleBackHome = useCallback(() => {
+    if (route?.gameId) {
+      disposeGameSession(route.gameId);
+    }
     navigateTo("/");
-  }, [navigateTo]);
+  }, [disposeGameSession, navigateTo, route?.gameId]);
 
   const handleConfirmExit = useCallback(() => {
     setExitConfirmOpen(false);
+    if (route?.gameId) {
+      disposeGameSession(route.gameId);
+    }
     navigateTo("/");
-  }, [navigateTo]);
+  }, [disposeGameSession, navigateTo, route?.gameId]);
 
   const handleCancelExit = useCallback(() => {
     setExitConfirmOpen(false);
@@ -478,6 +539,9 @@ export default function App() {
       href="/"
       onClick={(event) => {
         event.preventDefault();
+        if (route?.gameId) {
+          disposeGameSession(route.gameId);
+        }
         navigateTo("/");
       }}
     >

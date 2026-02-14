@@ -24,6 +24,7 @@ const GameCard = React.forwardRef(function GameCard(
       role="button"
       tabIndex={0}
       onClick={onActivate}
+      onPointerEnter={onSelect}
       onMouseEnter={onSelect}
       onFocus={onSelect}
       ref={ref}

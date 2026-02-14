@@ -20,14 +20,15 @@ export default function LobbyList({
       ) : (
         games.map((game, index) => {
           const visuals = visualsByGame[game.id] || {};
-          const featured = visuals.featured ?? index === 0;
+          const selected = selectedIndex === index;
+          const featured = selected && Boolean(visuals.featured ?? index === 0);
           return (
             <GameCard
               key={game.id}
               game={game}
               visuals={visuals}
               featured={featured}
-              selected={selectedIndex === index}
+              selected={selected}
               onSelect={() => onSelectIndex(index)}
               onActivate={() => onActivate(game.path)}
               ref={(node) => {

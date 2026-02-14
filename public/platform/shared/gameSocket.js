@@ -14,6 +14,17 @@ function resolveSocketIo() {
   return window.io;
 }
 
+function removeListener(emitter, event, handler) {
+  if (!emitter || typeof handler !== "function") return;
+  if (typeof emitter.off === "function") {
+    emitter.off(event, handler);
+    return;
+  }
+  if (typeof emitter.removeListener === "function") {
+    emitter.removeListener(event, handler);
+  }
+}
+
 export function getGameSocket(namespace) {
   const normalized = normalizeNamespace(namespace);
   if (socketCache.has(normalized)) {
@@ -33,6 +44,7 @@ export function getGameSocket(namespace) {
   let ping = null;
   let pingStart = 0;
   const connectionListeners = new Set();
+  let pingInterval = null;
 
   function setConnectionState(next) {
     if (next === connectionState) return;
@@ -41,53 +53,64 @@ export function getGameSocket(namespace) {
     connectionListeners.forEach((fn) => fn(snapshot));
   }
 
-  raw.on("connect", () => {
+  const handleConnectState = () => {
     setConnectionState("connected");
-  });
+  };
 
-  raw.on("disconnect", () => {
+  const handleDisconnectState = () => {
     setConnectionState("disconnected");
-  });
+  };
 
-  raw.io.on("reconnect_attempt", () => {
+  const handleReconnectAttempt = () => {
     setConnectionState("reconnecting");
-  });
+  };
 
-  raw.io.on("reconnect", () => {
+  const handleReconnect = () => {
     setConnectionState("connected");
-  });
+  };
+
+  raw.on("connect", handleConnectState);
+  raw.on("disconnect", handleDisconnectState);
+  raw.io.on("reconnect_attempt", handleReconnectAttempt);
+  raw.io.on("reconnect", handleReconnect);
+
+  const handleEnginePing = () => {
+    pingStart = performance.now();
+  };
+
+  const handleEnginePong = () => {
+    if (!pingStart) return;
+    ping = Math.round(performance.now() - pingStart);
+    const snapshot = { status: connectionState, ping };
+    connectionListeners.forEach((fn) => fn(snapshot));
+  };
+
+  function attachEngineListeners(engine) {
+    if (!engine) return;
+    if (typeof engine.on === "function") {
+      engine.on("ping", handleEnginePing);
+      engine.on("pong", handleEnginePong);
+    }
+  }
+
+  function detachEngineListeners(engine) {
+    if (!engine) return;
+    removeListener(engine, "ping", handleEnginePing);
+    removeListener(engine, "pong", handleEnginePong);
+  }
+
+  const handleManagerOpen = () => {
+    attachEngineListeners(raw.io.engine);
+  };
 
   // Ping measurement via socket.io engine
   if (raw.io && raw.io.engine) {
-    raw.io.engine.on("ping", () => {
-      pingStart = performance.now();
-    });
-    raw.io.engine.on("pong", () => {
-      if (pingStart) {
-        ping = Math.round(performance.now() - pingStart);
-        const snapshot = { status: connectionState, ping };
-        connectionListeners.forEach((fn) => fn(snapshot));
-      }
-    });
+    attachEngineListeners(raw.io.engine);
   }
   // Engine may not exist yet on first connect; attach after open
-  raw.io.on("open", () => {
-    const engine = raw.io.engine;
-    if (!engine) return;
-    engine.on("ping", () => {
-      pingStart = performance.now();
-    });
-    engine.on("pong", () => {
-      if (pingStart) {
-        ping = Math.round(performance.now() - pingStart);
-        const snapshot = { status: connectionState, ping };
-        connectionListeners.forEach((fn) => fn(snapshot));
-      }
-    });
-  });
+  raw.io.on("open", handleManagerOpen);
 
   // Application-level ping probe (runs every 5s for faster updates)
-  let pingInterval = null;
   function startPingProbe() {
     stopPingProbe();
     pingInterval = setInterval(() => {
@@ -106,7 +129,7 @@ export function getGameSocket(namespace) {
       pingInterval = null;
     }
   }
-  raw.on("connect", () => {
+  const handleConnectProbe = () => {
     // Measure immediately on connect, then every 5s
     const start = performance.now();
     raw.volatile.emit("__ping", () => {
@@ -115,11 +138,15 @@ export function getGameSocket(namespace) {
       connectionListeners.forEach((fn) => fn(snapshot));
     });
     startPingProbe();
-  });
-  raw.on("disconnect", () => {
+  };
+
+  const handleDisconnectProbe = () => {
     stopPingProbe();
     ping = null;
-  });
+  };
+
+  raw.on("connect", handleConnectProbe);
+  raw.on("disconnect", handleDisconnectProbe);
 
   const api = {
     onEvent(event, handler) {
@@ -151,6 +178,28 @@ export function getGameSocket(namespace) {
       connectionListeners.add(callback);
       callback({ status: connectionState, ping });
       return () => connectionListeners.delete(callback);
+    },
+    destroy() {
+      stopPingProbe();
+      connectionListeners.clear();
+
+      removeListener(raw, "connect", handleConnectState);
+      removeListener(raw, "disconnect", handleDisconnectState);
+      removeListener(raw, "connect", handleConnectProbe);
+      removeListener(raw, "disconnect", handleDisconnectProbe);
+      removeListener(raw.io, "reconnect_attempt", handleReconnectAttempt);
+      removeListener(raw.io, "reconnect", handleReconnect);
+      removeListener(raw.io, "open", handleManagerOpen);
+      detachEngineListeners(raw.io?.engine);
+
+      if (typeof raw.removeAllListeners === "function") {
+        raw.removeAllListeners();
+      }
+      if (typeof raw.disconnect === "function") {
+        raw.disconnect();
+      }
+
+      socketCache.delete(normalized);
     },
   };
 
