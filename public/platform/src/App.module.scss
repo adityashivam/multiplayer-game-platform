@@ -69,8 +69,8 @@
 }
 
 .screen {
-  flex: 1 0 70vh;
-  min-height: 70vh;
+  flex: 1 1 auto;
+  min-height: 0;
   background: var(--surface-screen-background, var(--color-surface));
   border: var(--surface-screen-border-width, 4px) solid
     var(--surface-screen-border-color, var(--color-border));
@@ -1258,8 +1258,8 @@
   display: flex;
   flex-direction: column;
   gap: clamp(12px, 2vh, 16px);
-  flex: 0 1 35vh;
-  max-height: 35vh;
+  flex: 0 0 clamp(170px, 32vh, 260px);
+  max-height: none;
   min-height: 0;
   overflow: hidden;
   -webkit-touch-callout: none;
@@ -1338,7 +1338,7 @@
 
 .dpadShell {
   position: relative;
-  width: clamp(118px, 20vw, 170px);
+  width: clamp(86px, 27vw, 170px);
   height: auto;
   aspect-ratio: 1 / 1;
   display: flex;
@@ -1497,8 +1497,8 @@
 }
 
 .miniButton {
-  width: clamp(36px, 8vw, 60px);
-  height: clamp(12px, 2vw, 20px);
+  width: clamp(28px, 7.4vw, 56px);
+  height: clamp(10px, 1.8vw, 18px);
   background: linear-gradient(to bottom, #666 0%, #444 100%);
   border-radius: 999px;
   border: none;
@@ -1517,13 +1517,13 @@
   text-align: center;
   color: rgba(107, 114, 128, 0.8);
   font-family: "Press Start 2P", cursive;
-  font-size: clamp(7px, 1.4vw, 9px);
+  font-size: clamp(6px, 1.1vw, 8px);
   letter-spacing: 0.08em;
 }
 
 .actionShell {
   position: relative;
-  --pad-size: clamp(140px, 24vw, 210px);
+  --pad-size: clamp(102px, 30vw, 210px);
   width: var(--pad-size);
   height: auto;
   aspect-ratio: 1 / 1;
@@ -1552,7 +1552,7 @@
   width: 100%;
   height: 100%;
   --action-gap: clamp(8px, calc(var(--pad-size) * 0.08), 16px);
-  --action-center-gap: clamp(6px, calc(var(--pad-size)), 35px);
+  --action-center-gap: clamp(14px, calc(var(--pad-size) * 0.2), 35px);
   --action-size: calc(
     (var(--pad-size) - (var(--action-gap) * 2) - var(--action-center-gap)) / 2
   );
@@ -1662,4 +1662,104 @@
   box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.8),
     0 1px 0 rgba(255, 255, 255, 0.1);
   border-radius: 12px;
+}
+
+@media (max-width: 430px) {
+  .controllerSection {
+    padding: clamp(9px, 1.8vh, 12px) clamp(8px, 2.6vw, 12px)
+      clamp(10px, 2vh, 14px);
+    gap: clamp(7px, 1.5vh, 10px);
+    flex-basis: clamp(158px, 35vh, 220px);
+  }
+
+  .controllerTopBar {
+    height: 6px;
+    gap: 8px;
+  }
+
+  .controllerGrid {
+    gap: clamp(6px, 1.8vw, 10px);
+    padding-top: clamp(2px, 0.8vh, 6px);
+  }
+
+  .dpadShell {
+    width: clamp(80px, 27vw, 112px);
+  }
+
+  .dpadHint {
+    font-size: clamp(10px, 4vw, 14px);
+  }
+
+  .selectStart {
+    gap: clamp(5px, 1.6vw, 8px);
+    transform: rotate(-12deg);
+  }
+
+  .miniButton {
+    width: clamp(24px, 8.8vw, 36px);
+    height: clamp(9px, 3vw, 13px);
+  }
+
+  .miniLabel {
+    margin-top: 4px;
+    font-size: clamp(5px, 1.9vw, 7px);
+  }
+
+  .actionShell {
+    --pad-size: clamp(92px, 30vw, 124px);
+  }
+
+  .actionLetter {
+    font-size: clamp(7px, 2.8vw, 10px);
+  }
+
+  .controllerDeco {
+    gap: 4px;
+  }
+
+  .controllerDeco span {
+    width: 4px;
+    height: 16px;
+  }
+}
+
+@media (max-width: 360px), (max-height: 620px) {
+  .controllerSection {
+    flex-basis: clamp(148px, 33vh, 200px);
+    padding: 8px 7px 10px;
+    gap: 7px;
+  }
+
+  .controllerGrid {
+    gap: 5px;
+    padding-top: 1px;
+  }
+
+  .dpadShell {
+    width: clamp(72px, 25vw, 96px);
+  }
+
+  .selectStart {
+    gap: 4px;
+    transform: rotate(-10deg);
+  }
+
+  .miniButton {
+    width: clamp(21px, 8vw, 30px);
+    height: 8px;
+  }
+
+  .miniLabel {
+    margin-top: 3px;
+    font-size: clamp(4.8px, 1.7vw, 6px);
+  }
+
+  .actionShell {
+    --pad-size: clamp(82px, 27vw, 108px);
+  }
+
+  .controllerDeco span {
+    width: 3px;
+    height: 13px;
+  }
 }
