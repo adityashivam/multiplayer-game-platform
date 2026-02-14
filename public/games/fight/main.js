@@ -49,8 +49,8 @@ const NET_STATS_REFRESH_MS = 150;
 const SERVER_TICK_MS = 1000 / 60;
 const INPUT_STREAM_HZ = 60;
 const MAX_PENDING_INPUT_FRAMES = 240;
-const RESIM_ERROR_PX = 14;
-const RESIM_HARD_ERROR_PX = 24;
+const RESIM_ERROR_PX = 22;
+const RESIM_HARD_ERROR_PX = 44;
 const RESIM_COOLDOWN_MS = 120;
 const LOCAL_RENDER_FOLLOW_RATE_X = 24;
 const LOCAL_RENDER_FOLLOW_RATE_Y = 26;
@@ -906,29 +906,35 @@ scene("fight", () => {
     refreshNetworkHud(performance.now(), true);
   }
 
-  function getLocalRenderPosition() {
-    if (myPlayerId === "p1" && player1) {
-      return { x: player1.pos.x, y: player1.pos.y - PLAYER1_Y_OFFSET };
-    }
-    if (myPlayerId === "p2" && player2) {
-      return { x: player2.pos.x, y: player2.pos.y - PLAYER2_Y_OFFSET };
-    }
-    return null;
-  }
-
   function shouldResimulate(localPlayerState, pendingFrames, ackSeq) {
     if (!localPlayerState) return false;
-    if (!hasAuthoritativeSync && pendingFrames.length > 0) return true;
+    if (!Array.isArray(pendingFrames) || pendingFrames.length === 0) return false;
+    if (!hasAuthoritativeSync) return true;
 
-    const renderPos = getLocalRenderPosition();
-    if (!renderPos) return false;
+    const pred = predictor.getState();
+    if (!pred?.initialized) return false;
 
-    const error = Math.hypot(localPlayerState.x - renderPos.x, localPlayerState.y - renderPos.y);
-    if (error >= RESIM_HARD_ERROR_PX) return true;
+    const predictedX = (pred.x || 0) + (pred.correctionX || 0);
+    const predictedY = (pred.y || 0) + (pred.correctionY || 0);
+    const error = Math.hypot(localPlayerState.x - predictedX, localPlayerState.y - predictedY);
 
     const nowMs = performance.now();
     const ackAdvanced = ackSeq > lastAckSeq;
-    if (ackAdvanced && error >= RESIM_ERROR_PX && nowMs - lastResimAtMs >= RESIM_COOLDOWN_MS) {
+    if (!ackAdvanced) return false;
+
+    const pingMs = Math.max(0, toFiniteNumber(latestConnectionSnapshot?.ping) ?? 0);
+    const jitterMs = Math.max(0, latestNetStats?.jitterMs ?? 0);
+    const leadAllowancePx = Math.abs(localPlayerState.vx || 0) * (pingMs / 1000);
+    const jitterAllowancePx = clampNumber(jitterMs * 1.6, 0, 28);
+    const softErrorPx = Math.max(RESIM_ERROR_PX, leadAllowancePx + jitterAllowancePx + 8);
+    const hardErrorPx = Math.max(RESIM_HARD_ERROR_PX, softErrorPx * 1.7);
+    const cooldownElapsed = nowMs - lastResimAtMs >= RESIM_COOLDOWN_MS;
+
+    if (cooldownElapsed && error >= hardErrorPx) {
+      return true;
+    }
+
+    if (cooldownElapsed && error >= softErrorPx) {
       return true;
     }
 
