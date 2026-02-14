@@ -46,11 +46,16 @@ const ROOM_READY_EVENT = "kaboom:room-ready";
 const DISPOSE_GAME_EVENT = "kaboom:dispose-game";
 const NET_STATS_REFRESH_MS = 150;
 const SERVER_TICK_MS = 1000 / 60;
+const INPUT_STREAM_HZ = 60;
+const INPUT_STREAM_INTERVAL_MS = 1000 / INPUT_STREAM_HZ;
+const INPUT_STREAM_DT_SEC = 1 / INPUT_STREAM_HZ;
+const MAX_PENDING_INPUT_FRAMES = 240;
 const LOCAL_NET_HUD_ENABLED = false;
 let shareModalShown = false;
 let toggleNetworkDiagnostics = () => {};
 let cleanupNetworkDiagnostics = () => {};
 let resetFightNetcodeState = () => {};
+let stopFightInputStream = () => {};
 
 const localInputState = {
   left: false,
@@ -82,6 +87,17 @@ function resetLocalInputState() {
   Object.keys(localInputState).forEach((key) => {
     localInputState[key] = false;
   });
+}
+
+function cloneLocalInputState() {
+  return {
+    left: Boolean(localInputState.left),
+    right: Boolean(localInputState.right),
+    jump: Boolean(localInputState.jump),
+    attack: Boolean(localInputState.attack),
+    heavyAttack: Boolean(localInputState.heavyAttack),
+    aerialAttack: Boolean(localInputState.aerialAttack),
+  };
 }
 
 function createNetworkEstimator({ expectedTickMs = SERVER_TICK_MS, maxSamples = 180 } = {}) {
@@ -439,11 +455,9 @@ function announceOpponentJoined() {
 }
 
 function sendInputFlag(type, value) {
-  if (!readyToPlay) return;
   if (Object.prototype.hasOwnProperty.call(localInputState, type)) {
     localInputState[type] = Boolean(value);
   }
-  socket.send("input", { type, value });
 }
 
 function handleDirectionalInput(direction, active) {
@@ -765,6 +779,9 @@ scene("fight", () => {
   let lastNetworkHudPaint = 0;
   let latestServerState = null;
   let latestStateSeq = null;
+  let nextInputSeq = 0;
+  const pendingInputFrames = [];
+  let inputStreamTimer = null;
   const netEstimator = createNetworkEstimator();
   let latestNetStats = netEstimator.getStats();
   let smoothingConfig = { interpDelayMs: 55, extrapolateMs: 14 };
@@ -787,6 +804,12 @@ scene("fight", () => {
     contactServerFollowRate: 24,
   });
   const _predictionOpts = { active: false, attackSlowdown: false, opponentX: undefined, opponentY: undefined };
+  const _replayPredictionOpts = {
+    active: false,
+    attackSlowdown: false,
+    opponentX: undefined,
+    opponentY: undefined,
+  };
   const netHud = createNetworkHud(gameCanvas);
   const handleKeyToggleNetwork = (event) => {
     const tag = event?.target?.tagName?.toLowerCase();
@@ -846,14 +869,43 @@ scene("fight", () => {
     smoothingConfig = { interpDelayMs: 55, extrapolateMs: 14 };
     latestServerState = null;
     latestStateSeq = null;
+    pendingInputFrames.length = 0;
+    nextInputSeq = 0;
     resetLocalInputState();
     predictor.reset(null);
     lastNetworkHudPaint = 0;
     refreshNetworkHud(performance.now(), true);
   }
 
+  function pushInputFrame() {
+    if (!readyToPlay || !myPlayerId) return;
+    const seq = ++nextInputSeq;
+    const input = cloneLocalInputState();
+    pendingInputFrames.push({ seq, input, dtSec: INPUT_STREAM_DT_SEC });
+    if (pendingInputFrames.length > MAX_PENDING_INPUT_FRAMES) {
+      pendingInputFrames.splice(0, pendingInputFrames.length - MAX_PENDING_INPUT_FRAMES);
+    }
+    socket.send("input", { type: "inputFrame", seq, state: input });
+  }
+
+  function stopInputStream() {
+    if (inputStreamTimer) {
+      clearInterval(inputStreamTimer);
+      inputStreamTimer = null;
+    }
+  }
+
+  function startInputStream() {
+    stopInputStream();
+    inputStreamTimer = setInterval(() => {
+      pushInputFrame();
+    }, INPUT_STREAM_INTERVAL_MS);
+  }
+
   resetFightNetcodeState = resetNetcodeState;
+  stopFightInputStream = stopInputStream;
   resetNetcodeState();
+  startInputStream();
 
   function makePlayer(posX, posY, scaleFactor, id) {
     const p = add([
@@ -1053,7 +1105,38 @@ scene("fight", () => {
     // Discrete updates use latest state immediately
     const { players, timer, gameOver, winner, started, startAt, connected } = state;
     if (myPlayerId && players?.[myPlayerId]) {
-      predictor.reconcile(players[myPlayerId]);
+      const localPlayerState = players[myPlayerId];
+      const ackSeq = toFiniteNumber(localPlayerState.inputSeqAck);
+      if (ackSeq == null) {
+        predictor.reconcile(localPlayerState);
+      } else {
+        while (pendingInputFrames.length > 0 && pendingInputFrames[0].seq <= ackSeq) {
+          pendingInputFrames.shift();
+        }
+
+        predictor.reset(localPlayerState);
+
+        const replayOpponent = myPlayerId === "p1"
+          ? players?.p2
+          : myPlayerId === "p2"
+            ? players?.p1
+            : null;
+        _replayPredictionOpts.active = Boolean(started && !gameOver && connected?.p1 && connected?.p2);
+        _replayPredictionOpts.opponentX = replayOpponent?.x;
+        _replayPredictionOpts.opponentY = replayOpponent?.y;
+
+        for (let i = 0; i < pendingInputFrames.length; i += 1) {
+          const frame = pendingInputFrames[i];
+          const replayInput = frame.input;
+          _replayPredictionOpts.attackSlowdown = Boolean(
+            localPlayerState.attacking ||
+              replayInput.attack ||
+              replayInput.heavyAttack ||
+              replayInput.aerialAttack,
+          );
+          predictor.step(frame.dtSec, localPlayerState, replayInput, _replayPredictionOpts);
+        }
+      }
     }
     if (connected) {
       if (connected.p1 !== lastConnected.p1 || connected.p2 !== lastConnected.p2) {
@@ -1224,6 +1307,8 @@ function disposeGameRuntime() {
   cleanupNetworkDiagnostics?.();
   cleanupNetworkDiagnostics = () => {};
   resetFightNetcodeState = () => {};
+  stopFightInputStream?.();
+  stopFightInputStream = () => {};
   registerRematchHandler(null);
   hideEndGameModal();
   resetLocalInputState();

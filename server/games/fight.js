@@ -34,6 +34,7 @@ function makePlayer(x, dir) {
     attackType: null, // "light" | "heavy" | "aerial"
     attackTimer: 0,
     cooldownTimer: 0,
+    lastInputSeqAck: 0,
     lastHitTime: 0,
     dead: false,
     connected: false,
@@ -86,6 +87,7 @@ function sanitizePlayer(p) {
     health: p.health,
     attacking: p.attacking,
     attackType: p.attackType,
+    inputSeqAck: p.lastInputSeqAck || 0,
     dead: p.dead,
   };
 }
@@ -279,18 +281,34 @@ export function registerFightGame(io) {
       scheduleFightStart(state);
     },
     handleInput: ({ state, playerId, payload }) => {
-      const { type, value } = payload;
+      const { type, value, seq } = payload || {};
       const player = state.players[playerId];
       if (!player || player.dead) return;
+      const inputSeq = Number.isFinite(seq) ? Math.max(0, Math.floor(seq)) : null;
+
+      if (inputSeq != null) {
+        player.lastInputSeqAck = Math.max(player.lastInputSeqAck || 0, inputSeq);
+      }
 
       switch (type) {
+        case "inputFrame": {
+          const next = payload?.state;
+          if (!next || typeof next !== "object" || Array.isArray(next)) break;
+          player.input.left = Boolean(next.left);
+          player.input.right = Boolean(next.right);
+          player.input.jump = Boolean(next.jump);
+          player.input.attack = Boolean(next.attack);
+          player.input.heavyAttack = Boolean(next.heavyAttack);
+          player.input.aerialAttack = Boolean(next.aerialAttack);
+          break;
+        }
         case "left":
         case "right":
         case "jump":
         case "attack":
         case "heavyAttack":
         case "aerialAttack":
-          player.input[type] = value;
+          player.input[type] = Boolean(value);
           break;
         default:
           break;
