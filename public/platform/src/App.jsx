@@ -21,7 +21,8 @@ const DISPOSE_GAME_EVENT = "kaboom:dispose-game";
 const GAME_SCRIPT_PREFIX = "game-runtime-";
 const TEMP_DUMMY_GAMES_ENABLED = true;
 const TEMP_DUMMY_GAME_COUNT = 50;
-const DEFAULT_MUSIC_VOLUME = 0.02;
+const DEFAULT_MUSIC_VOLUME = 0.25;
+const MUSIC_VOLUME_CURVE_EXPONENT = 2.2;
 const AUTOPLAY_RETRY_EVENTS = ["pointerdown", "keydown", "touchstart"];
 
 const TEMP_DUMMY_GAMES = Array.from({ length: TEMP_DUMMY_GAME_COUNT }, (_, index) => {
@@ -65,6 +66,11 @@ function getStoredMusicVolume() {
   const raw = Number(stored);
   if (!Number.isFinite(raw)) return DEFAULT_MUSIC_VOLUME;
   return clamp01(raw);
+}
+
+function toMusicGain(volumeSetting) {
+  const normalized = clamp01(volumeSetting);
+  return Math.pow(normalized, MUSIC_VOLUME_CURVE_EXPONENT);
 }
 
 function resolveMusicTrackUrl(trackPath) {
@@ -162,14 +168,14 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem(MUSIC_VOLUME_KEY, String(musicVolume));
     const audio = lobbyMusicRef.current;
-    if (audio) audio.volume = musicVolume;
+    if (audio) audio.volume = toMusicGain(musicVolume);
   }, [musicVolume]);
 
   useEffect(() => {
     if (typeof Audio === "undefined") return () => {};
     const audio = new Audio();
     audio.preload = "auto";
-    audio.volume = musicVolume;
+    audio.volume = toMusicGain(musicVolume);
     lobbyMusicRef.current = audio;
     return () => {
       if (musicFadeFrameRef.current) {
@@ -229,15 +235,16 @@ export default function App() {
         return;
       }
       stopLobbyMusicFade();
+      const targetGain = toMusicGain(endVolume);
       const startTime = performance.now();
-      const startVolume = 0.001;
+      const startVolume = 0.00001;
       const durationMs = 1400;
       audio.volume = startVolume;
 
       const tick = (now) => {
         const progress = Math.min((now - startTime) / durationMs, 1);
         const eased = 1 - Math.pow(1 - progress, 3);
-        audio.volume = startVolume + (endVolume - startVolume) * eased;
+        audio.volume = startVolume + (targetGain - startVolume) * eased;
         if (progress < 1 && !audio.paused) {
           musicFadeFrameRef.current = requestAnimationFrame(tick);
         } else {
@@ -764,19 +771,32 @@ export default function App() {
         } else {
           nextIndex = Math.min(games.length - 1, current + 1);
         }
+        if (nextIndex !== current) {
+          triggerHaptic();
+        }
         return nextIndex;
       });
     },
-    [games.length, isGameView, musicVolume, muted, startLobbyMusic],
+    [games.length, isGameView, musicVolume, muted, startLobbyMusic, triggerHaptic],
   );
 
   const activateSelected = useCallback(() => {
     if (!games.length) return;
     const game = games[selectedIndex];
     if (game?.path) {
+      triggerHaptic();
       navigateTo(game.path);
     }
-  }, [games, navigateTo, selectedIndex]);
+  }, [games, navigateTo, selectedIndex, triggerHaptic]);
+
+  const handleLobbyActivate = useCallback(
+    (path) => {
+      if (!path) return;
+      triggerHaptic();
+      navigateTo(path);
+    },
+    [navigateTo, triggerHaptic],
+  );
 
   const handleActionInput = useCallback(
     (action) => {
@@ -821,10 +841,9 @@ export default function App() {
     const card = cardRefs.current[selectedIndex];
     if (!card) return;
 
-    // Play sound + haptic when selection actually changed
+    // Play sound when selection actually changed
     if (prevSelectedRef.current !== selectedIndex) {
       playNavSound();
-      triggerHaptic();
       prevSelectedRef.current = selectedIndex;
     }
 
@@ -989,7 +1008,7 @@ export default function App() {
                   games={games}
                   selectedIndex={selectedIndex}
                   onSelectIndex={setSelectedIndex}
-                  onActivate={(path) => navigateTo(path)}
+                  onActivate={handleLobbyActivate}
                   registerCardRef={(index, node) => {
                     cardRefs.current[index] = node;
                   }}
