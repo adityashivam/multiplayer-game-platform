@@ -11,10 +11,16 @@ import { createInterpolator } from "./interpolation.js";
  */
 export function createWorkerInterpolator(config = {}) {
   const extractPositions = config.extractPositions;
+  const extractVelocities = typeof config.extractVelocities === "function"
+    ? config.extractVelocities
+    : null;
   const interpolationConfig = {
     interpDelayMs: config.interpDelayMs ?? 50,
     maxBufferSize: config.maxBufferSize ?? 10,
     adaptive: config.adaptive ?? true,
+    extractVelocities: extractVelocities
+      ? (reducedState) => reducedState.velocities
+      : undefined,
   };
 
   if (typeof extractPositions !== "function") {
@@ -32,8 +38,10 @@ export function createWorkerInterpolator(config = {}) {
     if (!positions || typeof positions !== "object" || Array.isArray(positions)) return;
     latestState = state;
 
+    const velocities = extractVelocities ? extractVelocities(state) : null;
     const reducedState = {
       positions,
+      velocities,
       net: state.net && typeof state.net === "object" && !Array.isArray(state.net) ? state.net : null,
     };
     interpolator.pushState(reducedState, { timestampMs: performance.now() });

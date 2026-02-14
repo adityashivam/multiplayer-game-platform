@@ -78,6 +78,15 @@ function extractFightPositions(state) {
   };
 }
 
+function extractFightVelocities(state) {
+  return {
+    p1x: state.players.p1.vx || 0,
+    p1y: state.players.p1.vy || 0,
+    p2x: state.players.p2.vx || 0,
+    p2y: state.players.p2.vy || 0,
+  };
+}
+
 function clampNumber(value, min, max) {
   return Math.max(min, Math.min(max, value));
 }
@@ -433,6 +442,7 @@ let currentRoomId = null;
 let rematchPending = false;
 const interpolator = createWorkerInterpolator({
   extractPositions: extractFightPositions,
+  extractVelocities: extractFightVelocities,
   interpDelayMs: 50,
   maxBufferSize: 12,
 });
@@ -913,7 +923,9 @@ scene("fight", () => {
 
     const predictedX = (pred.x || 0) + (pred.correctionX || 0);
     const predictedY = (pred.y || 0) + (pred.correctionY || 0);
-    const error = Math.hypot(localPlayerState.x - predictedX, localPlayerState.y - predictedY);
+    const dx = localPlayerState.x - predictedX;
+    const dy = localPlayerState.y - predictedY;
+    const errorSq = dx * dx + dy * dy;
 
     const nowMs = performance.now();
     const ackAdvanced = ackSeq > lastAckSeq;
@@ -927,11 +939,11 @@ scene("fight", () => {
     const hardErrorPx = Math.max(RESIM_HARD_ERROR_PX, softErrorPx * 1.7);
     const cooldownElapsed = nowMs - lastResimAtMs >= RESIM_COOLDOWN_MS;
 
-    if (cooldownElapsed && error >= hardErrorPx) {
+    if (cooldownElapsed && errorSq >= hardErrorPx * hardErrorPx) {
       return true;
     }
 
-    if (cooldownElapsed && error >= softErrorPx) {
+    if (cooldownElapsed && errorSq >= softErrorPx * softErrorPx) {
       return true;
     }
 

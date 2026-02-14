@@ -8,6 +8,27 @@ function lerp(a, b, t) {
   return a + (b - a) * t;
 }
 
+/**
+ * Cubic Hermite spline interpolation (C1-continuous).
+ * Produces smooth velocity transitions between snapshots — the same technique
+ * used by Source Engine, Unreal, and Unity for networked entity interpolation.
+ *
+ * @param {number} p0  Position at start
+ * @param {number} v0  Velocity at start (units/sec)
+ * @param {number} p1  Position at end
+ * @param {number} v1  Velocity at end (units/sec)
+ * @param {number} t   Normalized time [0, 1]
+ * @param {number} dt  Time span between snapshots (seconds)
+ */
+function hermite(p0, v0, p1, v1, t, dt) {
+  const t2 = t * t;
+  const t3 = t2 * t;
+  return (2 * t3 - 3 * t2 + 1) * p0
+    + (t3 - 2 * t2 + t) * dt * v0
+    + (-2 * t3 + 3 * t2) * p1
+    + (t3 - t2) * dt * v1;
+}
+
 function clamp(val, min, max) {
   return Math.max(min, Math.min(max, val));
 }
@@ -195,9 +216,13 @@ export function createInterpolator(config = {}) {
   const connectionProvider = typeof config.connectionProvider === "function"
     ? config.connectionProvider
     : getConnectionState;
+  const extractVelocities = typeof config.extractVelocities === "function"
+    ? config.extractVelocities
+    : null;
   const metrics = createStateMetrics();
   const buffer = [];
   const _reusableResult = {};
+  let _cachedKeys = null;
   let prevRenderSampleMs = null;
   let renderIntervalEwmaMs = DEFAULT_STATE_INTERVAL_MS;
   let serverTimeOffsetMs = null;
@@ -313,22 +338,42 @@ export function createInterpolator(config = {}) {
 
     const bIdx = aIdx + 1;
 
-    // renderTime is past all snapshots — optionally extrapolate from recent velocity
+    // renderTime is past all snapshots — optionally extrapolate
     if (bIdx >= buffer.length) {
       const latest = buffer[buffer.length - 1];
       let latestPositions = extractPositions(latest.data);
+      if (!_cachedKeys) _cachedKeys = Object.keys(latestPositions);
 
-      if (extrapolateMs > 0 && buffer.length >= 2) {
-        const prev = buffer[buffer.length - 2];
-        const range = latest.timestamp - prev.timestamp;
+      if (extrapolateMs > 0) {
         const lead = clamp(renderTime - latest.timestamp, 0, extrapolateMs);
-        if (range > 0 && lead > 0) {
-          const prevPositions = extractPositions(prev.data);
-          for (const key of Object.keys(latestPositions)) {
-            const velocity = (latestPositions[key] - prevPositions[key]) / range;
-            _reusableResult[key] = latestPositions[key] + velocity * lead;
+        if (lead > 0) {
+          // Prefer actual velocity data for extrapolation (more accurate than finite diff)
+          const velLatest = extractVelocities ? extractVelocities(latest.data) : null;
+          if (velLatest) {
+            const leadSec = lead / 1000;
+            for (let i = 0; i < _cachedKeys.length; i++) {
+              const key = _cachedKeys[i];
+              if (key in velLatest && Number.isFinite(velLatest[key])) {
+                _reusableResult[key] = latestPositions[key] + velLatest[key] * leadSec;
+              } else {
+                _reusableResult[key] = latestPositions[key];
+              }
+            }
+            latestPositions = _reusableResult;
+          } else if (buffer.length >= 2) {
+            // Fallback: finite-difference velocity
+            const prev = buffer[buffer.length - 2];
+            const range = latest.timestamp - prev.timestamp;
+            if (range > 0) {
+              const prevPositions = extractPositions(prev.data);
+              for (let i = 0; i < _cachedKeys.length; i++) {
+                const key = _cachedKeys[i];
+                const velocity = (latestPositions[key] - prevPositions[key]) / range;
+                _reusableResult[key] = latestPositions[key] + velocity * lead;
+              }
+              latestPositions = _reusableResult;
+            }
           }
-          latestPositions = _reusableResult;
         }
       }
 
@@ -345,9 +390,26 @@ export function createInterpolator(config = {}) {
 
     const posA = extractPositions(stateA.data);
     const posB = extractPositions(stateB.data);
+    if (!_cachedKeys) _cachedKeys = Object.keys(posA);
 
-    for (const key of Object.keys(posA)) {
-      _reusableResult[key] = lerp(posA[key], posB[key], t);
+    // Use Hermite (cubic) interpolation when velocity data is available,
+    // otherwise fall back to linear lerp.
+    const velA = extractVelocities ? extractVelocities(stateA.data) : null;
+    const velB = extractVelocities ? extractVelocities(stateB.data) : null;
+    const rangeSec = range / 1000;
+
+    for (let i = 0; i < _cachedKeys.length; i++) {
+      const key = _cachedKeys[i];
+      if (
+        velA && velB &&
+        key in velA && key in velB &&
+        Number.isFinite(velA[key]) && Number.isFinite(velB[key]) &&
+        rangeSec > 0
+      ) {
+        _reusableResult[key] = hermite(posA[key], velA[key], posB[key], velB[key], t, rangeSec);
+      } else {
+        _reusableResult[key] = lerp(posA[key], posB[key], t);
+      }
     }
 
     // Prune: discard snapshots older than stateA (in-place)
@@ -392,6 +454,7 @@ export function createInterpolator(config = {}) {
     serverTimeOffsetMs = null;
     lastServerSampleTimeMs = null;
     lastStateSeq = null;
+    _cachedKeys = null;
   }
 
   return { pushState, getInterpolatedPositions, getLatestState, getNetworkStats, reset };
