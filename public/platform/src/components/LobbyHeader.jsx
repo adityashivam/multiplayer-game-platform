@@ -6,6 +6,7 @@ export default function LobbyHeader({
   headerLeft,
   title,
   icons,
+  themeMode = "dark",
   onToggleTheme,
   onToggleFullscreen,
   isFullscreen,
@@ -16,7 +17,11 @@ export default function LobbyHeader({
   const fullscreenIcon = isFullscreen
     ? icons?.fullscreenOff || "fullscreen_exit"
     : icons?.fullscreenOn || "fullscreen";
-  const themeIcon = icons?.themeToggle || "contrast";
+  const inDarkMode = themeMode === "dark";
+  const themeIcon = inDarkMode
+    ? icons?.themeToggleDark || icons?.themeToggleLight || icons?.themeToggle || "light_mode"
+    : icons?.themeToggleLight || icons?.themeToggleDark || icons?.themeToggle || "dark_mode";
+  const themeToggleLabel = inDarkMode ? "Switch to light mode" : "Switch to dark mode";
 
   return (
     <header className={styles.header}>
@@ -50,7 +55,8 @@ export default function LobbyHeader({
             type="button"
             className={styles.themeToggle}
             onClick={onToggleTheme}
-            aria-label="Toggle theme"
+            aria-label={themeToggleLabel}
+            aria-pressed={inDarkMode}
           >
             <span className={classNames("material-symbols-outlined", styles.themeIcon)}>
               {themeIcon}

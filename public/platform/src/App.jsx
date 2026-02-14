@@ -994,6 +994,7 @@ export default function App() {
                   headerLeft={headerLeft}
                   title={headerTitle}
                   icons={themeIcons.header}
+                  themeMode={theme}
                   onToggleTheme={() => setTheme((prev) => (prev === "dark" ? "light" : "dark"))}
                   onToggleFullscreen={handleFullscreenToggle}
                   isFullscreen={fullscreenActive}

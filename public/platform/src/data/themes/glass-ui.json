@@ -15,7 +15,8 @@
       "muteOff": "volume_off",
       "fullscreenOn": "open_in_full",
       "fullscreenOff": "close_fullscreen",
-      "themeToggle": "diamond"
+      "themeToggleLight": "dark_mode",
+      "themeToggleDark": "light_mode"
     },
     "nav": {
       "solo": "sports_esports",

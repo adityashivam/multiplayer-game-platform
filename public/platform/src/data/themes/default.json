@@ -15,7 +15,8 @@
       "muteOff": "volume_off",
       "fullscreenOn": "fullscreen",
       "fullscreenOff": "fullscreen_exit",
-      "themeToggle": "contrast"
+      "themeToggleLight": "dark_mode",
+      "themeToggleDark": "light_mode"
     },
     "nav": {
       "solo": "videogame_asset",

@@ -2,23 +2,25 @@ export const DEFAULT_THEME_ICONS = {
   header: {
     muteOn: "volume_up",
     muteOff: "volume_off",
-    fullscreenOn: "fullscreen",
-    fullscreenOff: "fullscreen_exit",
+    fullscreenOn: "open_in_full",
+    fullscreenOff: "close_fullscreen",
+    themeToggleLight: "dark_mode",
+    themeToggleDark: "light_mode",
     themeToggle: "contrast",
   },
   nav: {
-    solo: "videogame_asset",
+    solo: "sports_esports",
     multi: "hub",
-    profile: "id_card",
-    friends: "group",
-    config: "settings",
+    profile: "person",
+    friends: "groups",
+    config: "tune",
   },
   config: {
-    selectedTheme: "check_circle",
+    selectedTheme: "verified",
   },
   game: {
-    fullscreenOn: "fullscreen",
-    fullscreenOff: "fullscreen_exit",
+    fullscreenOn: "open_in_full",
+    fullscreenOff: "close_fullscreen",
   },
   share: {
     close: "close",
@@ -38,8 +40,8 @@ export const DEFAULT_THEME_ICONS = {
   },
   connection: {
     connected: "wifi",
-    reconnecting: "wifi_find",
-    connecting: "wifi_find",
+    reconnecting: "sync",
+    connecting: "sync",
     disconnected: "wifi_off",
   },
 };
