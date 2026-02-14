@@ -9,6 +9,7 @@ import {
 import { openShareModal } from "/platform/shared/shareModalBridge.js";
 import { createWorkerInterpolator } from "/platform/shared/interpolationWorker.js";
 import { updateConnectionState } from "/platform/shared/connectionBridge.js";
+import { createClientPredictor } from "/platform/shared/clientPrediction.js";
 
 // ---------- Kaboom init ----------
 const { canvas } = getGameDomRefs();
@@ -45,12 +46,6 @@ const ROOM_READY_EVENT = "kaboom:room-ready";
 const DISPOSE_GAME_EVENT = "kaboom:dispose-game";
 const NET_STATS_REFRESH_MS = 150;
 const SERVER_TICK_MS = 1000 / 60;
-const PREDICT_MOVE_SPEED = 500;
-const PREDICT_JUMP_SPEED = -1300;
-const PREDICT_GRAVITY = 1600;
-const PREDICT_WORLD_MIN_X = 100;
-const PREDICT_WORLD_MAX_X = 1180;
-const PREDICT_GROUND_Y = 870;
 const LOCAL_NET_HUD_ENABLED = false;
 let shareModalShown = false;
 let toggleNetworkDiagnostics = () => {};
@@ -207,19 +202,6 @@ function deriveSmoothingConfig(stats, pingMs) {
   extrapolateMs = clampNumber(extrapolateMs, 6, 70);
 
   return { interpDelayMs, extrapolateMs };
-}
-
-function createLocalPredictionState() {
-  return {
-    initialized: false,
-    x: 0,
-    y: 0,
-    vx: 0,
-    vy: 0,
-    correctionX: 0,
-    correctionY: 0,
-    hardSnapCount: 0,
-  };
 }
 
 function createNetworkHud(canvasEl) {
@@ -787,7 +769,8 @@ scene("fight", () => {
   let smoothingConfig = { interpDelayMs: 55, extrapolateMs: 14 };
   // Reusable options object to avoid allocation per frame
   const _interpRuntimeOpts = { pingMs: 0, pingP95Ms: 0, jitterP95Ms: 0, packetLossPct: 0 };
-  const localPrediction = createLocalPredictionState();
+  const predictor = createClientPredictor();
+  const _predictionOpts = { active: false, attackSlowdown: false, opponentX: undefined, opponentY: undefined };
   const netHud = createNetworkHud(gameCanvas);
   const handleKeyToggleNetwork = (event) => {
     const tag = event?.target?.tagName?.toLowerCase();
@@ -814,114 +797,14 @@ scene("fight", () => {
 
   window.addEventListener("keydown", handleKeyToggleNetwork);
 
-  function resetLocalPredictionFromServer(serverPlayerState) {
-    if (!serverPlayerState) {
-      localPrediction.initialized = false;
-      localPrediction.correctionX = 0;
-      localPrediction.correctionY = 0;
-      return;
-    }
-    localPrediction.initialized = true;
-    localPrediction.x = serverPlayerState.x;
-    localPrediction.y = serverPlayerState.y;
-    localPrediction.vx = serverPlayerState.vx || 0;
-    localPrediction.vy = 0;
-    localPrediction.correctionX = 0;
-    localPrediction.correctionY = 0;
-  }
-
-  function reconcileLocalPrediction(serverPlayerState) {
-    if (!serverPlayerState) return;
-    if (!localPrediction.initialized) {
-      resetLocalPredictionFromServer(serverPlayerState);
-      return;
-    }
-
-    const errorX = serverPlayerState.x - localPrediction.x;
-    const errorY = serverPlayerState.y - localPrediction.y;
-    // Use squared distance to avoid sqrt — compare against 140^2 = 19600
-    const errorDistSq = errorX * errorX + errorY * errorY;
-    const absErrorY = errorY < 0 ? -errorY : errorY;
-    const requiresHardSnap = errorDistSq > 19600 || absErrorY > 100;
-
-    if (requiresHardSnap) {
-      localPrediction.hardSnapCount += 1;
-      resetLocalPredictionFromServer(serverPlayerState);
-      return;
-    }
-
-    localPrediction.correctionX = clampNumber(localPrediction.correctionX + errorX * 0.36, -90, 90);
-    localPrediction.correctionY = clampNumber(localPrediction.correctionY + errorY * 0.36, -90, 90);
-  }
-
-  function stepLocalPrediction(deltaSec, serverPlayerState, matchState) {
-    if (!serverPlayerState || !myPlayerId) return null;
-
-    const activeMatch = Boolean(
-      matchState?.started &&
-        !matchState?.gameOver &&
-        matchState?.connected?.p1 &&
-        matchState?.connected?.p2,
-    );
-
-    if (!activeMatch) {
-      resetLocalPredictionFromServer(serverPlayerState);
-      return { x: serverPlayerState.x, y: serverPlayerState.y };
-    }
-
-    if (!localPrediction.initialized) {
-      resetLocalPredictionFromServer(serverPlayerState);
-    }
-
-    const clampedDt = clampNumber(deltaSec, 0, 0.05);
-    const attackSlowdown =
-      serverPlayerState.attacking ||
-      localInputState.attack ||
-      localInputState.heavyAttack ||
-      localInputState.aerialAttack;
-    const speedMultiplier = attackSlowdown ? 0.3 : 1;
-
-    if (localInputState.left && !localInputState.right) {
-      localPrediction.vx = -PREDICT_MOVE_SPEED * speedMultiplier;
-    } else if (localInputState.right && !localInputState.left) {
-      localPrediction.vx = PREDICT_MOVE_SPEED * speedMultiplier;
-    } else {
-      localPrediction.vx = 0;
-    }
-
-    if (localInputState.jump && localPrediction.y >= PREDICT_GROUND_Y - 1) {
-      localPrediction.vy = PREDICT_JUMP_SPEED;
-    }
-
-    localPrediction.vy += PREDICT_GRAVITY * clampedDt;
-    localPrediction.y += localPrediction.vy * clampedDt;
-    if (localPrediction.y > PREDICT_GROUND_Y) {
-      localPrediction.y = PREDICT_GROUND_Y;
-      localPrediction.vy = 0;
-    }
-
-    localPrediction.x += localPrediction.vx * clampedDt;
-    localPrediction.x = clampNumber(localPrediction.x, PREDICT_WORLD_MIN_X, PREDICT_WORLD_MAX_X);
-
-    // Linear approximation of exp(-dt*16) — avoids expensive Math.exp per frame.
-    // For dt in [0, 0.05], max error vs exp is ~3% which is imperceptible.
-    const correctionDecay = Math.max(0, 1 - clampedDt * 14);
-    localPrediction.correctionX *= correctionDecay;
-    localPrediction.correctionY *= correctionDecay;
-
-    return {
-      x: localPrediction.x + localPrediction.correctionX,
-      y: localPrediction.y + localPrediction.correctionY,
-    };
-  }
-
   function refreshNetworkHud(nowMs, force = false) {
     if (!netHud.isVisible()) return;
     if (!force && nowMs - lastNetworkHudPaint < NET_STATS_REFRESH_MS) return;
     lastNetworkHudPaint = nowMs;
 
     const pingMs = toFiniteNumber(latestConnectionSnapshot?.ping);
-    const correctionMagnitude = Math.hypot(localPrediction.correctionX, localPrediction.correctionY);
+    const predState = predictor.getState();
+    const correctionMagnitude = Math.hypot(predState.correctionX || 0, predState.correctionY || 0);
     const localRole = myPlayerId ? myPlayerId.toUpperCase() : "--";
     const status = (latestConnectionSnapshot?.status || "connecting").toUpperCase();
 
@@ -947,7 +830,7 @@ scene("fight", () => {
     smoothingConfig = { interpDelayMs: 55, extrapolateMs: 14 };
     latestServerState = null;
     resetLocalInputState();
-    resetLocalPredictionFromServer(null);
+    predictor.reset(null);
     lastNetworkHudPaint = 0;
     refreshNetworkHud(performance.now(), true);
   }
@@ -1147,7 +1030,7 @@ scene("fight", () => {
     // Discrete updates use latest state immediately
     const { players, timer, gameOver, winner, started, startAt, connected } = state;
     if (myPlayerId && players?.[myPlayerId]) {
-      reconcileLocalPrediction(players[myPlayerId]);
+      predictor.reconcile(players[myPlayerId]);
     }
     if (connected) {
       if (connected.p1 !== lastConnected.p1 || connected.p2 !== lastConnected.p2) {
@@ -1223,7 +1106,23 @@ scene("fight", () => {
     // Local player: use client-side prediction for instant response
     // Remote player: use interpolated server state
     const localServerPlayer = myPlayerId && latestServerState?.players?.[myPlayerId];
-    const predicted = stepLocalPrediction(deltaSec, localServerPlayer, latestServerState);
+
+    // Evaluate fight-game-specific conditions for the generic predictor
+    _predictionOpts.active = Boolean(
+      latestServerState?.started &&
+        !latestServerState?.gameOver &&
+        latestServerState?.connected?.p1 &&
+        latestServerState?.connected?.p2,
+    );
+    _predictionOpts.attackSlowdown = Boolean(
+      localServerPlayer?.attacking ||
+        localInputState.attack ||
+        localInputState.heavyAttack ||
+        localInputState.aerialAttack,
+    );
+    _predictionOpts.opponentX = myPlayerId === "p1" ? positions.p2x : myPlayerId === "p2" ? positions.p1x : undefined;
+    _predictionOpts.opponentY = myPlayerId === "p1" ? positions.p2y : myPlayerId === "p2" ? positions.p1y : undefined;
+    const predicted = predictor.step(deltaSec, localServerPlayer, localInputState, _predictionOpts);
 
     if (myPlayerId === "p1") {
       player1.pos.x = predicted ? predicted.x : positions.p1x;
