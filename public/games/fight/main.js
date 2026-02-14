@@ -1202,8 +1202,9 @@ scene("fight", () => {
 
     const positions = interpolator.getInterpolatedPositions({
       pingMs: latestConnectionSnapshot?.ping,
-      interpDelayMs: smoothingConfig.interpDelayMs,
-      extrapolateMs: smoothingConfig.extrapolateMs,
+      pingP95Ms: latestConnectionSnapshot?.pingP95Ms,
+      jitterP95Ms: latestConnectionSnapshot?.jitterP95Ms,
+      packetLossPct: latestConnectionSnapshot?.packetLossPct,
     });
     if (!positions) {
       refreshNetworkHud(performance.now());

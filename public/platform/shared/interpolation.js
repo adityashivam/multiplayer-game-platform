@@ -114,25 +114,67 @@ function createStateMetrics() {
   };
 }
 
-function deriveAdaptiveSmoothing(baseInterpDelayMs, metrics, runtimePingMs, connectionProvider) {
+function deriveAdaptiveSmoothing(baseInterpDelayMs, metrics, runtimeOptions, connectionProvider) {
   const avgIntervalMs = metrics?.avgIntervalMs ?? DEFAULT_STATE_INTERVAL_MS;
   const jitterMs = metrics?.jitterMs ?? 0;
-  const packetLossPct = metrics?.packetLossPct ?? 0;
-  const connectionPingMs = toFiniteNumber(connectionProvider?.()?.ping);
-  const rttMs = toFiniteNumber(runtimePingMs) ?? connectionPingMs ?? 0;
+  const renderIntervalMs =
+    toFiniteNumber(runtimeOptions?.renderIntervalMs) ??
+    DEFAULT_STATE_INTERVAL_MS;
+  const connection = typeof connectionProvider === "function" ? connectionProvider() || {} : {};
+  const packetLossPct =
+    toFiniteNumber(runtimeOptions?.packetLossPct) ??
+    toFiniteNumber(connection?.packetLossPct) ??
+    metrics?.packetLossPct ??
+    0;
+
+  const rttMs =
+    toFiniteNumber(runtimeOptions?.pingMs) ??
+    toFiniteNumber(connection?.ping) ??
+    0;
+  const rttP95Ms =
+    toFiniteNumber(runtimeOptions?.pingP95Ms) ??
+    toFiniteNumber(connection?.pingP95Ms) ??
+    rttMs;
+  const jitterP95Ms =
+    toFiniteNumber(runtimeOptions?.jitterP95Ms) ??
+    toFiniteNumber(connection?.jitterP95Ms) ??
+    jitterMs;
+
+  // Tail-latency gap predicts burstiness better than average ping.
+  const rttBurstMs = Math.max(0, rttP95Ms - rttMs);
+  // Render thread slowdown (e.g. laptop low power mode) needs more history buffer.
+  const renderPenaltyMs = Math.max(0, renderIntervalMs - DEFAULT_STATE_INTERVAL_MS);
 
   let interpDelayMs =
-    Math.max(baseInterpDelayMs, 45) + avgIntervalMs * 1.25 + jitterMs * 2.6 + packetLossPct * 3;
-  if (rttMs > 120) {
-    interpDelayMs += (rttMs - 120) * 0.14;
+    Math.max(baseInterpDelayMs, 55) +
+    avgIntervalMs * 1.35 +
+    jitterMs * 2.4 +
+    jitterP95Ms * 0.9 +
+    packetLossPct * 4 +
+    rttBurstMs * 0.2 +
+    renderPenaltyMs * 1.65;
+  if (rttMs > 90) {
+    interpDelayMs += (rttMs - 90) * 0.2;
   }
-  interpDelayMs = clamp(interpDelayMs, 45, 220);
-
-  let extrapolateMs = 8 + jitterMs * 1.15 + packetLossPct * 1.8;
   if (rttMs > 180) {
-    extrapolateMs += 8;
+    interpDelayMs += (rttMs - 180) * 0.08;
   }
-  extrapolateMs = clamp(extrapolateMs, 8, 90);
+  if (renderIntervalMs > 28) {
+    interpDelayMs += (renderIntervalMs - 28) * 1.1;
+  }
+  interpDelayMs = clamp(interpDelayMs, 55, 280);
+
+  let extrapolateMs =
+    10 +
+    jitterMs * 1.2 +
+    jitterP95Ms * 0.45 +
+    packetLossPct * 2.2 +
+    rttBurstMs * 0.08 +
+    renderPenaltyMs * 0.35;
+  if (rttMs > 170) {
+    extrapolateMs += (rttMs - 170) * 0.06;
+  }
+  extrapolateMs = clamp(extrapolateMs, 10, 120);
 
   return { interpDelayMs, extrapolateMs };
 }
@@ -155,6 +197,8 @@ export function createInterpolator(config = {}) {
     : getConnectionState;
   const metrics = createStateMetrics();
   let buffer = [];
+  let prevRenderSampleMs = null;
+  let renderIntervalEwmaMs = DEFAULT_STATE_INTERVAL_MS;
 
   /**
    * Buffer a new server state snapshot.
@@ -171,21 +215,25 @@ export function createInterpolator(config = {}) {
   }
 
   function getRuntimeSmoothing(runtimeOptions = {}) {
+    const effectiveOptions = {
+      ...runtimeOptions,
+      renderIntervalMs: runtimeOptions.renderIntervalMs ?? renderIntervalEwmaMs,
+    };
     if (!adaptive) {
       return {
-        interpDelayMs: runtimeOptions.interpDelayMs ?? baseInterpDelayMs,
-        extrapolateMs: runtimeOptions.extrapolateMs ?? 0,
+        interpDelayMs: effectiveOptions.interpDelayMs ?? baseInterpDelayMs,
+        extrapolateMs: effectiveOptions.extrapolateMs ?? 0,
       };
     }
     const tuned = deriveAdaptiveSmoothing(
       baseInterpDelayMs,
       metrics.getSnapshot(),
-      runtimeOptions.pingMs,
+      effectiveOptions,
       connectionProvider,
     );
     return {
-      interpDelayMs: runtimeOptions.interpDelayMs ?? tuned.interpDelayMs,
-      extrapolateMs: runtimeOptions.extrapolateMs ?? tuned.extrapolateMs,
+      interpDelayMs: effectiveOptions.interpDelayMs ?? tuned.interpDelayMs,
+      extrapolateMs: effectiveOptions.extrapolateMs ?? tuned.extrapolateMs,
     };
   }
 
@@ -199,10 +247,16 @@ export function createInterpolator(config = {}) {
   function getInterpolatedPositions(extractPositions, runtimeOptions = {}) {
     if (buffer.length === 0) return null;
 
+    const nowMs = runtimeOptions.nowMs ?? performance.now();
+    if (prevRenderSampleMs != null) {
+      const deltaMs = clamp(nowMs - prevRenderSampleMs, 0, 250);
+      renderIntervalEwmaMs += (deltaMs - renderIntervalEwmaMs) * 0.1;
+    }
+    prevRenderSampleMs = nowMs;
+
     const smoothing = getRuntimeSmoothing(runtimeOptions);
     const delayMs = smoothing.interpDelayMs;
     const extrapolateMs = smoothing.extrapolateMs;
-    const nowMs = runtimeOptions.nowMs ?? performance.now();
     const renderTime = nowMs - delayMs;
 
     // Find stateA: last snapshot with timestamp <= renderTime
@@ -278,9 +332,16 @@ export function createInterpolator(config = {}) {
 
   function getNetworkStats() {
     const snapshot = metrics.getSnapshot();
-    const tuned = deriveAdaptiveSmoothing(baseInterpDelayMs, snapshot, null, connectionProvider);
+    const tuned = deriveAdaptiveSmoothing(
+      baseInterpDelayMs,
+      snapshot,
+      { renderIntervalMs: renderIntervalEwmaMs },
+      connectionProvider,
+    );
     return {
       ...snapshot,
+      renderIntervalMs: renderIntervalEwmaMs,
+      renderFps: renderIntervalEwmaMs > 0 ? 1000 / renderIntervalEwmaMs : null,
       interpDelayMs: tuned.interpDelayMs,
       extrapolateMs: tuned.extrapolateMs,
     };
@@ -290,6 +351,8 @@ export function createInterpolator(config = {}) {
   function reset() {
     buffer = [];
     metrics.reset();
+    prevRenderSampleMs = null;
+    renderIntervalEwmaMs = DEFAULT_STATE_INTERVAL_MS;
   }
 
   return { pushState, getInterpolatedPositions, getLatestState, getNetworkStats, reset };

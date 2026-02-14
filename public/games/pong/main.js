@@ -489,6 +489,9 @@ scene("pong", () => {
   onUpdate(() => {
     const positions = interpolator.getInterpolatedPositions({
       pingMs: latestConnectionSnapshot?.ping,
+      pingP95Ms: latestConnectionSnapshot?.pingP95Ms,
+      jitterP95Ms: latestConnectionSnapshot?.jitterP95Ms,
+      packetLossPct: latestConnectionSnapshot?.packetLossPct,
     });
     if (!positions) return;
 

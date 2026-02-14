@@ -6,6 +6,27 @@ import ShareModal from "./ShareModal.jsx";
 import { TOGGLE_NETWORK_PANEL_EVENT } from "../constants/events.js";
 import styles from "../App.module.scss";
 
+const FRAME_SAMPLE_WINDOW = 180;
+const FRAME_METRIC_PUSH_MS = 250;
+const TARGET_FRAME_MS = 1000 / 60;
+const JANK_FRAME_MS = 25;
+const DROPPED_FRAME_MS = 33.4;
+
+function clamp(value, min, max) {
+  return Math.max(min, Math.min(max, value));
+}
+
+function quantileFromSamples(samples, q) {
+  if (!Array.isArray(samples) || samples.length === 0) return null;
+  const sorted = [...samples].sort((a, b) => a - b);
+  const idx = (sorted.length - 1) * clamp(q, 0, 1);
+  const lower = Math.floor(idx);
+  const upper = Math.ceil(idx);
+  if (lower === upper) return sorted[lower];
+  const t = idx - lower;
+  return sorted[lower] + (sorted[upper] - sorted[lower]) * t;
+}
+
 export default function GameView({
   shareOpen,
   onCloseShare,
@@ -36,6 +57,13 @@ export default function GameView({
     : icons?.game?.fullscreenOn || "fullscreen";
   const connectionStatus = connection?.status;
   const connectionPing = connection?.ping;
+  const [renderMetrics, setRenderMetrics] = useState({
+    fps: null,
+    frameMs: null,
+    frameP95Ms: null,
+    jankPct: null,
+    droppedPct: null,
+  });
 
   useEffect(() => {
     const handleKeydown = (event) => {
@@ -55,6 +83,56 @@ export default function GameView({
     return () => {
       window.removeEventListener("keydown", handleKeydown);
       window.removeEventListener(TOGGLE_NETWORK_PANEL_EVENT, handleToggleNetworkPanel);
+    };
+  }, []);
+
+  useEffect(() => {
+    let rafId = 0;
+    let lastTimestamp = null;
+    let lastPublished = 0;
+    let ewmaFrameMs = TARGET_FRAME_MS;
+    const frameSamples = [];
+
+    const publishMetrics = (nowTs) => {
+      const sampleCount = frameSamples.length;
+      if (sampleCount === 0) return;
+      const frameP95Ms = quantileFromSamples(frameSamples, 0.95);
+      const jankCount = frameSamples.filter((ms) => ms > JANK_FRAME_MS).length;
+      const droppedCount = frameSamples.filter((ms) => ms > DROPPED_FRAME_MS).length;
+      setRenderMetrics({
+        fps: ewmaFrameMs > 0 ? 1000 / ewmaFrameMs : null,
+        frameMs: ewmaFrameMs,
+        frameP95Ms,
+        jankPct: (jankCount / sampleCount) * 100,
+        droppedPct: (droppedCount / sampleCount) * 100,
+      });
+      lastPublished = nowTs;
+    };
+
+    const step = (timestampMs) => {
+      if (lastTimestamp != null) {
+        const frameDeltaMs = clamp(timestampMs - lastTimestamp, 0, 250);
+        ewmaFrameMs += (frameDeltaMs - ewmaFrameMs) * 0.12;
+        frameSamples.push(frameDeltaMs);
+        if (frameSamples.length > FRAME_SAMPLE_WINDOW) {
+          frameSamples.shift();
+        }
+        if (timestampMs - lastPublished >= FRAME_METRIC_PUSH_MS) {
+          publishMetrics(timestampMs);
+        }
+      } else {
+        lastPublished = timestampMs;
+      }
+
+      lastTimestamp = timestampMs;
+      rafId = window.requestAnimationFrame(step);
+    };
+
+    rafId = window.requestAnimationFrame(step);
+    return () => {
+      if (rafId) {
+        window.cancelAnimationFrame(rafId);
+      }
     };
   }, []);
 
@@ -106,6 +184,28 @@ export default function GameView({
         value: Number.isFinite(connection?.outOfOrderCount) ? String(connection.outOfOrderCount) : "--",
       },
       {
+        label: "Render FPS",
+        value: Number.isFinite(renderMetrics.fps) ? `${renderMetrics.fps.toFixed(1)} fps` : "--",
+      },
+      {
+        label: "Frame Time",
+        value: Number.isFinite(renderMetrics.frameMs) ? `${renderMetrics.frameMs.toFixed(1)} ms` : "--",
+      },
+      {
+        label: "Frame p95",
+        value: Number.isFinite(renderMetrics.frameP95Ms) ? `${renderMetrics.frameP95Ms.toFixed(1)} ms` : "--",
+      },
+      {
+        label: "Jank >25ms",
+        value: Number.isFinite(renderMetrics.jankPct) ? `${renderMetrics.jankPct.toFixed(1)}%` : "--",
+      },
+      {
+        label: "Dropped >33ms",
+        value: Number.isFinite(renderMetrics.droppedPct)
+          ? `${renderMetrics.droppedPct.toFixed(1)}%`
+          : "--",
+      },
+      {
         label: "Loop Lag",
         value: Number.isFinite(connection?.server?.eventLoopLagMs)
           ? `${connection.server.eventLoopLagMs.toFixed(2)} ms`
@@ -142,6 +242,11 @@ export default function GameView({
       connection?.packetLossP99Pct,
       connection?.pingP95Ms,
       connection?.pingP99Ms,
+      renderMetrics.droppedPct,
+      renderMetrics.fps,
+      renderMetrics.frameMs,
+      renderMetrics.frameP95Ms,
+      renderMetrics.jankPct,
       connection?.server?.eventLoopLagMs,
       connection?.server?.roomCpuMs,
       connection?.server?.roomCpuP95Ms,
