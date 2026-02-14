@@ -24,7 +24,8 @@ function clampNumber(value, min, max) {
 function expSmoothingAlpha(ratePerSec, dtSec) {
   if (!Number.isFinite(ratePerSec) || ratePerSec <= 0) return 0;
   if (!Number.isFinite(dtSec) || dtSec <= 0) return 0;
-  return 1 - Math.exp(-ratePerSec * dtSec);
+  const x = ratePerSec * dtSec;
+  return x / (1 + x);
 }
 
 /**
@@ -37,15 +38,15 @@ function expSmoothingAlpha(ratePerSec, dtSec) {
  * @param {number} [config.groundY=870]
  * @param {number} [config.minSeparation=120]
  * @param {number} [config.groundedThreshold=100]
- * @param {number} [config.hardSnapDistSq=40000]
- * @param {number} [config.hardSnapVerticalError=100]
- * @param {number} [config.correctionBlendFactor=0.18]
- * @param {number} [config.correctionDeadzone=0.75]
- * @param {number} [config.correctionClampMin=-90]
- * @param {number} [config.correctionClampMax=90]
- * @param {number} [config.correctionDecayCoeff=14]
+ * @param {number} [config.hardSnapDistSq=62500]
+ * @param {number} [config.hardSnapVerticalError=150]
+ * @param {number} [config.correctionBlendFactor=0.35]
+ * @param {number} [config.correctionDeadzone=0.5]
+ * @param {number} [config.correctionClampMin=-140]
+ * @param {number} [config.correctionClampMax=140]
+ * @param {number} [config.correctionDecayCoeff=22]
  * @param {number} [config.maxDeltaSec=0.05]
- * @param {number} [config.proximityLerpMax=0.5]       - max per-frame lerp toward server when at minSeparation
+ * @param {number} [config.proximityLerpMax=0.35]      - max per-frame lerp toward server when at minSeparation
  * @param {number} [config.proximityLerpRange=2]        - multiplier of minSeparation at which lerp begins
  * @param {number} [config.contactExitBuffer=50]        - extra px beyond minSeparation before contact assist fully releases
  * @param {number} [config.contactAssistRiseRate=24]    - contact assist engagement speed (1/sec)
@@ -62,16 +63,16 @@ export function createClientPredictor(config = {}) {
   const groundY = config.groundY ?? 870;
   const minSeparation = config.minSeparation ?? 120;
   const groundedThreshold = config.groundedThreshold ?? 100;
-  const hardSnapDistSq = config.hardSnapDistSq ?? 40000;
-  const hardSnapVerticalError = config.hardSnapVerticalError ?? 100;
-  const correctionBlendFactor = config.correctionBlendFactor ?? 0.18;
-  const correctionDeadzone = config.correctionDeadzone ?? 0.75;
-  const correctionClampMin = config.correctionClampMin ?? -90;
-  const correctionClampMax = config.correctionClampMax ?? 90;
-  const correctionDecayCoeff = config.correctionDecayCoeff ?? 14;
+  const hardSnapDistSq = config.hardSnapDistSq ?? 62500;
+  const hardSnapVerticalError = config.hardSnapVerticalError ?? 150;
+  const correctionBlendFactor = config.correctionBlendFactor ?? 0.35;
+  const correctionDeadzone = config.correctionDeadzone ?? 0.5;
+  const correctionClampMin = config.correctionClampMin ?? -140;
+  const correctionClampMax = config.correctionClampMax ?? 140;
+  const correctionDecayCoeff = config.correctionDecayCoeff ?? 22;
   const maxDeltaSec = config.maxDeltaSec ?? 0.05;
   // Per-frame lerp factor when right at minSeparation from opponent
-  const proximityLerpMax = config.proximityLerpMax ?? 0.5;
+  const proximityLerpMax = config.proximityLerpMax ?? 0.35;
   // Distance (as multiple of minSeparation) where lerp starts ramping up
   const proximityLerpStart = minSeparation * (config.proximityLerpRange ?? 2);
   const contactExitDist = minSeparation + (config.contactExitBuffer ?? 50);
@@ -255,7 +256,7 @@ export function createClientPredictor(config = {}) {
     }
 
     // --- Correction decay ---
-    const correctionDecay = Math.exp(-clampedDt * correctionDecayCoeff);
+    const correctionDecay = 1 / (1 + clampedDt * correctionDecayCoeff);
     correctionX *= correctionDecay;
     correctionY *= correctionDecay;
 
@@ -275,9 +276,18 @@ export function createClientPredictor(config = {}) {
     resetFromServer(serverPlayerState);
   }
 
+  /**
+   * Inject a visual correction offset (e.g. after resimulation to prevent pops).
+   * The offset decays naturally via correctionDecayCoeff each frame.
+   */
+  function injectCorrection(cx, cy) {
+    correctionX = clampNumber(cx, correctionClampMin, correctionClampMax);
+    correctionY = clampNumber(cy, correctionClampMin, correctionClampMax);
+  }
+
   function getState() {
     return { initialized, x, y, vx, vy, correctionX, correctionY, hardSnapCount, contactAssist };
   }
 
-  return { step, reconcile, reset, getState };
+  return { step, reconcile, reset, injectCorrection, getState };
 }

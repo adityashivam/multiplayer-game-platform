@@ -49,13 +49,9 @@ const NET_STATS_REFRESH_MS = 150;
 const SERVER_TICK_MS = 1000 / 60;
 const INPUT_STREAM_HZ = 60;
 const MAX_PENDING_INPUT_FRAMES = 240;
-const RESIM_ERROR_PX = 22;
-const RESIM_HARD_ERROR_PX = 44;
-const RESIM_COOLDOWN_MS = 120;
-const LOCAL_RENDER_FOLLOW_RATE_X = 24;
-const LOCAL_RENDER_FOLLOW_RATE_Y = 26;
-const LOCAL_RENDER_SNAP_X = 48;
-const LOCAL_RENDER_SNAP_Y = 64;
+const RESIM_ERROR_PX = 12;
+const RESIM_HARD_ERROR_PX = 28;
+const RESIM_COOLDOWN_MS = 50;
 const LOCAL_NET_HUD_ENABLED = false;
 let shareModalShown = false;
 let toggleNetworkDiagnostics = () => {};
@@ -95,7 +91,8 @@ function smoothToward(current, target, ratePerSec, dtSec, snapThreshold) {
   if (!Number.isFinite(target)) return current;
   const delta = target - current;
   if (Math.abs(delta) >= snapThreshold) return target;
-  const alpha = 1 - Math.exp(-Math.max(0, ratePerSec) * Math.max(0, dtSec));
+  const x = Math.max(0, ratePerSec) * Math.max(0, dtSec);
+  const alpha = x / (1 + x);
   return current + delta * alpha;
 }
 
@@ -815,10 +812,10 @@ scene("fight", () => {
     minSeparation: 120,
     // Contact/separation stability tuning for real network jitter.
     contactExitBuffer: 64,
-    contactAssistRiseRate: 26,
+    contactAssistRiseRate: 18,
     contactAssistFallRate: 9,
-    contactMoveSuppression: 0.9,
-    contactServerFollowRate: 24,
+    contactMoveSuppression: 0.7,
+    contactServerFollowRate: 20,
   });
   const _predictionOpts = { active: false, attackSlowdown: false, opponentX: undefined, opponentY: undefined };
   const _replayPredictionOpts = {
@@ -942,6 +939,11 @@ scene("fight", () => {
   }
 
   function resimulateFromAuthoritative(localPlayerState, replayOpponent, started, gameOver, connected) {
+    // Capture old visual position before resim to prevent pops
+    const oldState = predictor.getState();
+    const oldVisualX = oldState.initialized ? (oldState.x + oldState.correctionX) : null;
+    const oldVisualY = oldState.initialized ? (oldState.y + oldState.correctionY) : null;
+
     const pendingFrames = inputTimeline.getPendingFrames();
     predictor.reset(localPlayerState);
 
@@ -960,6 +962,19 @@ scene("fight", () => {
           replayInput.aerialAttack,
       );
       predictor.step(frame.dtSec, localPlayerState, replayInput, _replayPredictionOpts);
+    }
+
+    // Inject visual offset so the rendered position doesn't jump.
+    // The correction decays naturally over subsequent frames.
+    if (oldVisualX != null) {
+      const newState = predictor.getState();
+      const dx = oldVisualX - newState.x;
+      const dy = oldVisualY - newState.y;
+      const jumpDistSq = dx * dx + dy * dy;
+      // Only smooth if the jump is noticeable (>2px) but not a true teleport
+      if (jumpDistSq > 4 && jumpDistSq < 62500) {
+        predictor.injectCorrection(dx, dy);
+      }
     }
 
     hasAuthoritativeSync = true;
@@ -1292,43 +1307,15 @@ scene("fight", () => {
     const predicted = predictor.step(deltaSec, localServerPlayer, localInputState, _predictionOpts);
 
     if (myPlayerId === "p1") {
-      const targetX = predicted ? predicted.x : positions.p1x;
-      const targetY = (predicted ? predicted.y : positions.p1y) + PLAYER1_Y_OFFSET;
-      player1.pos.x = smoothToward(
-        player1.pos.x,
-        targetX,
-        LOCAL_RENDER_FOLLOW_RATE_X,
-        deltaSec,
-        LOCAL_RENDER_SNAP_X,
-      );
-      player1.pos.y = smoothToward(
-        player1.pos.y,
-        targetY,
-        LOCAL_RENDER_FOLLOW_RATE_Y,
-        deltaSec,
-        LOCAL_RENDER_SNAP_Y,
-      );
+      player1.pos.x = predicted ? predicted.x : positions.p1x;
+      player1.pos.y = (predicted ? predicted.y : positions.p1y) + PLAYER1_Y_OFFSET;
       player2.pos.x = positions.p2x;
       player2.pos.y = positions.p2y + PLAYER2_Y_OFFSET;
     } else if (myPlayerId === "p2") {
       player1.pos.x = positions.p1x;
       player1.pos.y = positions.p1y + PLAYER1_Y_OFFSET;
-      const targetX = predicted ? predicted.x : positions.p2x;
-      const targetY = (predicted ? predicted.y : positions.p2y) + PLAYER2_Y_OFFSET;
-      player2.pos.x = smoothToward(
-        player2.pos.x,
-        targetX,
-        LOCAL_RENDER_FOLLOW_RATE_X,
-        deltaSec,
-        LOCAL_RENDER_SNAP_X,
-      );
-      player2.pos.y = smoothToward(
-        player2.pos.y,
-        targetY,
-        LOCAL_RENDER_FOLLOW_RATE_Y,
-        deltaSec,
-        LOCAL_RENDER_SNAP_Y,
-      );
+      player2.pos.x = predicted ? predicted.x : positions.p2x;
+      player2.pos.y = (predicted ? predicted.y : positions.p2y) + PLAYER2_Y_OFFSET;
     } else {
       // Spectator: interpolate both
       player1.pos.x = positions.p1x;
