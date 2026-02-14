@@ -966,7 +966,7 @@ export default function App() {
     </a>
   ) : (
     <div id="lobby-badge" className={styles.badge}>
-      Lobby OS v1.0
+      KABOOM CONSOLE
     </div>
   );
 

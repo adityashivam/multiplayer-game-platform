@@ -69,8 +69,8 @@
 }
 
 .screen {
-  flex: 1 0 65vh;
-  min-height: 65vh;
+  flex: 1 0 70vh;
+  min-height: 70vh;
   background: var(--surface-screen-background, var(--color-surface));
   border: var(--surface-screen-border-width, 4px) solid
     var(--surface-screen-border-color, var(--color-border));
@@ -126,11 +126,11 @@
   flex: 1;
   min-height: 0;
   overflow: hidden;
-  padding: clamp(12px, 2.4vh, 20px) clamp(8px, 2.1vw, 14px)
-    clamp(10px, 2vh, 16px);
+  padding: clamp(8px, 1.8vh, 14px) clamp(7px, 1.6vw, 11px)
+    clamp(7px, 1.5vh, 12px);
   display: flex;
   flex-direction: column;
-  gap: clamp(12px, 2vh, 18px);
+  gap: clamp(8px, 1.4vh, 12px);
 }
 
 .screenScrollGame {
@@ -164,43 +164,43 @@
 .header {
   display: flex;
   flex-direction: column;
-  gap: clamp(8px, 1.8vh, 12px);
+  gap: clamp(5px, 1.1vh, 8px);
 }
 
 .headerTop {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 12px;
+  gap: 8px;
 }
 
 .headerActions {
   display: inline-flex;
   align-items: center;
-  gap: 10px;
+  gap: 6px;
 }
 
 .badge {
   background: var(--color-accent);
   color: #fff;
-  padding: 6px 10px;
+  padding: 5px 8px;
   border: 2px solid var(--color-border);
   box-shadow: var(--shadow-sm);
-  letter-spacing: 0.18em;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
-  font-size: 12px;
+  font-size: 10px;
   font-family: "Press Start 2P", cursive;
 }
 
 .backLink {
   background: var(--color-accent);
   color: #fff;
-  padding: 6px 10px;
+  padding: 5px 8px;
   border: 2px solid var(--color-border);
   box-shadow: var(--shadow-sm);
-  letter-spacing: 0.12em;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
-  font-size: 11px;
+  font-size: 9px;
   font-family: "Press Start 2P", cursive;
 }
 
@@ -208,8 +208,8 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 34px;
-  height: 34px;
+  width: 29px;
+  height: 29px;
   background: var(--surface-toggle-background, var(--color-surface-alt));
   border: var(--surface-toggle-border-width, 2px) solid
     var(--surface-toggle-border-color, #000);
@@ -225,7 +225,7 @@
 
 .themeIcon {
   color: var(--surface-toggle-icon-color, var(--color-text));
-  font-size: 18px;
+  font-size: 15px;
 }
 
 :global(.dark) .themeIcon {
@@ -234,12 +234,12 @@
 
 .title {
   font-family: "Press Start 2P", cursive;
-  font-size: clamp(12px, 2.2vw, 16px);
-  line-height: 1.5;
+  font-size: clamp(10px, 1.8vw, 13px);
+  line-height: 1.35;
   margin: 0;
   color: var(--color-text);
   border-bottom: 2px dashed rgba(0, 0, 0, 0.25);
-  padding-bottom: clamp(6px, 1.4vh, 10px);
+  padding-bottom: clamp(4px, 1vh, 7px);
 }
 
 :global(.dark) .title {
@@ -307,7 +307,7 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: clamp(8px, 1.6vh, 12px);
+  gap: clamp(6px, 1.1vh, 9px);
   padding: var(--card-safe-top) var(--card-safe-right) var(--card-safe-bottom) 2px;
   flex: 1;
   min-height: 0;
@@ -403,7 +403,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: clamp(10px, 2.4vw, 16px);
+  padding: clamp(8px, 2vw, 12px);
   background: rgba(0, 0, 0, 0.7);
   backdrop-filter: blur(2px);
   z-index: 6;
@@ -411,7 +411,7 @@
 
 .shareModal {
   position: relative;
-  width: 80%;
+  width: 76%;
   background: #f4f1de;
   border: 4px solid #000;
   box-shadow: 8px 8px 0 rgba(0, 0, 0, 0.5);
@@ -430,10 +430,10 @@
 
 .shareClose {
   position: absolute;
-  top: -14px;
-  right: -14px;
-  width: 32px;
-  height: 32px;
+  top: -12px;
+  right: -12px;
+  width: 28px;
+  height: 28px;
   border: 2px solid #000;
   background: #ef4444;
   color: #fff;
@@ -449,14 +449,14 @@
 }
 
 .shareCloseIcon {
-  font-size: 18px;
+  font-size: 15px;
 }
 
 .shareHeader {
   position: relative;
   background: #e9c46a;
   border-bottom: 4px solid #000;
-  padding: 10px 8px;
+  padding: 8px 7px;
   text-align: center;
   overflow: hidden;
 }
@@ -480,7 +480,7 @@
 .shareTitle {
   margin: 0;
   font-family: "Press Start 2P", cursive;
-  font-size: 10px;
+  font-size: 9px;
   text-transform: uppercase;
   color: #111;
   position: relative;
@@ -492,9 +492,9 @@
 }
 
 .shareSubtitle {
-  margin: 6px 0 0;
+  margin: 5px 0 0;
   font-family: "VT323", monospace;
-  font-size: 14px;
+  font-size: 12px;
   color: #4b5563;
   position: relative;
   z-index: 1;
@@ -505,10 +505,10 @@
 }
 
 .shareBody {
-  padding: 8px;
+  padding: 7px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 7px;
 }
 
 .endGameBody {
@@ -523,7 +523,7 @@
 
 .shareFieldLabel {
   font-family: "Press Start 2P", cursive;
-  font-size: 8px;
+  font-size: 7px;
   letter-spacing: 0.16em;
   text-transform: uppercase;
   color: #6b7280;
@@ -538,9 +538,9 @@
 .shareLinkInput {
   flex: 1;
   border: 2px solid #000;
-  padding: 6px 36px 6px 6px;
+  padding: 5px 32px 5px 6px;
   font-family: "VT323", monospace;
-  font-size: 14px;
+  font-size: 12px;
   color: #374151;
   background: #fff;
 }
@@ -554,7 +554,7 @@
   position: absolute;
   top: 0;
   right: 0;
-  width: 34px;
+  width: 30px;
   height: 100%;
   background: var(--color-secondary);
   color: #fff;
@@ -566,7 +566,7 @@
 .shareDivider {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
 }
 
 .shareDividerLine {
@@ -581,7 +581,7 @@
 
 .shareDividerText {
   font-family: "Press Start 2P", cursive;
-  font-size: 8px;
+  font-size: 7px;
   color: #9ca3af;
   text-transform: uppercase;
 }
@@ -590,8 +590,8 @@
 .shareActionWhatsApp {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 8px;
+  gap: 8px;
+  padding: 7px;
   border: 2px solid #000;
   box-shadow: var(--shadow-sm);
   text-align: left;
@@ -626,8 +626,8 @@
 }
 
 .shareActionIcon {
-  width: 24px;
-  height: 24px;
+  width: 20px;
+  height: 20px;
   border: 1px solid rgba(0, 0, 0, 0.2);
   background: rgba(0, 0, 0, 0.1);
   display: grid;
@@ -642,32 +642,32 @@
 
 .shareActionEyebrow {
   font-family: "Press Start 2P", cursive;
-  font-size: 7px;
+  font-size: 6px;
   text-transform: uppercase;
   opacity: 0.8;
 }
 
 .shareActionTitle {
   font-family: "Press Start 2P", cursive;
-  font-size: 10px;
+  font-size: 9px;
   letter-spacing: 0.06em;
 }
 
 .shareActionGrid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
+  gap: 6px;
 }
 
 .shareActionGhost {
   background: #fff;
   border: 2px solid #000;
   box-shadow: var(--shadow-sm);
-  padding: 6px;
+  padding: 5px;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
+  gap: 5px;
   transition: transform 120ms ease, box-shadow 120ms ease;
 }
 
@@ -681,12 +681,12 @@
 }
 
 .shareGhostIcon {
-  font-size: 16px;
+  font-size: 14px;
 }
 
 .shareGhostLabel {
   font-family: "Press Start 2P", cursive;
-  font-size: 9px;
+  font-size: 8px;
   color: #374151;
 }
 
@@ -695,9 +695,9 @@
 }
 
 .shareFooter {
-  padding: 6px;
+  padding: 5px;
   text-align: center;
-  font-size: 11px;
+  font-size: 10px;
   color: #6b7280;
   background: rgba(0, 0, 0, 0.04);
   border-top: 2px solid rgba(0, 0, 0, 0.1);
@@ -715,6 +715,7 @@
   gap: 0;
   flex: 1;
   min-height: 0;
+  font-size: 0.92rem;
 }
 
 .canvasFrame {
@@ -755,24 +756,24 @@
 
 .connectionIndicator {
   position: absolute;
-  top: clamp(10px, 2vw, 14px);
-  left: clamp(10px, 2vw, 14px);
+  top: clamp(8px, 1.6vw, 11px);
+  left: clamp(8px, 1.6vw, 11px);
   z-index: 5;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 5px 8px;
+  gap: 5px;
+  padding: 4px 7px;
   background: rgba(0, 0, 0, 0.6);
   color: #fff;
   border: 2px solid rgba(255, 255, 255, 0.15);
   font-family: "Press Start 2P", cursive;
-  font-size: 8px;
+  font-size: 7px;
   letter-spacing: 0.06em;
   pointer-events: none;
 }
 
 .connectionIcon {
-  font-size: 16px;
+  font-size: 14px;
 }
 
 .connectionConnected .connectionIcon {
@@ -804,22 +805,26 @@
 
 .fullscreenButton {
   position: absolute;
-  top: clamp(10px, 2vw, 14px);
-  right: clamp(10px, 2vw, 14px);
+  top: clamp(8px, 1.6vw, 11px);
+  right: clamp(8px, 1.6vw, 11px);
   z-index: 5;
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  padding: 6px 10px;
+  gap: 6px;
+  padding: 4px 8px;
   background: var(--color-accent);
   color: #fff;
   border: 2px solid var(--color-border);
   box-shadow: var(--shadow-sm);
   font-family: "Press Start 2P", cursive;
-  font-size: 9px;
+  font-size: 8px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   cursor: pointer;
+}
+
+.fullscreenButton :global(.material-symbols-outlined) {
+  font-size: 15px;
 }
 
 .fullscreenButton:active {
@@ -833,6 +838,7 @@
 
 .fullscreenLabel {
   display: inline-block;
+  font-size: 8px;
 }
 
 .footerBar {
@@ -855,12 +861,13 @@
 
 .navBar {
   background: var(--surface-nav-background, var(--color-surface-alt));
-  border-top: var(--surface-nav-border-width, 4px) solid
+  border-top: var(--surface-nav-border-width, 2px) solid
     var(--surface-nav-border-color, var(--color-border));
   backdrop-filter: var(--surface-nav-backdrop-filter, none);
   -webkit-backdrop-filter: var(--surface-nav-backdrop-filter, none);
   display: grid;
   grid-template-columns: repeat(5, 1fr);
+  height: clamp(52px, 8.2vh, 62px);
 }
 
 :global(.dark) .navBar {
@@ -873,8 +880,8 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 6px;
-  padding: 10px 4px;
+  gap: 4px;
+  padding: 6px 3px;
   background: var(--surface-nav-button-background, var(--color-background));
   border-right: var(--surface-nav-button-divider-width, 2px) solid
     var(--surface-nav-button-divider-color, rgba(0, 0, 0, 0.1));
@@ -920,13 +927,13 @@
 }
 
 .navIcon {
-  font-size: 20px;
+  font-size: 16px;
 }
 
 .navLabel {
   font-family: "Press Start 2P", cursive;
-  font-size: 8px;
-  letter-spacing: 0.14em;
+  font-size: 7px;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
 }
 
@@ -936,15 +943,15 @@
   width: 100%;
   max-width: 100%;
   box-sizing: border-box;
-  gap: clamp(8px, 1.6vw, 12px);
+  gap: clamp(6px, 1.2vw, 9px);
   background: var(
     --surface-card-background,
     linear-gradient(135deg, var(--color-card-from) 0%, var(--color-card-to) 100%)
   );
   border: var(--surface-card-border-width, 2px) solid
     var(--surface-card-border-color, rgba(0, 0, 0, 0.22));
-  border-radius: 12px;
-  padding: clamp(8px, 1.4vw, 10px);
+  border-radius: 10px;
+  padding: clamp(6px, 1.1vw, 8px);
   cursor: pointer;
   box-shadow: var(--surface-card-shadow, 0 8px 18px rgba(0, 0, 0, 0.14));
   transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1),
@@ -1090,10 +1097,10 @@
 
 .cardMedia {
   position: relative;
-  width: clamp(52px, 7vw, 64px);
-  height: clamp(52px, 7vw, 64px);
+  width: clamp(42px, 5.8vw, 52px);
+  height: clamp(42px, 5.8vw, 52px);
   border: 2px solid rgba(0, 0, 0, 0.8);
-  border-radius: 8px;
+  border-radius: 7px;
   overflow: hidden;
   box-shadow: 0 4px 10px rgba(0, 0, 0, 0.22);
   flex-shrink: 0;
@@ -1117,7 +1124,7 @@
   display: grid;
   place-items: center;
   font-family: "Press Start 2P", cursive;
-  font-size: 14px;
+  font-size: 12px;
   letter-spacing: 0.1em;
   color: #fff;
   background: linear-gradient(135deg, #6b7280, #111827);
@@ -1134,24 +1141,24 @@
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  gap: 3px;
 }
 
 .tagRow {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 4px;
 }
 
 .tag {
-  padding: 3px 7px;
+  padding: 2px 6px;
   border: 1px solid rgba(0, 0, 0, 0.25);
   border-radius: 999px;
   color: #fff;
   background: #9ca3af;
   font-weight: 700;
-  font-size: 10px;
-  letter-spacing: 0.05em;
+  font-size: 9px;
+  letter-spacing: 0.03em;
 }
 
 .status {
@@ -1165,29 +1172,29 @@
 .cardHeader {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   justify-content: space-between;
 }
 
 .cardTitle {
   margin: 0;
   font-family: "Press Start 2P", cursive;
-  font-size: clamp(10px, 1.4vw, 12px);
+  font-size: clamp(9px, 1.2vw, 11px);
   color: var(--color-text);
-  line-height: 1.25;
+  line-height: 1.2;
   flex: 1;
 }
 
 .cardIcon {
-  font-size: clamp(16px, 2.3vw, 20px);
+  font-size: clamp(14px, 1.9vw, 17px);
   color: var(--color-primary);
 }
 
 .cardDescription {
   margin: 0;
   color: var(--color-muted);
-  font-size: clamp(11px, 1.35vw, 13px);
-  line-height: 1.2;
+  font-size: clamp(10px, 1.15vw, 11px);
+  line-height: 1.15;
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
@@ -1198,7 +1205,7 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding-top: 4px;
+  padding-top: 2px;
   border-top: 1px solid rgba(0, 0, 0, 0.12);
 }
 
@@ -1209,7 +1216,7 @@
 .cta {
   color: var(--color-primary);
   font-weight: 700;
-  font-size: 10px;
+  font-size: 9px;
   animation: pulse 1.3s infinite;
   letter-spacing: 0.04em;
 }

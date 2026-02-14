@@ -89,10 +89,16 @@ body {
   color: var(--color-text);
   font-family: "VT323", monospace;
   overflow: hidden;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 :global(#root) {
   height: 100%;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 a {
@@ -107,6 +113,13 @@ button {
 
 input {
   font: inherit;
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+textarea {
+  -webkit-user-select: text;
+  user-select: text;
 }
 
 ::selection {
