@@ -12,6 +12,27 @@ import styles from "./App.module.scss";
 const THEME_KEY = "kaboom-preferred-theme";
 const DISPOSE_GAME_EVENT = "kaboom:dispose-game";
 const GAME_SCRIPT_PREFIX = "game-runtime-";
+const TEMP_DUMMY_GAMES_ENABLED = true;
+const TEMP_DUMMY_GAME_COUNT = 50;
+
+const TEMP_DUMMY_GAMES = Array.from({ length: TEMP_DUMMY_GAME_COUNT }, (_, index) => {
+  const num = String(index + 1).padStart(2, "0");
+  return {
+    id: `dummy-${num}`,
+    name: `Dummy Game ${num}`,
+    description: "Temporary preview card for testing long-list scrolling behavior.",
+    path: "",
+    tags: ["Preview", "2 players", "Demo"],
+  };
+});
+
+function withTemporaryDummyGames(games) {
+  if (!TEMP_DUMMY_GAMES_ENABLED) return games;
+  const source = Array.isArray(games) ? games : [];
+  const ids = new Set(source.map((game) => game.id));
+  const extras = TEMP_DUMMY_GAMES.filter((game) => !ids.has(game.id));
+  return [...source, ...extras];
+}
 
 function getGameRoute() {
   const match = window.location.pathname.match(/^\/games\/([^/]+)(?:\/([^/]+))?/);
@@ -324,7 +345,7 @@ export default function App() {
         if (!res.ok) throw new Error("Bad response");
         const data = await res.json();
         if (!cancelled && Array.isArray(data.games) && data.games.length) {
-          setGames(data.games);
+          setGames(withTemporaryDummyGames(data.games));
           setLoadingGames(false);
           setSelectedIndex(0);
           return;
@@ -333,7 +354,7 @@ export default function App() {
         console.warn("Falling back to default games list", err);
       }
       if (!cancelled) {
-        setGames(fallbackGames);
+        setGames(withTemporaryDummyGames(fallbackGames));
         setLoadingGames(false);
         setSelectedIndex(0);
       }
@@ -438,8 +459,12 @@ export default function App() {
     (direction) => {
       if (isGameView || !games.length) return;
       setSelectedIndex((current) => {
-        const delta = direction === "up" || direction === "left" ? -1 : 1;
-        const nextIndex = (current + delta + games.length) % games.length;
+        let nextIndex = current;
+        if (direction === "up" || direction === "left") {
+          nextIndex = Math.max(0, current - 1);
+        } else {
+          nextIndex = Math.min(games.length - 1, current + 1);
+        }
         return nextIndex;
       });
     },

@@ -1,10 +1,65 @@
-import React from "react";
+import React, { useCallback, useEffect, useRef } from "react";
 import classNames from "../utils/classNames.js";
 import styles from "../App.module.scss";
 
 function Controller({ onDirectional, onAction, disabled }) {
   const dirHandler = disabled ? undefined : onDirectional;
   const actionHandler = disabled ? undefined : onAction;
+  const holdTimeoutRef = useRef(null);
+  const holdIntervalRef = useRef(null);
+  const suppressNextClickRef = useRef(false);
+
+  const clearDirectionalHold = useCallback(() => {
+    if (holdTimeoutRef.current) {
+      clearTimeout(holdTimeoutRef.current);
+      holdTimeoutRef.current = null;
+    }
+    if (holdIntervalRef.current) {
+      clearInterval(holdIntervalRef.current);
+      holdIntervalRef.current = null;
+    }
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      clearDirectionalHold();
+    };
+  }, [clearDirectionalHold]);
+
+  const startDirectionalHold = useCallback(
+    (direction, event) => {
+      if (!dirHandler) return;
+      if (event.pointerType === "mouse" && event.button !== 0) return;
+      event.preventDefault();
+
+      suppressNextClickRef.current = true;
+      clearDirectionalHold();
+      dirHandler(direction);
+
+      holdTimeoutRef.current = setTimeout(() => {
+        holdIntervalRef.current = setInterval(() => {
+          dirHandler(direction);
+        }, 120);
+      }, 230);
+    },
+    [clearDirectionalHold, dirHandler],
+  );
+
+  const stopDirectionalHold = useCallback(() => {
+    clearDirectionalHold();
+  }, [clearDirectionalHold]);
+
+  const handleDirectionalClick = useCallback(
+    (direction) => {
+      if (!dirHandler) return;
+      if (suppressNextClickRef.current) {
+        suppressNextClickRef.current = false;
+        return;
+      }
+      dirHandler(direction);
+    },
+    [dirHandler],
+  );
 
   return (
     <div
@@ -29,25 +84,41 @@ function Controller({ onDirectional, onAction, disabled }) {
               type="button"
               className={classNames(styles.dpadArea, styles.dpadUp)}
               data-dir="up"
-              onClick={() => dirHandler?.("up")}
+              onPointerDown={(event) => startDirectionalHold("up", event)}
+              onPointerUp={stopDirectionalHold}
+              onPointerLeave={stopDirectionalHold}
+              onPointerCancel={stopDirectionalHold}
+              onClick={() => handleDirectionalClick("up")}
             />
             <button
               type="button"
               className={classNames(styles.dpadArea, styles.dpadDown)}
               data-dir="down"
-              onClick={() => dirHandler?.("down")}
+              onPointerDown={(event) => startDirectionalHold("down", event)}
+              onPointerUp={stopDirectionalHold}
+              onPointerLeave={stopDirectionalHold}
+              onPointerCancel={stopDirectionalHold}
+              onClick={() => handleDirectionalClick("down")}
             />
             <button
               type="button"
               className={classNames(styles.dpadArea, styles.dpadLeft)}
               data-dir="left"
-              onClick={() => dirHandler?.("left")}
+              onPointerDown={(event) => startDirectionalHold("left", event)}
+              onPointerUp={stopDirectionalHold}
+              onPointerLeave={stopDirectionalHold}
+              onPointerCancel={stopDirectionalHold}
+              onClick={() => handleDirectionalClick("left")}
             />
             <button
               type="button"
               className={classNames(styles.dpadArea, styles.dpadRight)}
               data-dir="right"
-              onClick={() => dirHandler?.("right")}
+              onPointerDown={(event) => startDirectionalHold("right", event)}
+              onPointerUp={stopDirectionalHold}
+              onPointerLeave={stopDirectionalHold}
+              onPointerCancel={stopDirectionalHold}
+              onClick={() => handleDirectionalClick("right")}
             />
             <span
               className={classNames("material-symbols-outlined", styles.dpadHint, styles.dpadHintUp)}
