@@ -1205,8 +1205,13 @@ scene("fight", () => {
   });
 
   // Per-frame interpolated position updates
+  let _lastUpdateTime = performance.now();
   onUpdate(() => {
     if (!player1 || !player2) return;
+
+    const nowMs = performance.now();
+    const deltaSec = clampNumber((nowMs - _lastUpdateTime) / 1000, 0, 0.05);
+    _lastUpdateTime = nowMs;
 
     _interpRuntimeOpts.pingMs = latestConnectionSnapshot?.ping ?? 0;
     _interpRuntimeOpts.pingP95Ms = latestConnectionSnapshot?.pingP95Ms ?? 0;
@@ -1215,10 +1220,28 @@ scene("fight", () => {
     const positions = interpolator.getInterpolatedPositions(_interpRuntimeOpts);
     if (!positions) return;
 
-    player1.pos.x = positions.p1x;
-    player1.pos.y = positions.p1y + PLAYER1_Y_OFFSET;
-    player2.pos.x = positions.p2x;
-    player2.pos.y = positions.p2y + PLAYER2_Y_OFFSET;
+    // Local player: use client-side prediction for instant response
+    // Remote player: use interpolated server state
+    const localServerPlayer = myPlayerId && latestServerState?.players?.[myPlayerId];
+    const predicted = stepLocalPrediction(deltaSec, localServerPlayer, latestServerState);
+
+    if (myPlayerId === "p1") {
+      player1.pos.x = predicted ? predicted.x : positions.p1x;
+      player1.pos.y = (predicted ? predicted.y : positions.p1y) + PLAYER1_Y_OFFSET;
+      player2.pos.x = positions.p2x;
+      player2.pos.y = positions.p2y + PLAYER2_Y_OFFSET;
+    } else if (myPlayerId === "p2") {
+      player1.pos.x = positions.p1x;
+      player1.pos.y = positions.p1y + PLAYER1_Y_OFFSET;
+      player2.pos.x = predicted ? predicted.x : positions.p2x;
+      player2.pos.y = (predicted ? predicted.y : positions.p2y) + PLAYER2_Y_OFFSET;
+    } else {
+      // Spectator: interpolate both
+      player1.pos.x = positions.p1x;
+      player1.pos.y = positions.p1y + PLAYER1_Y_OFFSET;
+      player2.pos.x = positions.p2x;
+      player2.pos.y = positions.p2y + PLAYER2_Y_OFFSET;
+    }
   });
 
   // Track per-player attack animation state to vary speed by type
