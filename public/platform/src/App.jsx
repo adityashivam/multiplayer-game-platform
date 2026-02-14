@@ -10,6 +10,7 @@ import { loadScript } from "./utils/loadScript.js";
 import styles from "./App.module.scss";
 
 const THEME_KEY = "kaboom-preferred-theme";
+const SOUND_MUTED_KEY = "kaboom-sound-muted";
 const DISPOSE_GAME_EVENT = "kaboom:dispose-game";
 const GAME_SCRIPT_PREFIX = "game-runtime-";
 const TEMP_DUMMY_GAMES_ENABLED = true;
@@ -98,15 +99,53 @@ export default function App() {
   });
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [pseudoFullscreen, setPseudoFullscreen] = useState(false);
+  const [muted, setMuted] = useState(() => localStorage.getItem(SOUND_MUTED_KEY) === "true");
   const cardRefs = useRef([]);
   const endGameBridgeRef = useRef(null);
   const activeGameRef = useRef({ gameId: null, scriptId: null });
+  const audioCtxRef = useRef(null);
+  const mutedRef = useRef(muted);
+  const prevSelectedRef = useRef(0);
   const setShareModal = useCallback((nextOpen) => {
     setShareOpen((prev) => (typeof nextOpen === "boolean" ? nextOpen : !prev));
   }, []);
 
   const isGameView = Boolean(route?.gameId);
   const routeViewKey = route?.gameId ? `game:${route.gameId}` : "lobby";
+
+  // Sync muted ref and persist
+  useEffect(() => {
+    mutedRef.current = muted;
+    localStorage.setItem(SOUND_MUTED_KEY, String(muted));
+  }, [muted]);
+
+  const playNavSound = useCallback(() => {
+    if (mutedRef.current) return;
+    try {
+      if (!audioCtxRef.current) {
+        audioCtxRef.current = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      const ctx = audioCtxRef.current;
+      if (ctx.state === "suspended") ctx.resume();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.type = "square";
+      osc.frequency.setValueAtTime(660, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.03);
+      gain.gain.setValueAtTime(0.06, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.07);
+      osc.start(ctx.currentTime);
+      osc.stop(ctx.currentTime + 0.07);
+    } catch {
+      // Audio not available
+    }
+  }, []);
+
+  const triggerHaptic = useCallback(() => {
+    if (navigator.vibrate) navigator.vibrate(6);
+  }, []);
 
   const navigateTo = useCallback((path, { replace = false } = {}) => {
     if (typeof window === "undefined" || !path) return;
@@ -512,13 +551,66 @@ export default function App() {
     [activateSelected, handleDirectionalInput, isGameView, setShareModal],
   );
 
+  const scrollAnimRef = useRef(null);
+
   useEffect(() => {
     if (isGameView) return;
     const card = cardRefs.current[selectedIndex];
-    if (card) {
-      card.focus({ preventScroll: true });
-      card.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    if (!card) return;
+
+    // Play sound + haptic when selection actually changed
+    if (prevSelectedRef.current !== selectedIndex) {
+      playNavSound();
+      triggerHaptic();
+      prevSelectedRef.current = selectedIndex;
     }
+
+    card.focus({ preventScroll: true });
+
+    const scrollParent = card.closest(`.${styles.lobbyList}`);
+    if (!scrollParent) return;
+
+    const parentRect = scrollParent.getBoundingClientRect();
+    const cardRect = card.getBoundingClientRect();
+    const scrollPaddingTop = parseFloat(getComputedStyle(scrollParent).scrollPaddingTop) || 0;
+    const scrollPaddingBottom = parseFloat(getComputedStyle(scrollParent).scrollPaddingBottom) || 0;
+
+    let delta = 0;
+    if (cardRect.top < parentRect.top + scrollPaddingTop) {
+      delta = cardRect.top - parentRect.top - scrollPaddingTop;
+    } else if (cardRect.bottom > parentRect.bottom - scrollPaddingBottom) {
+      delta = cardRect.bottom - parentRect.bottom + scrollPaddingBottom;
+    }
+
+    if (Math.abs(delta) < 1) return;
+
+    // Cancel any in-flight scroll animation
+    if (scrollAnimRef.current) {
+      cancelAnimationFrame(scrollAnimRef.current);
+      scrollAnimRef.current = null;
+    }
+
+    const startScroll = scrollParent.scrollTop;
+    const targetScroll = startScroll + delta;
+    const duration = Math.min(260, 120 + Math.abs(delta) * 0.35);
+    const startTime = performance.now();
+
+    const easeOutCubic = (t) => 1 - Math.pow(1 - t, 3);
+
+    const animate = (now) => {
+      const elapsed = now - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+      const eased = easeOutCubic(progress);
+      scrollParent.scrollTop = startScroll + (targetScroll - startScroll) * eased;
+
+      if (progress < 1) {
+        scrollAnimRef.current = requestAnimationFrame(animate);
+      } else {
+        scrollAnimRef.current = null;
+      }
+    };
+
+    scrollAnimRef.current = requestAnimationFrame(animate);
   }, [selectedIndex, isGameView]);
 
   const handleCopyShare = useCallback(async () => {
@@ -604,6 +696,8 @@ export default function App() {
                   onToggleTheme={() => setTheme((prev) => (prev === "dark" ? "light" : "dark"))}
                   onToggleFullscreen={handleFullscreenToggle}
                   isFullscreen={fullscreenActive}
+                  muted={muted}
+                  onToggleMute={() => setMuted((prev) => !prev)}
                 />
               )}
 

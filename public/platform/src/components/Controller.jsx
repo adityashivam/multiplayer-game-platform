@@ -6,7 +6,7 @@ function Controller({ onDirectional, onAction, disabled }) {
   const dirHandler = disabled ? undefined : onDirectional;
   const actionHandler = disabled ? undefined : onAction;
   const holdTimeoutRef = useRef(null);
-  const holdIntervalRef = useRef(null);
+  const holdRepeatRef = useRef(null);
   const suppressNextClickRef = useRef(false);
 
   const clearDirectionalHold = useCallback(() => {
@@ -14,9 +14,9 @@ function Controller({ onDirectional, onAction, disabled }) {
       clearTimeout(holdTimeoutRef.current);
       holdTimeoutRef.current = null;
     }
-    if (holdIntervalRef.current) {
-      clearInterval(holdIntervalRef.current);
-      holdIntervalRef.current = null;
+    if (holdRepeatRef.current) {
+      clearTimeout(holdRepeatRef.current);
+      holdRepeatRef.current = null;
     }
   }, []);
 
@@ -36,11 +36,20 @@ function Controller({ onDirectional, onAction, disabled }) {
       clearDirectionalHold();
       dirHandler(direction);
 
-      holdTimeoutRef.current = setTimeout(() => {
-        holdIntervalRef.current = setInterval(() => {
+      let repeatCount = 0;
+      const scheduleRepeat = () => {
+        // Accelerate: start at 160ms, ramp down to 60ms over ~8 presses
+        const interval = Math.max(60, 160 - repeatCount * 14);
+        holdRepeatRef.current = setTimeout(() => {
           dirHandler(direction);
-        }, 120);
-      }, 230);
+          repeatCount++;
+          scheduleRepeat();
+        }, interval);
+      };
+
+      holdTimeoutRef.current = setTimeout(() => {
+        scheduleRepeat();
+      }, 200);
     },
     [clearDirectionalHold, dirHandler],
   );

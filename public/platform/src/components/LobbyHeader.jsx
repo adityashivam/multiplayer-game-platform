@@ -8,12 +8,25 @@ export default function LobbyHeader({
   onToggleTheme,
   onToggleFullscreen,
   isFullscreen,
+  muted,
+  onToggleMute,
 }) {
   return (
     <header className={styles.header}>
       <div className={styles.headerTop}>
         {headerLeft}
         <div className={styles.headerActions}>
+          <button
+            type="button"
+            className={styles.themeToggle}
+            onClick={onToggleMute}
+            aria-label={muted ? "Unmute sounds" : "Mute sounds"}
+            aria-pressed={muted}
+          >
+            <span className={classNames("material-symbols-outlined", styles.themeIcon)}>
+              {muted ? "volume_off" : "volume_up"}
+            </span>
+          </button>
           <button
             type="button"
             className={styles.themeToggle}
