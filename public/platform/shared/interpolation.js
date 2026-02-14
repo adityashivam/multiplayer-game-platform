@@ -149,31 +149,31 @@ function deriveAdaptiveSmoothing(baseInterpDelayMs, metrics, runtimeOptions, con
   let interpDelayMs =
     Math.max(baseInterpDelayMs, 55) +
     avgIntervalMs * 1.35 +
-    jitterMs * 2.4 +
-    jitterP95Ms * 0.9 +
-    packetLossPct * 4 +
+    jitterMs * 1.8 +
+    jitterP95Ms * 0.6 +
+    packetLossPct * 2.5 +
     rttPressureMs * 0.32 +
     rttBurstMs * 0.28 +
-    renderPenaltyMs * 1.65;
+    renderPenaltyMs * 1.0;
   if (rttMs > 180) {
     interpDelayMs += (rttMs - 180) * 0.14;
   }
   if (renderIntervalMs > 28) {
-    interpDelayMs += (renderIntervalMs - 28) * 1.1;
+    interpDelayMs += (renderIntervalMs - 28) * 0.8;
   }
-  interpDelayMs = clamp(interpDelayMs, 55, 320);
+  interpDelayMs = clamp(interpDelayMs, 55, 250);
 
   let extrapolateMs =
-    10 +
-    jitterMs * 1.2 +
-    jitterP95Ms * 0.45 +
-    packetLossPct * 2.2 +
+    8 +
+    jitterMs * 1.0 +
+    jitterP95Ms * 0.35 +
+    packetLossPct * 1.8 +
     rttBurstMs * 0.08 +
-    renderPenaltyMs * 0.35;
+    renderPenaltyMs * 0.25;
   if (rttMs > 170) {
     extrapolateMs += (rttMs - 170) * 0.06;
   }
-  extrapolateMs = clamp(extrapolateMs, 10, 120);
+  extrapolateMs = clamp(extrapolateMs, 8, 100);
 
   return { interpDelayMs, extrapolateMs };
 }

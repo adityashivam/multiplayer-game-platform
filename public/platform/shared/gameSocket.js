@@ -98,6 +98,7 @@ export function getGameSocket(namespace) {
 
   const io = resolveSocketIo();
   const raw = io(normalized, {
+    transports: ["websocket"],
     reconnection: true,
     reconnectionAttempts: Infinity,
     reconnectionDelay: 500,
@@ -466,7 +467,7 @@ export function getGameSocket(namespace) {
         markSnapshotDirty();
         scheduleConnectionNotify();
       });
-    }, 5000);
+    }, 2000);
   }
   function stopPingProbe() {
     if (pingInterval) {

@@ -198,13 +198,13 @@ function deriveSmoothingConfig(stats, pingMs) {
   const packetLossPct = stats?.packetLossPct ?? 0;
   const rttMs = Number.isFinite(pingMs) ? pingMs : 0;
 
-  let interpDelayMs = 45 + avgIntervalMs * 1.25 + jitterMs * 2.8 + packetLossPct * 3;
+  let interpDelayMs = 40 + avgIntervalMs * 1.25 + jitterMs * 2.0 + packetLossPct * 2;
   if (rttMs > 120) interpDelayMs += (rttMs - 120) * 0.14;
-  interpDelayMs = clampNumber(interpDelayMs, 45, 220);
+  interpDelayMs = clampNumber(interpDelayMs, 40, 180);
 
-  let extrapolateMs = 8 + jitterMs * 1.2 + packetLossPct * 1.8;
-  if (rttMs > 180) extrapolateMs += 8;
-  extrapolateMs = clampNumber(extrapolateMs, 8, 90);
+  let extrapolateMs = 6 + jitterMs * 1.0 + packetLossPct * 1.5;
+  if (rttMs > 180) extrapolateMs += 6;
+  extrapolateMs = clampNumber(extrapolateMs, 6, 70);
 
   return { interpDelayMs, extrapolateMs };
 }

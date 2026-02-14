@@ -15,8 +15,12 @@ const app = express();
 const httpServer = createServer(app);
 
 const io = new Server(httpServer, {
-  cors: {
-    origin: "*",
+  cors: { origin: "*" },
+  transports: ["websocket"],
+  pingInterval: 5000,
+  pingTimeout: 10000,
+  perMessageDeflate: {
+    threshold: 128,
   },
 });
 

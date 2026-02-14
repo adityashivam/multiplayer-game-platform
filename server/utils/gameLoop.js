@@ -4,7 +4,7 @@ const MAX_ELAPSED_MS = 250;
 const MAX_SIM_STEPS_PER_TICK = 5;
 const CPU_SAMPLE_WINDOW = 240;
 const DELTA_KEYFRAME_INTERVAL = 12;
-const DELTA_CHANGE_RATIO_THRESHOLD = 0.72;
+const DELTA_CHANGE_RATIO_THRESHOLD = 0.5;
 
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
@@ -268,6 +268,11 @@ function packStatePayload(state, payload) {
     }
   }
 
+  // Skip emission entirely when state is unchanged (saves bandwidth when idle)
+  if (changes.length === 0) {
+    return null;
+  }
+
   const useDelta = changes.length <= values.length * DELTA_CHANGE_RATIO_THRESHOLD;
   const packed = useDelta
     ? toPackedDeltaPayload(seq, transport.lastSeq, changes, netMeta)
@@ -335,7 +340,9 @@ export function tickGames({
       let payload = serializeState(state);
       payload = decorateStatePayload(payload, state, now, tickMs, roomClock, loopLagMs);
       payload = packStatePayload(state, payload);
-      emitEvent({ nsp, gameId, type: stateEvent, payload, target: "game" });
+      if (payload != null) {
+        emitEvent({ nsp, gameId, type: stateEvent, payload, target: "game" });
+      }
     }
 
     const roomCpuMs = performance.now() - roomCpuStart;

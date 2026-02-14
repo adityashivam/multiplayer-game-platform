@@ -3,6 +3,19 @@ import { tickGames } from "./gameLoop.js";
 import { handleJoinGame, handlePlayerDisconnect } from "./rooms.js";
 import { registerSocketHandlers } from "./socketHandlers.js";
 
+function preciseInterval(callback, intervalMs) {
+  let expected = Date.now() + intervalMs;
+  let timer;
+  function step() {
+    const drift = Date.now() - expected;
+    callback();
+    expected += intervalMs;
+    timer = setTimeout(step, Math.max(0, intervalMs - drift));
+  }
+  timer = setTimeout(step, intervalMs);
+  return { clear: () => clearTimeout(timer) };
+}
+
 export function registerGame({
   io,
   meta,
@@ -25,7 +38,7 @@ export function registerGame({
   const games = getGamesStore(nsp);
   let lastTickInvokeMs = Date.now();
 
-  setInterval(
+  preciseInterval(
     () => {
       const nowMs = Date.now();
       const loopLagMs = Math.max(0, nowMs - lastTickInvokeMs - tickMs);
