@@ -158,7 +158,7 @@ export function createClientPredictor(config = {}) {
    * @param {number} deltaSec
    * @param {Object|null} serverPlayerState  { x, y, vx, vy, attacking }
    * @param {Object} inputState              { left, right, jump }
-   * @param {Object} opts                    Pre-allocated: { active, attackSlowdown, opponentX, opponentY }
+   * @param {Object} opts                    Pre-allocated: { active, attackSlowdown, opponentX, opponentY, replay }
    * @returns {{ x: number, y: number } | null}
    */
   function step(deltaSec, serverPlayerState, inputState, opts) {
@@ -177,6 +177,7 @@ export function createClientPredictor(config = {}) {
 
     const clampedDt = clampNumber(deltaSec, 0, maxDeltaSec);
     const speedMultiplier = opts.attackSlowdown ? 0.3 : 1;
+    const replayMode = Boolean(opts.replay);
 
     // --- Input → velocity ---
     if (inputState.left && !inputState.right) {
@@ -197,6 +198,17 @@ export function createClientPredictor(config = {}) {
     if (y > groundY) {
       y = groundY;
       vy = 0;
+    }
+
+    if (replayMode) {
+      x += vx * clampedDt;
+      x = clampNumber(x, worldMinX, worldMaxX);
+      contactAssist = 0;
+      correctionX = 0;
+      correctionY = 0;
+      _result.x = x;
+      _result.y = y;
+      return _result;
     }
 
     // --- Contact-aware X integration ---

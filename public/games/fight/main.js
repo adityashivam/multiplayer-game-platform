@@ -10,6 +10,7 @@ import { openShareModal } from "/platform/shared/shareModalBridge.js";
 import { createWorkerInterpolator } from "/platform/shared/interpolationWorker.js";
 import { updateConnectionState } from "/platform/shared/connectionBridge.js";
 import { createClientPredictor } from "/platform/shared/clientPrediction.js";
+import { createInputTimeline } from "/platform/shared/inputTimeline.js";
 
 // ---------- Kaboom init ----------
 const { canvas } = getGameDomRefs();
@@ -47,15 +48,21 @@ const DISPOSE_GAME_EVENT = "kaboom:dispose-game";
 const NET_STATS_REFRESH_MS = 150;
 const SERVER_TICK_MS = 1000 / 60;
 const INPUT_STREAM_HZ = 60;
-const INPUT_STREAM_INTERVAL_MS = 1000 / INPUT_STREAM_HZ;
-const INPUT_STREAM_DT_SEC = 1 / INPUT_STREAM_HZ;
 const MAX_PENDING_INPUT_FRAMES = 240;
+const RESIM_ERROR_PX = 14;
+const RESIM_HARD_ERROR_PX = 24;
+const RESIM_COOLDOWN_MS = 120;
+const LOCAL_RENDER_FOLLOW_RATE_X = 24;
+const LOCAL_RENDER_FOLLOW_RATE_Y = 26;
+const LOCAL_RENDER_SNAP_X = 48;
+const LOCAL_RENDER_SNAP_Y = 64;
 const LOCAL_NET_HUD_ENABLED = false;
 let shareModalShown = false;
 let toggleNetworkDiagnostics = () => {};
 let cleanupNetworkDiagnostics = () => {};
 let resetFightNetcodeState = () => {};
 let stopFightInputStream = () => {};
+let sendFightInputNow = () => {};
 
 const localInputState = {
   left: false,
@@ -81,6 +88,15 @@ function clampNumber(value, min, max) {
 
 function toFiniteNumber(value) {
   return Number.isFinite(value) ? value : null;
+}
+
+function smoothToward(current, target, ratePerSec, dtSec, snapThreshold) {
+  if (!Number.isFinite(current)) return target;
+  if (!Number.isFinite(target)) return current;
+  const delta = target - current;
+  if (Math.abs(delta) >= snapThreshold) return target;
+  const alpha = 1 - Math.exp(-Math.max(0, ratePerSec) * Math.max(0, dtSec));
+  return current + delta * alpha;
 }
 
 function resetLocalInputState() {
@@ -583,6 +599,7 @@ socket.onEvent("gameJoined", ({ playerId, gameId: joinedGameId, rejoinToken: tok
   readyToPlay = true;
   gameId = joinedGameId;
   resetFightNetcodeState();
+  sendFightInputNow();
   if (token && joinedGameId) {
     try { sessionStorage.setItem(`rejoinToken:${GAME_SLUG}:${joinedGameId}`, token); } catch (e) { /* noop */ }
   }
@@ -779,9 +796,9 @@ scene("fight", () => {
   let lastNetworkHudPaint = 0;
   let latestServerState = null;
   let latestStateSeq = null;
-  let nextInputSeq = 0;
-  const pendingInputFrames = [];
-  let inputStreamTimer = null;
+  let lastAckSeq = 0;
+  let lastResimAtMs = 0;
+  let hasAuthoritativeSync = false;
   const netEstimator = createNetworkEstimator();
   let latestNetStats = netEstimator.getStats();
   let smoothingConfig = { interpDelayMs: 55, extrapolateMs: 14 };
@@ -809,7 +826,17 @@ scene("fight", () => {
     attackSlowdown: false,
     opponentX: undefined,
     opponentY: undefined,
+    replay: true,
   };
+  const inputTimeline = createInputTimeline({
+    hz: INPUT_STREAM_HZ,
+    maxPendingFrames: MAX_PENDING_INPUT_FRAMES,
+    captureInput: cloneLocalInputState,
+    sendFrame: (frame) => {
+      if (!readyToPlay || !myPlayerId) return;
+      socket.send("input", { type: "inputFrame", seq: frame.seq, dtSec: frame.dtSec, state: frame.input });
+    },
+  });
   const netHud = createNetworkHud(gameCanvas);
   const handleKeyToggleNetwork = (event) => {
     const tag = event?.target?.tagName?.toLowerCase();
@@ -869,43 +896,75 @@ scene("fight", () => {
     smoothingConfig = { interpDelayMs: 55, extrapolateMs: 14 };
     latestServerState = null;
     latestStateSeq = null;
-    pendingInputFrames.length = 0;
-    nextInputSeq = 0;
+    lastAckSeq = 0;
+    lastResimAtMs = 0;
+    hasAuthoritativeSync = false;
+    inputTimeline.reset();
     resetLocalInputState();
     predictor.reset(null);
     lastNetworkHudPaint = 0;
     refreshNetworkHud(performance.now(), true);
   }
 
-  function pushInputFrame() {
-    if (!readyToPlay || !myPlayerId) return;
-    const seq = ++nextInputSeq;
-    const input = cloneLocalInputState();
-    pendingInputFrames.push({ seq, input, dtSec: INPUT_STREAM_DT_SEC });
-    if (pendingInputFrames.length > MAX_PENDING_INPUT_FRAMES) {
-      pendingInputFrames.splice(0, pendingInputFrames.length - MAX_PENDING_INPUT_FRAMES);
+  function getLocalRenderPosition() {
+    if (myPlayerId === "p1" && player1) {
+      return { x: player1.pos.x, y: player1.pos.y - PLAYER1_Y_OFFSET };
     }
-    socket.send("input", { type: "inputFrame", seq, state: input });
+    if (myPlayerId === "p2" && player2) {
+      return { x: player2.pos.x, y: player2.pos.y - PLAYER2_Y_OFFSET };
+    }
+    return null;
   }
 
-  function stopInputStream() {
-    if (inputStreamTimer) {
-      clearInterval(inputStreamTimer);
-      inputStreamTimer = null;
+  function shouldResimulate(localPlayerState, pendingFrames, ackSeq) {
+    if (!localPlayerState) return false;
+    if (!hasAuthoritativeSync && pendingFrames.length > 0) return true;
+
+    const renderPos = getLocalRenderPosition();
+    if (!renderPos) return false;
+
+    const error = Math.hypot(localPlayerState.x - renderPos.x, localPlayerState.y - renderPos.y);
+    if (error >= RESIM_HARD_ERROR_PX) return true;
+
+    const nowMs = performance.now();
+    const ackAdvanced = ackSeq > lastAckSeq;
+    if (ackAdvanced && error >= RESIM_ERROR_PX && nowMs - lastResimAtMs >= RESIM_COOLDOWN_MS) {
+      return true;
     }
+
+    return false;
   }
 
-  function startInputStream() {
-    stopInputStream();
-    inputStreamTimer = setInterval(() => {
-      pushInputFrame();
-    }, INPUT_STREAM_INTERVAL_MS);
+  function resimulateFromAuthoritative(localPlayerState, replayOpponent, started, gameOver, connected) {
+    const pendingFrames = inputTimeline.getPendingFrames();
+    predictor.reset(localPlayerState);
+
+    _replayPredictionOpts.active = Boolean(started && !gameOver && connected?.p1 && connected?.p2);
+    _replayPredictionOpts.attackSlowdown = false;
+    _replayPredictionOpts.opponentX = replayOpponent?.x;
+    _replayPredictionOpts.opponentY = replayOpponent?.y;
+
+    for (let i = 0; i < pendingFrames.length; i += 1) {
+      const frame = pendingFrames[i];
+      const replayInput = frame.input;
+      _replayPredictionOpts.attackSlowdown = Boolean(
+        localPlayerState.attacking ||
+          replayInput.attack ||
+          replayInput.heavyAttack ||
+          replayInput.aerialAttack,
+      );
+      predictor.step(frame.dtSec, localPlayerState, replayInput, _replayPredictionOpts);
+    }
+
+    hasAuthoritativeSync = true;
+    lastResimAtMs = performance.now();
   }
 
   resetFightNetcodeState = resetNetcodeState;
-  stopFightInputStream = stopInputStream;
+  stopFightInputStream = () => inputTimeline.stop();
+  sendFightInputNow = () => inputTimeline.sendNow();
   resetNetcodeState();
-  startInputStream();
+  inputTimeline.start();
 
   function makePlayer(posX, posY, scaleFactor, id) {
     const p = add([
@@ -1107,35 +1166,24 @@ scene("fight", () => {
     if (myPlayerId && players?.[myPlayerId]) {
       const localPlayerState = players[myPlayerId];
       const ackSeq = toFiniteNumber(localPlayerState.inputSeqAck);
-      if (ackSeq == null) {
-        predictor.reconcile(localPlayerState);
+      if (ackSeq != null) {
+        inputTimeline.acknowledge(ackSeq);
+      }
+
+      const replayOpponent = myPlayerId === "p1"
+        ? players?.p2
+        : myPlayerId === "p2"
+          ? players?.p1
+          : null;
+      const pendingFrames = inputTimeline.getPendingFrames();
+      if (ackSeq != null && shouldResimulate(localPlayerState, pendingFrames, ackSeq)) {
+        resimulateFromAuthoritative(localPlayerState, replayOpponent, started, gameOver, connected);
       } else {
-        while (pendingInputFrames.length > 0 && pendingInputFrames[0].seq <= ackSeq) {
-          pendingInputFrames.shift();
-        }
+        predictor.reconcile(localPlayerState);
+      }
 
-        predictor.reset(localPlayerState);
-
-        const replayOpponent = myPlayerId === "p1"
-          ? players?.p2
-          : myPlayerId === "p2"
-            ? players?.p1
-            : null;
-        _replayPredictionOpts.active = Boolean(started && !gameOver && connected?.p1 && connected?.p2);
-        _replayPredictionOpts.opponentX = replayOpponent?.x;
-        _replayPredictionOpts.opponentY = replayOpponent?.y;
-
-        for (let i = 0; i < pendingInputFrames.length; i += 1) {
-          const frame = pendingInputFrames[i];
-          const replayInput = frame.input;
-          _replayPredictionOpts.attackSlowdown = Boolean(
-            localPlayerState.attacking ||
-              replayInput.attack ||
-              replayInput.heavyAttack ||
-              replayInput.aerialAttack,
-          );
-          predictor.step(frame.dtSec, localPlayerState, replayInput, _replayPredictionOpts);
-        }
+      if (ackSeq != null) {
+        lastAckSeq = ackSeq;
       }
     }
     if (connected) {
@@ -1238,15 +1286,43 @@ scene("fight", () => {
     const predicted = predictor.step(deltaSec, localServerPlayer, localInputState, _predictionOpts);
 
     if (myPlayerId === "p1") {
-      player1.pos.x = predicted ? predicted.x : positions.p1x;
-      player1.pos.y = (predicted ? predicted.y : positions.p1y) + PLAYER1_Y_OFFSET;
+      const targetX = predicted ? predicted.x : positions.p1x;
+      const targetY = (predicted ? predicted.y : positions.p1y) + PLAYER1_Y_OFFSET;
+      player1.pos.x = smoothToward(
+        player1.pos.x,
+        targetX,
+        LOCAL_RENDER_FOLLOW_RATE_X,
+        deltaSec,
+        LOCAL_RENDER_SNAP_X,
+      );
+      player1.pos.y = smoothToward(
+        player1.pos.y,
+        targetY,
+        LOCAL_RENDER_FOLLOW_RATE_Y,
+        deltaSec,
+        LOCAL_RENDER_SNAP_Y,
+      );
       player2.pos.x = positions.p2x;
       player2.pos.y = positions.p2y + PLAYER2_Y_OFFSET;
     } else if (myPlayerId === "p2") {
       player1.pos.x = positions.p1x;
       player1.pos.y = positions.p1y + PLAYER1_Y_OFFSET;
-      player2.pos.x = predicted ? predicted.x : positions.p2x;
-      player2.pos.y = (predicted ? predicted.y : positions.p2y) + PLAYER2_Y_OFFSET;
+      const targetX = predicted ? predicted.x : positions.p2x;
+      const targetY = (predicted ? predicted.y : positions.p2y) + PLAYER2_Y_OFFSET;
+      player2.pos.x = smoothToward(
+        player2.pos.x,
+        targetX,
+        LOCAL_RENDER_FOLLOW_RATE_X,
+        deltaSec,
+        LOCAL_RENDER_SNAP_X,
+      );
+      player2.pos.y = smoothToward(
+        player2.pos.y,
+        targetY,
+        LOCAL_RENDER_FOLLOW_RATE_Y,
+        deltaSec,
+        LOCAL_RENDER_SNAP_Y,
+      );
     } else {
       // Spectator: interpolate both
       player1.pos.x = positions.p1x;
@@ -1309,6 +1385,7 @@ function disposeGameRuntime() {
   resetFightNetcodeState = () => {};
   stopFightInputStream?.();
   stopFightInputStream = () => {};
+  sendFightInputNow = () => {};
   registerRematchHandler(null);
   hideEndGameModal();
   resetLocalInputState();

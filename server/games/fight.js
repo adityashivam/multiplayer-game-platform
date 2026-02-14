@@ -1,5 +1,6 @@
 import { fightGameMeta } from "./metadata.js";
 import { emitEvent, registerGame, scheduleStart } from "../utils/utils.js";
+import { applySequencedInput, ensurePlayerInputState } from "../utils/inputProtocol.js";
 
 const FPS = 60;
 const DT = 1 / FPS;
@@ -22,6 +23,15 @@ const ATTACKS = {
   aerial: { damage: 50, range: 220, cooldown: 0.5, duration: 0.25 },
 };
 
+const DEFAULT_INPUT_STATE = {
+  left: false,
+  right: false,
+  jump: false,
+  attack: false,
+  heavyAttack: false,
+  aerialAttack: false,
+};
+
 function makePlayer(x, dir) {
   return {
     x,
@@ -38,14 +48,7 @@ function makePlayer(x, dir) {
     lastHitTime: 0,
     dead: false,
     connected: false,
-    input: {
-      left: false,
-      right: false,
-      jump: false,
-      attack: false,
-      heavyAttack: false,
-      aerialAttack: false,
-    },
+    input: { ...DEFAULT_INPUT_STATE },
   };
 }
 
@@ -277,42 +280,18 @@ export function registerFightGame(io) {
     onStateCreated: initAttackTimestamps,
     onPlayerConnected: (state, playerId) => {
       state.players[playerId].connected = true;
+      ensurePlayerInputState(state.players[playerId], DEFAULT_INPUT_STATE);
       state.abandonedAt = null;
       scheduleFightStart(state);
     },
     handleInput: ({ state, playerId, payload }) => {
-      const { type, value, seq } = payload || {};
       const player = state.players[playerId];
       if (!player || player.dead) return;
-      const inputSeq = Number.isFinite(seq) ? Math.max(0, Math.floor(seq)) : null;
-
-      if (inputSeq != null) {
-        player.lastInputSeqAck = Math.max(player.lastInputSeqAck || 0, inputSeq);
-      }
-
-      switch (type) {
-        case "inputFrame": {
-          const next = payload?.state;
-          if (!next || typeof next !== "object" || Array.isArray(next)) break;
-          player.input.left = Boolean(next.left);
-          player.input.right = Boolean(next.right);
-          player.input.jump = Boolean(next.jump);
-          player.input.attack = Boolean(next.attack);
-          player.input.heavyAttack = Boolean(next.heavyAttack);
-          player.input.aerialAttack = Boolean(next.aerialAttack);
-          break;
-        }
-        case "left":
-        case "right":
-        case "jump":
-        case "attack":
-        case "heavyAttack":
-        case "aerialAttack":
-          player.input[type] = Boolean(value);
-          break;
-        default:
-          break;
-      }
+      applySequencedInput({
+        player,
+        payload,
+        inputTemplate: DEFAULT_INPUT_STATE,
+      });
     },
     handleDisconnect: (state, playerId) => {
       state.players[playerId].connected = false;
