@@ -980,9 +980,14 @@ export default function App() {
   const fullscreenActive = isFullscreen || pseudoFullscreen;
 
   return (
-    <div className={classNames(styles.app, fullscreenActive && styles.appFullscreen)}>
+    <div
+      className={classNames(
+        styles.app,
+        fullscreenActive && styles.appFullscreen,
+      )}
+    >
       <div className={styles.console}>
-        <div className={styles.screen}>
+        <div className={classNames(styles.screen, isGameView && styles.screenInGame)}>
           <div className={styles.scanlines} aria-hidden="true" />
           <div className={styles.screenOverlay} aria-hidden="true" />
           <div className={styles.screenBody}>

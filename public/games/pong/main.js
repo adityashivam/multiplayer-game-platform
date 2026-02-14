@@ -7,6 +7,10 @@ import {
   updateEndGameModal,
 } from "/platform/shared/endGameBridge.js";
 import { openShareModal } from "/platform/shared/shareModalBridge.js";
+import {
+  getRuntimePerformanceProfile,
+  subscribeRuntimePerformanceProfile,
+} from "/platform/shared/performanceSettings.js";
 import { createWorkerInterpolator } from "/platform/shared/interpolationWorker.js";
 import { updateConnectionState } from "/platform/shared/connectionBridge.js";
 
@@ -19,6 +23,24 @@ const PADDLE_W = 26;
 const PADDLE_H = 160;
 const PADDLE_X1 = 70;
 const PADDLE_X2 = WIDTH - 70;
+
+function clampRuntimeRange(value, min, max, fallback) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.max(min, Math.min(max, parsed));
+}
+
+function normalizePerformanceProfile(rawProfile = {}) {
+  const targetFps = clampRuntimeRange(rawProfile?.targetFps, 30, 60, 60);
+  const resolutionScale = clampRuntimeRange(rawProfile?.resolutionScale, 0.6, 1, 1);
+  return {
+    targetFps,
+    resolutionScale,
+    reducedEffects: Boolean(rawProfile?.reducedEffects),
+  };
+}
+
+const initialPerformanceProfile = normalizePerformanceProfile(getRuntimePerformanceProfile());
 
 function extractPongPositions(state) {
   return {
@@ -42,6 +64,8 @@ kaboom({
   scale: 0.7,
   debug: false,
   global: true,
+  maxFPS: initialPerformanceProfile.targetFps,
+  pixelDensity: initialPerformanceProfile.resolutionScale,
   canvas: gameCanvas || undefined,
 });
 
@@ -54,6 +78,8 @@ if (gameCanvas) {
   gameCanvas.style.objectPosition = "center";
   gameCanvas.style.height = "auto";
   gameCanvas.style.maxHeight = "100%";
+  gameCanvas.style.imageRendering =
+    initialPerformanceProfile.resolutionScale < 0.9 ? "pixelated" : "auto";
 }
 
 function buildRoomUrl(roomId) {
@@ -121,11 +147,33 @@ const unsubscribeConnection = socket.onConnectionChange((snapshot) => {
   updateConnectionState(snapshot);
 });
 let rematchPending = false;
+let targetRenderFps = initialPerformanceProfile.targetFps;
+let renderFrameBudgetMs = 1000 / targetRenderFps;
+let lastRenderFrameTs = 0;
 const interpolator = createWorkerInterpolator({
   extractPositions: extractPongPositions,
   interpDelayMs: 50,
   maxBufferSize: 12,
 });
+
+function applyRuntimePerformanceProfile(nextProfile) {
+  const profile = normalizePerformanceProfile(nextProfile);
+  targetRenderFps = profile.targetFps;
+  renderFrameBudgetMs = 1000 / targetRenderFps;
+  if (typeof setPixelDensity === "function") {
+    try {
+      setPixelDensity(profile.resolutionScale);
+    } catch {
+      // Ignore runtime pixel density failures on unsupported kaboom builds.
+    }
+  }
+  if (gameCanvas) {
+    gameCanvas.style.imageRendering = profile.resolutionScale < 0.9 ? "pixelated" : "auto";
+  }
+}
+
+applyRuntimePerformanceProfile(initialPerformanceProfile);
+const unsubscribePerformanceProfile = subscribeRuntimePerformanceProfile(applyRuntimePerformanceProfile);
 
 registerRematchHandler(() => {
   if (rematchPending) return;
@@ -423,6 +471,7 @@ scene("pong", () => {
     rematchPending = false;
     hasPlayedRound = false;
     gameOverFlag = false;
+    lastRenderFrameTs = 0;
     hideEndGameModal();
   });
 
@@ -431,6 +480,7 @@ scene("pong", () => {
     rematchPending = false;
     hasPlayedRound = false;
     gameOverFlag = false;
+    lastRenderFrameTs = 0;
     interpolator.reset();
     hideEndGameModal();
   });
@@ -487,6 +537,10 @@ scene("pong", () => {
 
   // Per-frame interpolated position updates
   onUpdate(() => {
+    const nowMs = performance.now();
+    if (lastRenderFrameTs && nowMs - lastRenderFrameTs < renderFrameBudgetMs - 0.5) return;
+    lastRenderFrameTs = nowMs;
+
     const positions = interpolator.getInterpolatedPositions({
       pingMs: latestConnectionSnapshot?.ping,
       pingP95Ms: latestConnectionSnapshot?.pingP95Ms,
@@ -515,6 +569,7 @@ function disposeGameRuntime() {
   hideEndGameModal();
   interpolator.destroy?.();
   unsubscribeConnection?.();
+  unsubscribePerformanceProfile?.();
   updateConnectionState({ status: "disconnected", ping: null });
 
   socket.offEvent("connect");

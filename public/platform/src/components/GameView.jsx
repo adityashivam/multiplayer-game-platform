@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import ConnectionIndicator from "./ConnectionIndicator.jsx";
 import EndGameModal from "./EndGameModal.jsx";
 import ExitConfirmModal from "./ExitConfirmModal.jsx";
@@ -6,8 +6,8 @@ import ShareModal from "./ShareModal.jsx";
 import { TOGGLE_NETWORK_PANEL_EVENT } from "../constants/events.js";
 import styles from "../App.module.scss";
 
-const FRAME_SAMPLE_WINDOW = 180;
-const FRAME_METRIC_PUSH_MS = 250;
+const FRAME_SAMPLE_WINDOW = 120;
+const FRAME_METRIC_PUSH_MS = 1000;
 const TARGET_FRAME_MS = 1000 / 60;
 const JANK_FRAME_MS = 25;
 const DROPPED_FRAME_MS = 33.4;
@@ -57,13 +57,25 @@ export default function GameView({
     : icons?.game?.fullscreenOn || "fullscreen";
   const connectionStatus = connection?.status;
   const connectionPing = connection?.ping;
-  const [renderMetrics, setRenderMetrics] = useState({
+  // Use ref for render metrics to avoid triggering React re-renders on every publish.
+  // Only copy to state when the network panel is open (to update the display).
+  const renderMetricsRef = useRef({
     fps: null,
     frameMs: null,
     frameP95Ms: null,
     jankPct: null,
     droppedPct: null,
   });
+  const [renderMetrics, setRenderMetrics] = useState(renderMetricsRef.current);
+  const networkPanelOpenRef = useRef(false);
+
+  useEffect(() => {
+    networkPanelOpenRef.current = networkPanelOpen;
+    // When panel opens, push latest metrics to state so display is current
+    if (networkPanelOpen) {
+      setRenderMetrics({ ...renderMetricsRef.current });
+    }
+  }, [networkPanelOpen]);
 
   useEffect(() => {
     const handleKeydown = (event) => {
@@ -97,15 +109,24 @@ export default function GameView({
       const sampleCount = frameSamples.length;
       if (sampleCount === 0) return;
       const frameP95Ms = quantileFromSamples(frameSamples, 0.95);
-      const jankCount = frameSamples.filter((ms) => ms > JANK_FRAME_MS).length;
-      const droppedCount = frameSamples.filter((ms) => ms > DROPPED_FRAME_MS).length;
-      setRenderMetrics({
+      let jankCount = 0;
+      let droppedCount = 0;
+      for (let i = 0; i < sampleCount; i++) {
+        if (frameSamples[i] > DROPPED_FRAME_MS) droppedCount++;
+        if (frameSamples[i] > JANK_FRAME_MS) jankCount++;
+      }
+      const next = {
         fps: ewmaFrameMs > 0 ? 1000 / ewmaFrameMs : null,
         frameMs: ewmaFrameMs,
         frameP95Ms,
         jankPct: (jankCount / sampleCount) * 100,
         droppedPct: (droppedCount / sampleCount) * 100,
-      });
+      };
+      renderMetricsRef.current = next;
+      // Only trigger React re-render when the network panel is visible
+      if (networkPanelOpenRef.current) {
+        setRenderMetrics(next);
+      }
       lastPublished = nowTs;
     };
 

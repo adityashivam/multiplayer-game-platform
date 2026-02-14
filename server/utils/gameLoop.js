@@ -55,19 +55,32 @@ function updateCpuMetrics(clock, cpuMs) {
   } else {
     clock.cpuEwmaMs += (safeCpu - clock.cpuEwmaMs) * 0.18;
   }
-  clock.cpuSamples.push(safeCpu);
-  if (clock.cpuSamples.length > CPU_SAMPLE_WINDOW) {
-    clock.cpuSamples.shift();
+  // Use fixed-size circular buffer to avoid shift() array mutations
+  if (clock.cpuSamples.length < CPU_SAMPLE_WINDOW) {
+    clock.cpuSamples.push(safeCpu);
+  } else {
+    if (!Number.isFinite(clock._cpuIdx)) clock._cpuIdx = 0;
+    clock.cpuSamples[clock._cpuIdx] = safeCpu;
+    clock._cpuIdx = (clock._cpuIdx + 1) % CPU_SAMPLE_WINDOW;
   }
 }
 
+const CPU_QUANTILE_REFRESH_TICKS = 30; // Recalculate quantiles every ~0.5s at 60Hz
+
 function describeRoomCpu(clock) {
-  return {
-    roomCpuMs: roundTo(clock.lastCpuMs, 2),
-    roomCpuAvgMs: roundTo(clock.cpuEwmaMs, 2),
-    roomCpuP95Ms: roundTo(quantileFromSamples(clock.cpuSamples, 0.95), 2),
-    roomCpuP99Ms: roundTo(quantileFromSamples(clock.cpuSamples, 0.99), 2),
-  };
+  if (!clock._cpuDesc) {
+    clock._cpuDesc = { roomCpuMs: 0, roomCpuAvgMs: 0, roomCpuP95Ms: 0, roomCpuP99Ms: 0 };
+    clock._cpuDescAge = 0;
+  }
+  clock._cpuDesc.roomCpuMs = roundTo(clock.lastCpuMs, 2);
+  clock._cpuDesc.roomCpuAvgMs = roundTo(clock.cpuEwmaMs, 2);
+  clock._cpuDescAge += 1;
+  if (clock._cpuDescAge >= CPU_QUANTILE_REFRESH_TICKS) {
+    clock._cpuDescAge = 0;
+    clock._cpuDesc.roomCpuP95Ms = roundTo(quantileFromSamples(clock.cpuSamples, 0.95), 2);
+    clock._cpuDesc.roomCpuP99Ms = roundTo(quantileFromSamples(clock.cpuSamples, 0.99), 2);
+  }
+  return clock._cpuDesc;
 }
 
 function ensureStateSeq(state) {
@@ -118,7 +131,9 @@ function enumerateLeafPaths(value, path, out) {
       return;
     }
     for (let i = 0; i < value.length; i += 1) {
-      enumerateLeafPaths(value[i], [...path, String(i)], out);
+      path.push(String(i));
+      enumerateLeafPaths(value[i], path, out);
+      path.pop();
     }
     return;
   }
@@ -129,7 +144,9 @@ function enumerateLeafPaths(value, path, out) {
     return;
   }
   for (const key of keys) {
-    enumerateLeafPaths(value[key], [...path, key], out);
+    path.push(key);
+    enumerateLeafPaths(value[key], path, out);
+    path.pop();
   }
 }
 
@@ -208,15 +225,23 @@ function packStatePayload(state, payload) {
   if (!Number.isFinite(seq)) return payload;
 
   const transport = ensureTransportState(state, payload);
-  const currentSchemaPaths = [];
-  enumerateLeafPaths(payload, [], currentSchemaPaths);
 
-  if (!hasSameSchemaPaths(currentSchemaPaths, transport.schemaPaths)) {
-    transport.schemaPaths = currentSchemaPaths;
-    transport.schemaTokens = currentSchemaPaths.map((path) => path.split("."));
-    transport.lastValues = null;
-    transport.lastSeq = null;
-    transport.lastKeyframeSeq = null;
+  // Only re-enumerate schema when we don't have one yet or periodically
+  // to detect shape changes.  For stable game states the schema never
+  // changes, so checking every 60th keyframe is more than enough.
+  if (!Array.isArray(transport.schemaTokens) || transport.schemaTokens.length === 0 ||
+      (Number.isFinite(transport._schemaCheckCounter) ? ++transport._schemaCheckCounter >= 60 : true)) {
+    transport._schemaCheckCounter = 0;
+    const currentSchemaPaths = [];
+    enumerateLeafPaths(payload, [], currentSchemaPaths);
+
+    if (!hasSameSchemaPaths(currentSchemaPaths, transport.schemaPaths)) {
+      transport.schemaPaths = currentSchemaPaths;
+      transport.schemaTokens = currentSchemaPaths.map((path) => path.split("."));
+      transport.lastValues = null;
+      transport.lastSeq = null;
+      transport.lastKeyframeSeq = null;
+    }
   }
 
   const values = flattenBySchema(payload, transport.schemaTokens);

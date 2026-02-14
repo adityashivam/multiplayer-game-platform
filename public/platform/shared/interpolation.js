@@ -142,6 +142,7 @@ function deriveAdaptiveSmoothing(baseInterpDelayMs, metrics, runtimeOptions, con
 
   // Tail-latency gap predicts burstiness better than average ping.
   const rttBurstMs = Math.max(0, rttP95Ms - rttMs);
+  const rttPressureMs = Math.max(0, rttMs - 65);
   // Render thread slowdown (e.g. laptop low power mode) needs more history buffer.
   const renderPenaltyMs = Math.max(0, renderIntervalMs - DEFAULT_STATE_INTERVAL_MS);
 
@@ -151,18 +152,16 @@ function deriveAdaptiveSmoothing(baseInterpDelayMs, metrics, runtimeOptions, con
     jitterMs * 2.4 +
     jitterP95Ms * 0.9 +
     packetLossPct * 4 +
-    rttBurstMs * 0.2 +
+    rttPressureMs * 0.32 +
+    rttBurstMs * 0.28 +
     renderPenaltyMs * 1.65;
-  if (rttMs > 90) {
-    interpDelayMs += (rttMs - 90) * 0.2;
-  }
   if (rttMs > 180) {
-    interpDelayMs += (rttMs - 180) * 0.08;
+    interpDelayMs += (rttMs - 180) * 0.14;
   }
   if (renderIntervalMs > 28) {
     interpDelayMs += (renderIntervalMs - 28) * 1.1;
   }
-  interpDelayMs = clamp(interpDelayMs, 55, 280);
+  interpDelayMs = clamp(interpDelayMs, 55, 320);
 
   let extrapolateMs =
     10 +
@@ -196,7 +195,8 @@ export function createInterpolator(config = {}) {
     ? config.connectionProvider
     : getConnectionState;
   const metrics = createStateMetrics();
-  let buffer = [];
+  const buffer = [];
+  const _reusableResult = {};
   let prevRenderSampleMs = null;
   let renderIntervalEwmaMs = DEFAULT_STATE_INTERVAL_MS;
 
@@ -210,7 +210,7 @@ export function createInterpolator(config = {}) {
     buffer.push({ timestamp: nowMs, data: state });
     metrics.record(state, nowMs);
     if (buffer.length > maxBufferSize) {
-      buffer.shift();
+      buffer.splice(0, buffer.length - maxBufferSize);
     }
   }
 
@@ -286,17 +286,16 @@ export function createInterpolator(config = {}) {
         const lead = clamp(renderTime - latest.timestamp, 0, extrapolateMs);
         if (range > 0 && lead > 0) {
           const prevPositions = extractPositions(prev.data);
-          const extrapolated = {};
           for (const key of Object.keys(latestPositions)) {
             const velocity = (latestPositions[key] - prevPositions[key]) / range;
-            extrapolated[key] = latestPositions[key] + velocity * lead;
+            _reusableResult[key] = latestPositions[key] + velocity * lead;
           }
-          latestPositions = extrapolated;
+          latestPositions = _reusableResult;
         }
       }
 
       if (buffer.length > 2) {
-        buffer = buffer.slice(-2);
+        buffer.splice(0, buffer.length - 2);
       }
       return latestPositions;
     }
@@ -309,17 +308,16 @@ export function createInterpolator(config = {}) {
     const posA = extractPositions(stateA.data);
     const posB = extractPositions(stateB.data);
 
-    const result = {};
     for (const key of Object.keys(posA)) {
-      result[key] = lerp(posA[key], posB[key], t);
+      _reusableResult[key] = lerp(posA[key], posB[key], t);
     }
 
-    // Prune: discard snapshots older than stateA
+    // Prune: discard snapshots older than stateA (in-place)
     if (aIdx > 0) {
-      buffer = buffer.slice(aIdx);
+      buffer.splice(0, aIdx);
     }
 
-    return result;
+    return _reusableResult;
   }
 
   /**
@@ -349,7 +347,7 @@ export function createInterpolator(config = {}) {
 
   /** Clear the buffer (call on scene re-entry, rematch, etc). */
   function reset() {
-    buffer = [];
+    buffer.length = 0;
     metrics.reset();
     prevRenderSampleMs = null;
     renderIntervalEwmaMs = DEFAULT_STATE_INTERVAL_MS;
