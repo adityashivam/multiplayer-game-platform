@@ -793,6 +793,68 @@
   color: rgba(255, 255, 255, 0.85);
 }
 
+.networkButton {
+  position: absolute;
+  top: clamp(34px, 5.8vw, 44px);
+  right: clamp(8px, 1.6vw, 11px);
+  z-index: 6;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  padding: 4px 8px;
+  background: rgba(3, 12, 23, 0.72);
+  color: #dbeafe;
+  border: 2px solid rgba(162, 195, 231, 0.34);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.35);
+  font-family: "Press Start 2P", cursive;
+  font-size: 7px;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.networkButton:active {
+  transform: translateY(1px);
+}
+
+:global(.dark) .networkButton {
+  background: rgba(2, 8, 16, 0.78);
+  border-color: rgba(165, 200, 238, 0.3);
+}
+
+.networkPanel {
+  position: absolute;
+  top: clamp(62px, 10vw, 78px);
+  right: clamp(8px, 1.6vw, 11px);
+  z-index: 6;
+  width: clamp(180px, 36vw, 260px);
+  padding: 7px 9px;
+  background: rgba(2, 9, 17, 0.76);
+  border: 2px solid rgba(160, 195, 232, 0.28);
+  box-shadow: 0 10px 18px rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+}
+
+:global(.dark) .networkPanel {
+  background: rgba(2, 7, 13, 0.82);
+}
+
+.networkRow {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  color: rgba(230, 240, 255, 0.95);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: clamp(10px, 1.5vw, 11px);
+  line-height: 1.35;
+}
+
+.networkRow span:last-child {
+  text-align: right;
+}
+
 @keyframes connectionPulse {
   0%,
   100% {

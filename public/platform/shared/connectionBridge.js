@@ -1,6 +1,11 @@
 const defaultState = {
   status: "connecting",
   ping: null,
+  jitterMs: null,
+  packetLossPct: null,
+  updateRateHz: null,
+  outOfOrderCount: 0,
+  serverTickRate: null,
 };
 
 let currentState = { ...defaultState };

@@ -29,6 +29,7 @@ export function registerGame({
       tickGames({
         games,
         nsp,
+        tickMs,
         dtFallback,
         beforeUpdate,
         updateState,

@@ -1,4 +1,6 @@
 const socketCache = new Map();
+const STATE_SAMPLE_WINDOW = 180;
+const DEFAULT_STATE_INTERVAL_MS = 1000 / 60;
 
 function normalizeNamespace(namespace) {
   if (!namespace) {
@@ -25,6 +27,10 @@ function removeListener(emitter, event, handler) {
   }
 }
 
+function clamp(value, min, max) {
+  return Math.max(min, Math.min(max, value));
+}
+
 export function getGameSocket(namespace) {
   const normalized = normalizeNamespace(namespace);
   if (socketCache.has(normalized)) {
@@ -46,11 +52,115 @@ export function getGameSocket(namespace) {
   const connectionListeners = new Set();
   let pingInterval = null;
 
+  let prevStateArrivalMs = null;
+  let prevStateSeq = null;
+  let intervalEwmaMs = DEFAULT_STATE_INTERVAL_MS;
+  let jitterMs = 0;
+  let outOfOrderCount = 0;
+  let serverTickRate = null;
+  let totalExpectedPackets = 0;
+  let totalReceivedPackets = 0;
+  const lossWindow = [];
+  const recentArrivals = [];
+
+  function pushLossSample(expected, received) {
+    lossWindow.push({ expected, received });
+    totalExpectedPackets += expected;
+    totalReceivedPackets += received;
+    if (lossWindow.length > STATE_SAMPLE_WINDOW) {
+      const removed = lossWindow.shift();
+      totalExpectedPackets -= removed.expected;
+      totalReceivedPackets -= removed.received;
+    }
+  }
+
+  function resetStateMetrics() {
+    prevStateArrivalMs = null;
+    prevStateSeq = null;
+    intervalEwmaMs = DEFAULT_STATE_INTERVAL_MS;
+    jitterMs = 0;
+    outOfOrderCount = 0;
+    serverTickRate = null;
+    totalExpectedPackets = 0;
+    totalReceivedPackets = 0;
+    lossWindow.length = 0;
+    recentArrivals.length = 0;
+  }
+
+  function computeUpdateRateHz() {
+    if (recentArrivals.length < 2) return 0;
+    const spanMs = recentArrivals[recentArrivals.length - 1] - recentArrivals[0];
+    if (spanMs <= 0) return 0;
+    return ((recentArrivals.length - 1) * 1000) / spanMs;
+  }
+
+  function computePacketLossPct() {
+    const expected = Math.max(1, totalExpectedPackets);
+    return clamp((1 - totalReceivedPackets / expected) * 100, 0, 100);
+  }
+
+  function buildSnapshot() {
+    return {
+      status: connectionState,
+      ping,
+      jitterMs,
+      packetLossPct: computePacketLossPct(),
+      updateRateHz: computeUpdateRateHz(),
+      outOfOrderCount,
+      serverTickRate,
+    };
+  }
+
+  function notifyConnectionListeners() {
+    const snapshot = buildSnapshot();
+    connectionListeners.forEach((fn) => fn(snapshot));
+  }
+
   function setConnectionState(next) {
     if (next === connectionState) return;
     connectionState = next;
-    const snapshot = { status: connectionState, ping };
-    connectionListeners.forEach((fn) => fn(snapshot));
+    notifyConnectionListeners();
+  }
+
+  function recordStatePacket(payload) {
+    if (!payload || typeof payload !== "object" || Array.isArray(payload)) return;
+    const nowMs = Date.now();
+
+    if (prevStateArrivalMs != null) {
+      const interval = Math.max(0, nowMs - prevStateArrivalMs);
+      intervalEwmaMs += (interval - intervalEwmaMs) * 0.12;
+      const jitterDelta = Math.abs(interval - intervalEwmaMs);
+      jitterMs += (jitterDelta - jitterMs) / 16;
+    }
+    prevStateArrivalMs = nowMs;
+
+    recentArrivals.push(nowMs);
+    while (recentArrivals.length > 0 && nowMs - recentArrivals[0] > 5000) {
+      recentArrivals.shift();
+    }
+
+    const net = payload.net && typeof payload.net === "object" ? payload.net : null;
+    const seq = Number(net?.seq);
+    if (Number.isFinite(seq)) {
+      if (prevStateSeq == null) {
+        pushLossSample(1, 1);
+        prevStateSeq = seq;
+      } else if (seq > prevStateSeq) {
+        const gap = seq - prevStateSeq;
+        pushLossSample(gap, 1);
+        prevStateSeq = seq;
+      } else if (seq < prevStateSeq) {
+        outOfOrderCount += 1;
+      }
+    } else {
+      pushLossSample(1, 1);
+    }
+
+    const tickRate = Number(net?.tickRate);
+    if (Number.isFinite(tickRate) && tickRate > 0) {
+      serverTickRate = tickRate;
+    }
+    notifyConnectionListeners();
   }
 
   const handleConnectState = () => {
@@ -74,6 +184,18 @@ export function getGameSocket(namespace) {
   raw.io.on("reconnect_attempt", handleReconnectAttempt);
   raw.io.on("reconnect", handleReconnect);
 
+  const handleAnyEvent = (event, payload) => {
+    if (
+      event === "state" ||
+      (payload && typeof payload === "object" && !Array.isArray(payload) && payload.net)
+    ) {
+      recordStatePacket(payload);
+    }
+  };
+  if (typeof raw.onAny === "function") {
+    raw.onAny(handleAnyEvent);
+  }
+
   const handleEnginePing = () => {
     pingStart = performance.now();
   };
@@ -81,8 +203,7 @@ export function getGameSocket(namespace) {
   const handleEnginePong = () => {
     if (!pingStart) return;
     ping = Math.round(performance.now() - pingStart);
-    const snapshot = { status: connectionState, ping };
-    connectionListeners.forEach((fn) => fn(snapshot));
+    notifyConnectionListeners();
   };
 
   function attachEngineListeners(engine) {
@@ -118,8 +239,7 @@ export function getGameSocket(namespace) {
       const start = performance.now();
       raw.volatile.emit("__ping", () => {
         ping = Math.round(performance.now() - start);
-        const snapshot = { status: connectionState, ping };
-        connectionListeners.forEach((fn) => fn(snapshot));
+        notifyConnectionListeners();
       });
     }, 5000);
   }
@@ -134,8 +254,7 @@ export function getGameSocket(namespace) {
     const start = performance.now();
     raw.volatile.emit("__ping", () => {
       ping = Math.round(performance.now() - start);
-      const snapshot = { status: connectionState, ping };
-      connectionListeners.forEach((fn) => fn(snapshot));
+      notifyConnectionListeners();
     });
     startPingProbe();
   };
@@ -143,6 +262,8 @@ export function getGameSocket(namespace) {
   const handleDisconnectProbe = () => {
     stopPingProbe();
     ping = null;
+    resetStateMetrics();
+    notifyConnectionListeners();
   };
 
   raw.on("connect", handleConnectProbe);
@@ -173,10 +294,13 @@ export function getGameSocket(namespace) {
     getPing() {
       return ping;
     },
+    getConnectionSnapshot() {
+      return buildSnapshot();
+    },
     onConnectionChange(callback) {
       if (typeof callback !== "function") return () => {};
       connectionListeners.add(callback);
-      callback({ status: connectionState, ping });
+      callback(buildSnapshot());
       return () => connectionListeners.delete(callback);
     },
     destroy() {
@@ -190,6 +314,9 @@ export function getGameSocket(namespace) {
       removeListener(raw.io, "reconnect_attempt", handleReconnectAttempt);
       removeListener(raw.io, "reconnect", handleReconnect);
       removeListener(raw.io, "open", handleManagerOpen);
+      if (typeof raw.offAny === "function") {
+        raw.offAny(handleAnyEvent);
+      }
       detachEngineListeners(raw.io?.engine);
 
       if (typeof raw.removeAllListeners === "function") {

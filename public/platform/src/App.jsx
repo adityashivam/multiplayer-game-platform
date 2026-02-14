@@ -1051,8 +1051,7 @@ export default function App() {
                   onCancelExit={handleCancelExit}
                   isFullscreen={fullscreenActive}
                   onToggleFullscreen={handleFullscreenToggle}
-                  connectionStatus={connectionState.status}
-                  connectionPing={connectionState.ping}
+                  connection={connectionState}
                   icons={themeIcons}
                 />
               )}

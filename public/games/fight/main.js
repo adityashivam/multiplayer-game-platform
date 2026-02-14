@@ -41,7 +41,290 @@ const ASSET_BASE = `/games/${GAME_SLUG}/assets`;
 const OPPONENT_JOIN_EVENT = "kaboom:opponent-joined";
 const ROOM_READY_EVENT = "kaboom:room-ready";
 const DISPOSE_GAME_EVENT = "kaboom:dispose-game";
+const NET_STATS_REFRESH_MS = 150;
+const SERVER_TICK_MS = 1000 / 60;
+const PREDICT_MOVE_SPEED = 500;
+const PREDICT_JUMP_SPEED = -1300;
+const PREDICT_GRAVITY = 1600;
+const PREDICT_WORLD_MIN_X = 100;
+const PREDICT_WORLD_MAX_X = 1180;
+const PREDICT_GROUND_Y = 870;
+const LOCAL_NET_HUD_ENABLED = false;
 let shareModalShown = false;
+let toggleNetworkDiagnostics = () => {};
+let cleanupNetworkDiagnostics = () => {};
+let resetFightNetcodeState = () => {};
+
+const localInputState = {
+  left: false,
+  right: false,
+  jump: false,
+  attack: false,
+  heavyAttack: false,
+  aerialAttack: false,
+};
+
+function clampNumber(value, min, max) {
+  return Math.max(min, Math.min(max, value));
+}
+
+function toFiniteNumber(value) {
+  return Number.isFinite(value) ? value : null;
+}
+
+function resetLocalInputState() {
+  Object.keys(localInputState).forEach((key) => {
+    localInputState[key] = false;
+  });
+}
+
+function createNetworkEstimator({ expectedTickMs = SERVER_TICK_MS, maxSamples = 180 } = {}) {
+  let prevArrivalMs = null;
+  let prevSeq = null;
+  let prevTransitMs = null;
+  let intervalEwmaMs = expectedTickMs;
+  let jitterMs = 0;
+  let totalExpected = 0;
+  let totalReceived = 0;
+  let outOfOrderCount = 0;
+  const lossWindow = [];
+  const recentArrivals = [];
+
+  function pushLossSample(expected, received) {
+    lossWindow.push({ expected, received });
+    totalExpected += expected;
+    totalReceived += received;
+    if (lossWindow.length > maxSamples) {
+      const removed = lossWindow.shift();
+      totalExpected -= removed.expected;
+      totalReceived -= removed.received;
+    }
+  }
+
+  function recordSnapshot({ arrivalMs, seq, serverTimeMs }) {
+    if (!Number.isFinite(arrivalMs)) return;
+
+    if (prevArrivalMs != null) {
+      const interval = Math.max(0, arrivalMs - prevArrivalMs);
+      intervalEwmaMs += (interval - intervalEwmaMs) * 0.12;
+      if (!Number.isFinite(serverTimeMs)) {
+        const jitterDelta = Math.abs(interval - intervalEwmaMs);
+        jitterMs += (jitterDelta - jitterMs) / 16;
+      }
+    }
+    prevArrivalMs = arrivalMs;
+
+    recentArrivals.push(arrivalMs);
+    while (recentArrivals.length > 0 && arrivalMs - recentArrivals[0] > 5000) {
+      recentArrivals.shift();
+    }
+
+    if (Number.isFinite(seq)) {
+      if (prevSeq == null) {
+        pushLossSample(1, 1);
+        prevSeq = seq;
+      } else if (seq > prevSeq) {
+        const gap = seq - prevSeq;
+        pushLossSample(gap, 1);
+        prevSeq = seq;
+      } else if (seq < prevSeq) {
+        outOfOrderCount += 1;
+      }
+    } else {
+      pushLossSample(1, 1);
+    }
+
+    if (Number.isFinite(serverTimeMs)) {
+      const transitMs = arrivalMs - serverTimeMs;
+      if (prevTransitMs != null) {
+        const jitterDelta = Math.abs(transitMs - prevTransitMs);
+        jitterMs += (jitterDelta - jitterMs) / 16;
+      }
+      prevTransitMs = transitMs;
+    }
+  }
+
+  function getStats() {
+    let updateRateHz = 0;
+    if (recentArrivals.length >= 2) {
+      const span = recentArrivals[recentArrivals.length - 1] - recentArrivals[0];
+      if (span > 0) {
+        updateRateHz = ((recentArrivals.length - 1) * 1000) / span;
+      }
+    }
+
+    const expected = Math.max(1, totalExpected);
+    const packetLossPct = clampNumber((1 - totalReceived / expected) * 100, 0, 100);
+
+    return {
+      avgIntervalMs: intervalEwmaMs,
+      jitterMs,
+      packetLossPct,
+      updateRateHz,
+      outOfOrderCount,
+    };
+  }
+
+  function reset() {
+    prevArrivalMs = null;
+    prevSeq = null;
+    prevTransitMs = null;
+    intervalEwmaMs = expectedTickMs;
+    jitterMs = 0;
+    totalExpected = 0;
+    totalReceived = 0;
+    outOfOrderCount = 0;
+    lossWindow.length = 0;
+    recentArrivals.length = 0;
+  }
+
+  return { recordSnapshot, getStats, reset };
+}
+
+function deriveSmoothingConfig(stats, pingMs) {
+  const avgIntervalMs = stats?.avgIntervalMs ?? SERVER_TICK_MS;
+  const jitterMs = stats?.jitterMs ?? 0;
+  const packetLossPct = stats?.packetLossPct ?? 0;
+  const rttMs = Number.isFinite(pingMs) ? pingMs : 0;
+
+  let interpDelayMs = 45 + avgIntervalMs * 1.25 + jitterMs * 2.8 + packetLossPct * 3;
+  if (rttMs > 120) interpDelayMs += (rttMs - 120) * 0.14;
+  interpDelayMs = clampNumber(interpDelayMs, 45, 220);
+
+  let extrapolateMs = 8 + jitterMs * 1.2 + packetLossPct * 1.8;
+  if (rttMs > 180) extrapolateMs += 8;
+  extrapolateMs = clampNumber(extrapolateMs, 8, 90);
+
+  return { interpDelayMs, extrapolateMs };
+}
+
+function createLocalPredictionState() {
+  return {
+    initialized: false,
+    x: 0,
+    y: 0,
+    vx: 0,
+    vy: 0,
+    correctionX: 0,
+    correctionY: 0,
+    hardSnapCount: 0,
+  };
+}
+
+function createNetworkHud(canvasEl) {
+  if (!LOCAL_NET_HUD_ENABLED) {
+    return {
+      toggle: () => false,
+      isVisible: () => false,
+      render: () => {},
+      destroy: () => {},
+    };
+  }
+
+  if (!canvasEl || typeof document === "undefined") {
+    return {
+      toggle: () => false,
+      isVisible: () => false,
+      render: () => {},
+      destroy: () => {},
+    };
+  }
+
+  const host = canvasEl.parentElement || document.body;
+  if (!host) {
+    return {
+      toggle: () => false,
+      isVisible: () => false,
+      render: () => {},
+      destroy: () => {},
+    };
+  }
+
+  const computed = window.getComputedStyle(host);
+  if (computed.position === "static") {
+    host.style.position = "relative";
+  }
+
+  const button = document.createElement("button");
+  button.type = "button";
+  button.textContent = "NET";
+  button.setAttribute("aria-label", "Toggle network stats");
+  Object.assign(button.style, {
+    position: "absolute",
+    top: "44px",
+    right: "10px",
+    zIndex: "1701",
+    padding: "4px 7px",
+    border: "1px solid rgba(255,255,255,0.34)",
+    background: "rgba(4, 10, 18, 0.68)",
+    color: "#dbeafe",
+    fontFamily: '"Press Start 2P", monospace',
+    fontSize: "8px",
+    letterSpacing: "0.06em",
+    lineHeight: "1",
+    cursor: "pointer",
+    backdropFilter: "blur(3px)",
+  });
+
+  const panel = document.createElement("pre");
+  panel.hidden = true;
+  Object.assign(panel.style, {
+    position: "absolute",
+    top: "74px",
+    right: "10px",
+    zIndex: "1701",
+    margin: "0",
+    padding: "7px 9px",
+    minWidth: "192px",
+    maxWidth: "min(74vw, 270px)",
+    border: "1px solid rgba(255,255,255,0.25)",
+    borderRadius: "4px",
+    background: "rgba(2, 8, 14, 0.78)",
+    color: "#e2e8f0",
+    fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
+    fontSize: "11px",
+    lineHeight: "1.35",
+    whiteSpace: "pre-wrap",
+    pointerEvents: "none",
+    backdropFilter: "blur(4px)",
+  });
+
+  let visible = false;
+  const setVisible = (nextVisible) => {
+    visible = Boolean(nextVisible);
+    panel.hidden = !visible;
+    button.textContent = visible ? "NET ON" : "NET";
+  };
+
+  const toggle = () => {
+    setVisible(!visible);
+    return visible;
+  };
+
+  const handleToggleClick = (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    toggle();
+  };
+
+  button.addEventListener("click", handleToggleClick);
+  host.appendChild(button);
+  host.appendChild(panel);
+
+  return {
+    toggle,
+    isVisible: () => visible,
+    render(lines) {
+      if (!Array.isArray(lines)) return;
+      panel.textContent = lines.join("\n");
+    },
+    destroy() {
+      button.removeEventListener("click", handleToggleClick);
+      button.remove();
+      panel.remove();
+    },
+  };
+}
 
 function buildRoomUrl(roomId) {
   return `${window.location.origin}/games/${GAME_SLUG}/${roomId}`;
@@ -109,7 +392,14 @@ function getOrCreateRoomId() {
 let gameId = null;
 let hasJoined = false;
 const socket = getGameSocket(GAME_SLUG);
-socket.onConnectionChange((snapshot) => updateConnectionState(snapshot));
+let latestConnectionSnapshot = {
+  status: socket.getConnectionState(),
+  ping: socket.getPing(),
+};
+const unsubscribeConnection = socket.onConnectionChange((snapshot) => {
+  latestConnectionSnapshot = { ...latestConnectionSnapshot, ...snapshot };
+  updateConnectionState(snapshot);
+});
 let roomReadyPromise = null;
 
 let myPlayerId = null;
@@ -153,6 +443,9 @@ function announceOpponentJoined() {
 
 function sendInputFlag(type, value) {
   if (!readyToPlay) return;
+  if (Object.prototype.hasOwnProperty.call(localInputState, type)) {
+    localInputState[type] = Boolean(value);
+  }
   socket.send("input", { type, value });
 }
 
@@ -204,6 +497,7 @@ function handleActionInput(action) {
       }
       break;
     case "b":
+      toggleNetworkDiagnostics();
       break;
     default:
       break;
@@ -277,6 +571,7 @@ socket.onEvent("gameJoined", ({ playerId, gameId: joinedGameId, rejoinToken: tok
   myRejoinToken = token || null;
   readyToPlay = true;
   gameId = joinedGameId;
+  resetFightNetcodeState();
   if (token && joinedGameId) {
     try { sessionStorage.setItem(`rejoinToken:${GAME_SLUG}:${joinedGameId}`, token); } catch (e) { /* noop */ }
   }
@@ -297,6 +592,8 @@ socket.onEvent("rematchRequested", ({ playerId }) => {
 socket.onEvent("rematchStarted", () => {
   rematchPending = false;
   interpolator.reset();
+  resetLocalInputState();
+  resetFightNetcodeState();
   hideEndGameModal();
 });
 
@@ -468,6 +765,174 @@ scene("fight", () => {
   let joinToast = null;
   let joinToastText = null;
   let joinToastTimer = null;
+  let lastNetworkHudPaint = 0;
+  let latestServerState = null;
+  const netEstimator = createNetworkEstimator();
+  let latestNetStats = netEstimator.getStats();
+  let smoothingConfig = { interpDelayMs: 55, extrapolateMs: 14 };
+  const localPrediction = createLocalPredictionState();
+  const netHud = createNetworkHud(gameCanvas);
+  const handleKeyToggleNetwork = (event) => {
+    const tag = event?.target?.tagName?.toLowerCase();
+    if (tag === "input" || tag === "textarea" || tag === "select") return;
+    if (event.key?.toLowerCase() === "n" && !event.repeat) {
+      event.preventDefault();
+      toggleNetworkDiagnostics();
+    }
+  };
+
+  toggleNetworkDiagnostics = () => {
+    const isVisible = netHud.toggle();
+    if (isVisible) {
+      lastNetworkHudPaint = 0;
+    }
+    return isVisible;
+  };
+
+  cleanupNetworkDiagnostics = () => {
+    toggleNetworkDiagnostics = () => {};
+    netHud.destroy();
+    window.removeEventListener("keydown", handleKeyToggleNetwork);
+  };
+
+  window.addEventListener("keydown", handleKeyToggleNetwork);
+
+  function resetLocalPredictionFromServer(serverPlayerState) {
+    if (!serverPlayerState) {
+      localPrediction.initialized = false;
+      localPrediction.correctionX = 0;
+      localPrediction.correctionY = 0;
+      return;
+    }
+    localPrediction.initialized = true;
+    localPrediction.x = serverPlayerState.x;
+    localPrediction.y = serverPlayerState.y;
+    localPrediction.vx = serverPlayerState.vx || 0;
+    localPrediction.vy = 0;
+    localPrediction.correctionX = 0;
+    localPrediction.correctionY = 0;
+  }
+
+  function reconcileLocalPrediction(serverPlayerState) {
+    if (!serverPlayerState) return;
+    if (!localPrediction.initialized) {
+      resetLocalPredictionFromServer(serverPlayerState);
+      return;
+    }
+
+    const errorX = serverPlayerState.x - localPrediction.x;
+    const errorY = serverPlayerState.y - localPrediction.y;
+    const errorDistance = Math.hypot(errorX, errorY);
+    const requiresHardSnap = errorDistance > 140 || Math.abs(errorY) > 100;
+
+    if (requiresHardSnap) {
+      localPrediction.hardSnapCount += 1;
+      resetLocalPredictionFromServer(serverPlayerState);
+      return;
+    }
+
+    localPrediction.correctionX = clampNumber(localPrediction.correctionX + errorX * 0.36, -90, 90);
+    localPrediction.correctionY = clampNumber(localPrediction.correctionY + errorY * 0.36, -90, 90);
+  }
+
+  function stepLocalPrediction(deltaSec, serverPlayerState, matchState) {
+    if (!serverPlayerState || !myPlayerId) return null;
+
+    const activeMatch = Boolean(
+      matchState?.started &&
+        !matchState?.gameOver &&
+        matchState?.connected?.p1 &&
+        matchState?.connected?.p2,
+    );
+
+    if (!activeMatch) {
+      resetLocalPredictionFromServer(serverPlayerState);
+      return { x: serverPlayerState.x, y: serverPlayerState.y };
+    }
+
+    if (!localPrediction.initialized) {
+      resetLocalPredictionFromServer(serverPlayerState);
+    }
+
+    const clampedDt = clampNumber(deltaSec, 0, 0.05);
+    const attackSlowdown =
+      serverPlayerState.attacking ||
+      localInputState.attack ||
+      localInputState.heavyAttack ||
+      localInputState.aerialAttack;
+    const speedMultiplier = attackSlowdown ? 0.3 : 1;
+
+    if (localInputState.left && !localInputState.right) {
+      localPrediction.vx = -PREDICT_MOVE_SPEED * speedMultiplier;
+    } else if (localInputState.right && !localInputState.left) {
+      localPrediction.vx = PREDICT_MOVE_SPEED * speedMultiplier;
+    } else {
+      localPrediction.vx = 0;
+    }
+
+    if (localInputState.jump && localPrediction.y >= PREDICT_GROUND_Y - 1) {
+      localPrediction.vy = PREDICT_JUMP_SPEED;
+    }
+
+    localPrediction.vy += PREDICT_GRAVITY * clampedDt;
+    localPrediction.y += localPrediction.vy * clampedDt;
+    if (localPrediction.y > PREDICT_GROUND_Y) {
+      localPrediction.y = PREDICT_GROUND_Y;
+      localPrediction.vy = 0;
+    }
+
+    localPrediction.x += localPrediction.vx * clampedDt;
+    localPrediction.x = clampNumber(localPrediction.x, PREDICT_WORLD_MIN_X, PREDICT_WORLD_MAX_X);
+
+    const correctionDecay = Math.exp(-clampedDt * 16);
+    localPrediction.correctionX *= correctionDecay;
+    localPrediction.correctionY *= correctionDecay;
+
+    return {
+      x: localPrediction.x + localPrediction.correctionX,
+      y: localPrediction.y + localPrediction.correctionY,
+    };
+  }
+
+  function refreshNetworkHud(nowMs, force = false) {
+    if (!netHud.isVisible()) return;
+    if (!force && nowMs - lastNetworkHudPaint < NET_STATS_REFRESH_MS) return;
+    lastNetworkHudPaint = nowMs;
+
+    const pingMs = toFiniteNumber(latestConnectionSnapshot?.ping);
+    const correctionMagnitude = Math.hypot(localPrediction.correctionX, localPrediction.correctionY);
+    const localRole = myPlayerId ? myPlayerId.toUpperCase() : "--";
+    const status = (latestConnectionSnapshot?.status || "connecting").toUpperCase();
+
+    netHud.render([
+      `NET ${status}`,
+      `Ping RTT: ${pingMs == null ? "--" : `${pingMs} ms`}`,
+      `Jitter: ${(latestNetStats.jitterMs || 0).toFixed(1)} ms`,
+      `Packet Loss: ${(latestNetStats.packetLossPct || 0).toFixed(1)}%`,
+      `Update Rate: ${(latestNetStats.updateRateHz || 0).toFixed(1)} Hz`,
+      `Interp Delay: ${Math.round(smoothingConfig.interpDelayMs)} ms`,
+      `Extrapolation: ${Math.round(smoothingConfig.extrapolateMs)} ms`,
+      `Prediction Err: ${correctionMagnitude.toFixed(1)} px`,
+      `Out-of-order: ${latestNetStats.outOfOrderCount || 0}`,
+      `Player Slot: ${localRole}`,
+      `Toggle: NET / B / N`,
+    ]);
+  }
+
+  function resetNetcodeState() {
+    interpolator.reset();
+    netEstimator.reset();
+    latestNetStats = netEstimator.getStats();
+    smoothingConfig = { interpDelayMs: 55, extrapolateMs: 14 };
+    latestServerState = null;
+    resetLocalInputState();
+    resetLocalPredictionFromServer(null);
+    lastNetworkHudPaint = 0;
+    refreshNetworkHud(performance.now(), true);
+  }
+
+  resetFightNetcodeState = resetNetcodeState;
+  resetNetcodeState();
 
   function makePlayer(posX, posY, scaleFactor, id) {
     const p = add([
@@ -635,6 +1100,7 @@ scene("fight", () => {
     window.__kaboomOpponentJoined = null;
     rematchPending = false;
     gameOverFlag = false;
+    resetNetcodeState();
     hideEndGameModal();
   });
 
@@ -653,11 +1119,24 @@ scene("fight", () => {
       return;
     }
 
+    const arrivalMs = performance.now();
+    const arrivalWallClockMs = Date.now();
+    const netMeta = state?.net || {};
+    const seq = toFiniteNumber(netMeta.seq);
+    const serverTimeMs = toFiniteNumber(netMeta.serverTime);
+    netEstimator.recordSnapshot({ arrivalMs: arrivalWallClockMs, seq, serverTimeMs });
+    latestNetStats = netEstimator.getStats();
+    smoothingConfig = deriveSmoothingConfig(latestNetStats, latestConnectionSnapshot?.ping);
+    latestServerState = state;
+
     // Buffer state for interpolated rendering
     interpolator.pushState(state);
 
     // Discrete updates use latest state immediately
     const { players, timer, gameOver, winner, started, startAt, connected } = state;
+    if (myPlayerId && players?.[myPlayerId]) {
+      reconcileLocalPrediction(players[myPlayerId]);
+    }
     if (connected) {
       if (connected.p1 !== lastConnected.p1 || connected.p2 !== lastConnected.p2) {
         if (connected.p1 && !lastConnected.p1 && connected.p2) {
@@ -709,6 +1188,8 @@ scene("fight", () => {
     // Animations (discrete)
     updatePlayerAnimation(player1, s1, "player1");
     updatePlayerAnimation(player2, s2, "player2");
+
+    refreshNetworkHud(arrivalMs);
   });
 
   // Per-frame interpolated position updates
@@ -716,12 +1197,17 @@ scene("fight", () => {
     if (!player1 || !player2) return;
 
     const positions = interpolator.getInterpolatedPositions(extractFightPositions);
-    if (!positions) return;
+    if (!positions) {
+      refreshNetworkHud(performance.now());
+      return;
+    }
 
     player1.pos.x = positions.p1x;
     player1.pos.y = positions.p1y + PLAYER1_Y_OFFSET;
     player2.pos.x = positions.p2x;
     player2.pos.y = positions.p2y + PLAYER2_Y_OFFSET;
+
+    refreshNetworkHud(performance.now());
   });
 
   // Track per-player attack animation state to vary speed by type
@@ -772,8 +1258,13 @@ function disposeGameRuntime() {
   disposed = true;
 
   cleanupControllerNavigation?.();
+  cleanupNetworkDiagnostics?.();
+  cleanupNetworkDiagnostics = () => {};
+  resetFightNetcodeState = () => {};
   registerRematchHandler(null);
   hideEndGameModal();
+  resetLocalInputState();
+  unsubscribeConnection?.();
   updateConnectionState({ status: "disconnected", ping: null });
   window.__kaboomOpponentJoined = null;
 
