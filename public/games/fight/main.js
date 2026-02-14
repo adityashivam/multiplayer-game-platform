@@ -49,9 +49,18 @@ const NET_STATS_REFRESH_MS = 150;
 const SERVER_TICK_MS = 1000 / 60;
 const INPUT_STREAM_HZ = 60;
 const MAX_PENDING_INPUT_FRAMES = 240;
-const RESIM_ERROR_PX = 12;
-const RESIM_HARD_ERROR_PX = 28;
-const RESIM_COOLDOWN_MS = 50;
+// ── Resimulation Tuning ──
+// Controls when the client replays inputs from an authoritative server snapshot.
+// More aggressive = tighter sync with server, but more visual corrections.
+// More conservative = fewer corrections, but prediction can drift further.
+const RESIM_ERROR_PX = 12;       // Soft threshold: trigger resim when prediction diverges this many px from server.
+                                  //   Lower → tighter sync, more frequent resims. Higher → more drift tolerance.
+                                  //   Range: 6-30. Below 6 causes constant resim churn.
+const RESIM_HARD_ERROR_PX = 28;  // Hard threshold: force resim even if soft threshold wasn't met.
+                                  //   Should be ~2x RESIM_ERROR_PX. Range: 16-60.
+const RESIM_COOLDOWN_MS = 50;    // Minimum time between resimulations in ms.
+                                  //   Lower → more responsive but more CPU. Higher → less CPU but more drift.
+                                  //   Range: 30-200. At 50ms, resim can happen every ~3 frames.
 const LOCAL_NET_HUD_ENABLED = false;
 let shareModalShown = false;
 let toggleNetworkDiagnostics = () => {};
@@ -440,11 +449,17 @@ let lastConnected = { p1: false, p2: false };
 let opponentJoined = false;
 let currentRoomId = null;
 let rematchPending = false;
+// ── Interpolation Tuning (remote player smoothness) ──
 const interpolator = createWorkerInterpolator({
   extractPositions: extractFightPositions,
   extractVelocities: extractFightVelocities,
-  interpDelayMs: 50,
-  maxBufferSize: 12,
+  interpDelayMs: 50,   // Base render delay behind server in ms. The remote player is rendered this far
+                        //   in the past to have snapshots to interpolate between.
+                        //   Lower → less visual latency but more extrapolation (guessing). Higher → smoother but laggier.
+                        //   Range: 30-100. 50 is a good default for 60Hz server tick.
+  maxBufferSize: 12,   // Max server snapshots to keep in the interpolation buffer.
+                        //   Higher → survives longer packet loss bursts. Lower → less memory.
+                        //   Range: 6-20. At 60Hz tick, 12 = 200ms of history.
 });
 
 registerRematchHandler(() => {
@@ -811,8 +826,9 @@ scene("fight", () => {
   let smoothingConfig = { interpDelayMs: 55, extrapolateMs: 14 };
   // Reusable options object to avoid allocation per frame
   const _interpRuntimeOpts = { pingMs: 0, pingP95Ms: 0, jitterP95Ms: 0, packetLossPct: 0 };
+  // ── Client Prediction Tuning (local player responsiveness) ──
   const predictor = createClientPredictor({
-    // Must match server/games/fight.js physics constants
+    // Physics constants — MUST match server/games/fight.js exactly or prediction will diverge.
     moveSpeed: 500,
     jumpSpeed: -1300,
     gravity: 1600,
@@ -820,12 +836,26 @@ scene("fight", () => {
     worldMaxX: 1180,
     groundY: 870,
     minSeparation: 120,
-    // Contact/separation stability tuning for real network jitter.
-    contactExitBuffer: 64,
-    contactAssistRiseRate: 18,
-    contactAssistFallRate: 9,
-    contactMoveSuppression: 0.7,
-    contactServerFollowRate: 20,
+
+    // ── Contact / Near-Opponent Feel ──
+    // When two players are close, the client can't accurately predict push-apart
+    // because the opponent's position is delayed. These params control how the
+    // client handles this uncertainty zone.
+    contactExitBuffer: 64,         // Extra px beyond minSeparation before contact assist fully releases.
+                                    //   Higher → contact assist lingers longer after separating. Range: 30-100.
+    contactAssistRiseRate: 18,     // How fast contact assist engages when entering contact zone (1/sec).
+                                    //   Higher → snappier engagement. Lower → gradual transition.
+                                    //   Range: 10-30. Too high causes jitter at contact boundary.
+    contactAssistFallRate: 9,      // How fast contact assist releases when leaving contact zone (1/sec).
+                                    //   Lower → smoother exit from contact. Higher → snappier release.
+                                    //   Range: 4-20.
+    contactMoveSuppression: 0.7,   // How much local X movement is suppressed near opponent (0-1).
+                                    //   0 = no suppression (full local control, but oscillates).
+                                    //   1 = full suppression (server-only movement near contact).
+                                    //   Range: 0.5-0.9. Higher = more stable but less responsive.
+    contactServerFollowRate: 20,   // How fast position follows server near contact (1/sec).
+                                    //   Higher → tighter server tracking. Lower → more local feel.
+                                    //   Range: 10-30. Too high causes rubber-banding.
   });
   const _predictionOpts = { active: false, attackSlowdown: false, opponentX: undefined, opponentY: undefined };
   const _replayPredictionOpts = {
