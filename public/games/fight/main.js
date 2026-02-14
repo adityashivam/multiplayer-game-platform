@@ -769,7 +769,16 @@ scene("fight", () => {
   let smoothingConfig = { interpDelayMs: 55, extrapolateMs: 14 };
   // Reusable options object to avoid allocation per frame
   const _interpRuntimeOpts = { pingMs: 0, pingP95Ms: 0, jitterP95Ms: 0, packetLossPct: 0 };
-  const predictor = createClientPredictor();
+  const predictor = createClientPredictor({
+    // Must match server/games/fight.js physics constants
+    moveSpeed: 500,
+    jumpSpeed: -1300,
+    gravity: 1600,
+    worldMinX: 100,
+    worldMaxX: 1180,
+    groundY: 870,
+    minSeparation: 120,
+  });
   const _predictionOpts = { active: false, attackSlowdown: false, opponentX: undefined, opponentY: undefined };
   const netHud = createNetworkHud(gameCanvas);
   const handleKeyToggleNetwork = (event) => {
