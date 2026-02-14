@@ -21,6 +21,12 @@ function clampNumber(value, min, max) {
   return Math.max(min, Math.min(max, value));
 }
 
+function expSmoothingAlpha(ratePerSec, dtSec) {
+  if (!Number.isFinite(ratePerSec) || ratePerSec <= 0) return 0;
+  if (!Number.isFinite(dtSec) || dtSec <= 0) return 0;
+  return 1 - Math.exp(-ratePerSec * dtSec);
+}
+
 /**
  * @param {Object} [config]
  * @param {number} [config.moveSpeed=500]
@@ -41,6 +47,11 @@ function clampNumber(value, min, max) {
  * @param {number} [config.maxDeltaSec=0.05]
  * @param {number} [config.proximityLerpMax=0.5]       - max per-frame lerp toward server when at minSeparation
  * @param {number} [config.proximityLerpRange=2]        - multiplier of minSeparation at which lerp begins
+ * @param {number} [config.contactExitBuffer=50]        - extra px beyond minSeparation before contact assist fully releases
+ * @param {number} [config.contactAssistRiseRate=24]    - contact assist engagement speed (1/sec)
+ * @param {number} [config.contactAssistFallRate=10]    - contact assist release speed (1/sec)
+ * @param {number} [config.contactMoveSuppression=0.85] - max local move suppression near contact
+ * @param {number} [config.contactServerFollowRate=22]  - server-follow speed near contact (1/sec)
  */
 export function createClientPredictor(config = {}) {
   const moveSpeed = config.moveSpeed ?? 500;
@@ -63,6 +74,11 @@ export function createClientPredictor(config = {}) {
   const proximityLerpMax = config.proximityLerpMax ?? 0.5;
   // Distance (as multiple of minSeparation) where lerp starts ramping up
   const proximityLerpStart = minSeparation * (config.proximityLerpRange ?? 2);
+  const contactExitDist = minSeparation + (config.contactExitBuffer ?? 50);
+  const contactAssistRiseRate = config.contactAssistRiseRate ?? 24;
+  const contactAssistFallRate = config.contactAssistFallRate ?? 10;
+  const contactMoveSuppression = clampNumber(config.contactMoveSuppression ?? 0.85, 0, 1);
+  const contactServerFollowRate = config.contactServerFollowRate ?? 22;
 
   // --- State ---
   let initialized = false;
@@ -73,6 +89,7 @@ export function createClientPredictor(config = {}) {
   let correctionX = 0;
   let correctionY = 0;
   let hardSnapCount = 0;
+  let contactAssist = 0;
 
   const _result = { x: 0, y: 0 };
 
@@ -90,6 +107,7 @@ export function createClientPredictor(config = {}) {
     vy = serverPlayerState.vy || 0;
     correctionX = 0;
     correctionY = 0;
+    contactAssist = 0;
   }
 
   /**
@@ -120,13 +138,15 @@ export function createClientPredictor(config = {}) {
       return;
     }
 
+    // Filter toward the latest observed error (stable) instead of integrating
+    // error every tick (which can wind up and oscillate near contact edges).
     correctionX = clampNumber(
-      correctionX + errorX * correctionBlendFactor,
+      correctionX + (errorX - correctionX) * correctionBlendFactor,
       correctionClampMin,
       correctionClampMax,
     );
     correctionY = clampNumber(
-      correctionY + errorY * correctionBlendFactor,
+      correctionY + (errorY - correctionY) * correctionBlendFactor,
       correctionClampMin,
       correctionClampMax,
     );
@@ -179,33 +199,47 @@ export function createClientPredictor(config = {}) {
       vy = 0;
     }
 
-    // --- Integrate X ---
-    x += vx * clampedDt;
-    x = clampNumber(x, worldMinX, worldMaxX);
-
-    // --- Proximity lerp: pull x toward server when near opponent ---
-    // This replaces push-apart simulation which can't be accurate client-side.
-    // The lerp acts on the internal state (x) directly, so there's no
-    // accumulated divergence — it's a stable, one-sided pull toward the
-    // server's authoritative position. Far from opponent: full prediction.
+    // --- Contact-aware X integration ---
+    // We cannot reliably simulate two-body push-apart from delayed opponent data.
+    // Near contact, suppress local X simulation and follow server more strongly.
     const opponentX = opts.opponentX;
     const opponentY = opts.opponentY;
     let proximityT = 0;
+    let nearContact = false;
+    let dist = Infinity;
     if (Number.isFinite(opponentX) && Number.isFinite(opponentY)) {
       const dy = y - opponentY;
       if ((dy < 0 ? -dy : dy) < groundedThreshold) {
         const dx = x - opponentX;
-        const dist = dx < 0 ? -dx : dx;
+        dist = dx < 0 ? -dx : dx;
         if (dist < proximityLerpStart) {
           // Ramp: 0 at proximityLerpStart, 1 at minSeparation
           const range = proximityLerpStart - minSeparation;
           proximityT = range > 0
             ? clampNumber((proximityLerpStart - dist) / range, 0, 1)
             : 1;
-          const lerpFactor = proximityT * proximityLerpMax;
-          x += (serverPlayerState.x - x) * lerpFactor;
         }
+        nearContact = dist <= minSeparation;
       }
+    }
+
+    const inContactBand = nearContact || (proximityT > 0 && dist <= contactExitDist);
+    const assistTarget = inContactBand ? 1 : 0;
+    const assistRate = assistTarget > contactAssist ? contactAssistRiseRate : contactAssistFallRate;
+    const assistAlpha = expSmoothingAlpha(assistRate, clampedDt);
+    contactAssist += (assistTarget - contactAssist) * assistAlpha;
+
+    const moveScale = 1 - contactAssist * contactMoveSuppression;
+    x += vx * clampedDt * moveScale;
+    x = clampNumber(x, worldMinX, worldMaxX);
+
+    if (proximityT > 0 || contactAssist > 0.01) {
+      const contactStrength = clampNumber(Math.max(proximityT, contactAssist), 0, 1);
+      const proximityLerpFactor = contactStrength * proximityLerpMax;
+      x += (serverPlayerState.x - x) * proximityLerpFactor;
+
+      const followAlpha = expSmoothingAlpha(contactServerFollowRate * contactStrength, clampedDt);
+      x += (serverPlayerState.x - x) * followAlpha;
     }
 
     // --- Correction decay ---
@@ -215,8 +249,9 @@ export function createClientPredictor(config = {}) {
 
     // Near opponent: dampen X correction proportionally to prevent it
     // from fighting the proximity lerp.
-    if (proximityT > 0) {
-      correctionX *= (1 - proximityT);
+    const correctionDampen = clampNumber(Math.max(proximityT, contactAssist), 0, 1);
+    if (correctionDampen > 0) {
+      correctionX *= (1 - correctionDampen);
     }
 
     _result.x = clampNumber(x + correctionX, worldMinX, worldMaxX);
@@ -229,7 +264,7 @@ export function createClientPredictor(config = {}) {
   }
 
   function getState() {
-    return { initialized, x, y, vx, vy, correctionX, correctionY, hardSnapCount };
+    return { initialized, x, y, vx, vy, correctionX, correctionY, hardSnapCount, contactAssist };
   }
 
   return { step, reconcile, reset, getState };

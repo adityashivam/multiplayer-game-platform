@@ -779,6 +779,12 @@ scene("fight", () => {
     worldMaxX: 1180,
     groundY: 870,
     minSeparation: 120,
+    // Contact/separation stability tuning for real network jitter.
+    contactExitBuffer: 64,
+    contactAssistRiseRate: 26,
+    contactAssistFallRate: 9,
+    contactMoveSuppression: 0.9,
+    contactServerFollowRate: 24,
   });
   const _predictionOpts = { active: false, attackSlowdown: false, opponentX: undefined, opponentY: undefined };
   const netHud = createNetworkHud(gameCanvas);
