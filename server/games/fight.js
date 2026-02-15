@@ -1,5 +1,5 @@
 import { fightGameMeta } from "./metadata.js";
-import { emitEvent, registerGame, scheduleStart } from "../utils/utils.js";
+import { emitEvent, registerPluggableGame, scheduleStart } from "../utils/utils.js";
 import { applySequencedInput, ensurePlayerInputState } from "../utils/inputProtocol.js";
 
 const FPS = 60;
@@ -18,8 +18,8 @@ const REGEN_RATE = 25; // health per second
 
 // Attack type definitions
 const ATTACKS = {
-  light:  { damage: 30, range: 200, cooldown: 0.3, duration: 0.2 },
-  heavy:  { damage: 75, range: 280, cooldown: 0.8, duration: 0.4 },
+  light: { damage: 30, range: 200, cooldown: 0.3, duration: 0.2 },
+  heavy: { damage: 75, range: 280, cooldown: 0.8, duration: 0.4 },
   aerial: { damage: 50, range: 220, cooldown: 0.5, duration: 0.25 },
 };
 
@@ -133,7 +133,7 @@ function tryStartAttack(player) {
   player.hasHitThisSwing = false;
 }
 
-function resolveAttack(attacker, defender, state, attackerKey) {
+function resolveAttack(attacker, defender, state, attackerKey, nowSec) {
   if (!attacker.attacking || attacker.hasHitThisSwing || attacker.dead || defender.dead) return;
   const def = ATTACKS[attacker.attackType];
   if (!def) return;
@@ -142,7 +142,7 @@ function resolveAttack(attacker, defender, state, attackerKey) {
 
   attacker.hasHitThisSwing = true;
   defender.health = Math.max(0, defender.health - def.damage);
-  defender.lastHitTime = state.lastUpdate / 1000;
+  defender.lastHitTime = nowSec;
   if (defender.health === 0) {
     defender.dead = true;
     state.gameOver = true;
@@ -150,16 +150,20 @@ function resolveAttack(attacker, defender, state, attackerKey) {
   }
 }
 
-function updateGameState(state, dt) {
-  const { p1, p2 } = state.players;
-  const now = Date.now();
+function isFightActive(state) {
+  return Boolean(state.started && !state.gameOver);
+}
 
-  if (!state.started && state.startAt && now >= state.startAt) {
+function syncFightStartState(state, nowMs) {
+  if (!state.started && state.startAt && nowMs >= state.startAt) {
     state.started = true;
     state.startAt = null;
   }
+}
 
-  const gameActive = state.started && !state.gameOver;
+function runFightPlayerIntentSystem({ state, dt }) {
+  const { p1, p2 } = state.players;
+  const gameActive = isFightActive(state);
 
   for (const player of [p1, p2]) {
     if (player.dead) {
@@ -175,6 +179,7 @@ function updateGameState(state, dt) {
       player.attackTimer = 0;
       if (player.y > GROUND_Y) {
         player.y = GROUND_Y;
+        player.vy = 0;
       }
       continue;
     }
@@ -195,7 +200,6 @@ function updateGameState(state, dt) {
       player.vy = JUMP_SPEED;
     }
 
-    // Attack system
     tryStartAttack(player);
     if (player.attacking) {
       player.attackTimer -= dt;
@@ -205,12 +209,17 @@ function updateGameState(state, dt) {
         player.attackTimer = 0;
       }
     }
+
     if (player.cooldownTimer > 0) {
       player.cooldownTimer -= dt;
     }
   }
+}
 
-  // Physics
+function runFightPhysicsSystem({ state, dt }) {
+  const { p1, p2 } = state.players;
+  const gameActive = isFightActive(state);
+
   for (const player of [p1, p2]) {
     if (!player.dead && gameActive) {
       player.vy += GRAVITY * dt;
@@ -223,60 +232,108 @@ function updateGameState(state, dt) {
 
       player.x += player.vx * dt;
       player.x = Math.max(100, Math.min(1180, player.x));
-    } else if (!player.dead && !gameActive && player.y > GROUND_Y) {
+      continue;
+    }
+
+    if (!player.dead && !gameActive && player.y > GROUND_Y) {
       player.y = GROUND_Y;
       player.vy = 0;
     }
   }
+}
 
-  if (gameActive) {
-    // Push apart if too close (only when both near ground, allow jump-over)
-    const dy = Math.abs(p1.y - p2.y);
-    const bothGrounded = dy < 100;
-    const dx = p1.x - p2.x;
-    if (Math.abs(dx) < MIN_SEPARATION && bothGrounded) {
-      const push = (MIN_SEPARATION - Math.abs(dx)) / 2;
-      const dir = dx === 0 ? 1 : Math.sign(dx);
-      p1.x += push * dir;
-      p2.x -= push * dir;
-      p1.vx = 0;
-      p2.vx = 0;
-    }
+function runFightSeparationSystem({ state }) {
+  if (!isFightActive(state)) return;
 
-    p1.x = Math.max(100, Math.min(1180, p1.x));
-    p2.x = Math.max(100, Math.min(1180, p2.x));
+  const { p1, p2 } = state.players;
+  const dy = Math.abs(p1.y - p2.y);
+  const bothGrounded = dy < 100;
+  const dx = p1.x - p2.x;
+  if (Math.abs(dx) < MIN_SEPARATION && bothGrounded) {
+    const push = (MIN_SEPARATION - Math.abs(dx)) / 2;
+    const dir = dx === 0 ? 1 : Math.sign(dx);
+    p1.x += push * dir;
+    p2.x -= push * dir;
+    p1.vx = 0;
+    p2.vx = 0;
+  }
 
-    // Resolve attacks
-    resolveAttack(p1, p2, state, "p1");
-    resolveAttack(p2, p1, state, "p2");
+  p1.x = Math.max(100, Math.min(1180, p1.x));
+  p2.x = Math.max(100, Math.min(1180, p2.x));
+}
 
-    // Health regeneration
-    const tNow = state.lastUpdate / 1000;
-    for (const player of [p1, p2]) {
-      if (!player.dead && player.health < MAX_HEALTH) {
-        const timeSinceHit = tNow - (player.lastHitTime || 0);
-        if (timeSinceHit >= REGEN_DELAY) {
-          player.health = Math.min(MAX_HEALTH, player.health + REGEN_RATE * dt);
-        }
+function runFightCombatSystem({ state, nowMs }) {
+  if (!isFightActive(state)) return;
+
+  const nowSec = nowMs / 1000;
+  const { p1, p2 } = state.players;
+  resolveAttack(p1, p2, state, "p1", nowSec);
+  resolveAttack(p2, p1, state, "p2", nowSec);
+}
+
+function runFightRegenSystem({ state, dt, nowMs }) {
+  if (!isFightActive(state)) return;
+
+  const tNow = nowMs / 1000;
+  for (const player of [state.players.p1, state.players.p2]) {
+    if (!player.dead && player.health < MAX_HEALTH) {
+      const timeSinceHit = tNow - (player.lastHitTime || 0);
+      if (timeSinceHit >= REGEN_DELAY) {
+        player.health = Math.min(MAX_HEALTH, player.health + REGEN_RATE * dt);
       }
-    }
-
-    // Timer
-    state.timer = Math.max(0, state.timer - dt);
-    if (state.timer === 0 && !state.gameOver) {
-      state.gameOver = true;
-      if (p1.health > p2.health) state.winner = "p1";
-      else if (p2.health > p1.health) state.winner = "p2";
-      else state.winner = "tie";
     }
   }
 }
 
+function runFightTimerSystem({ state, dt }) {
+  if (!isFightActive(state)) return;
+
+  const { p1, p2 } = state.players;
+  state.timer = Math.max(0, state.timer - dt);
+  if (state.timer === 0 && !state.gameOver) {
+    state.gameOver = true;
+    if (p1.health > p2.health) state.winner = "p1";
+    else if (p2.health > p1.health) state.winner = "p2";
+    else state.winner = "tie";
+  }
+}
+
+function createFightSimulationSystems() {
+  return [
+    {
+      priority: -200,
+      system: {
+        name: "timestamp",
+        update: ({ state, nowMs }) => {
+          state.lastUpdate = nowMs;
+        },
+      },
+    },
+    {
+      priority: -150,
+      system: {
+        name: "start-transition",
+        update: ({ state, nowMs }) => {
+          syncFightStartState(state, nowMs);
+        },
+      },
+    },
+    { priority: -100, system: { name: "player-intent", update: runFightPlayerIntentSystem } },
+    { priority: -50, system: { name: "physics", update: runFightPhysicsSystem } },
+    { priority: 10, system: { name: "separation", update: runFightSeparationSystem } },
+    { priority: 20, system: { name: "combat", update: runFightCombatSystem } },
+    { priority: 30, system: { name: "regeneration", update: runFightRegenSystem } },
+    { priority: 40, system: { name: "timer", update: runFightTimerSystem } },
+  ];
+}
+
 export function registerFightGame(io) {
-  registerGame({
+  registerPluggableGame({
     io,
     meta: fightGameMeta,
     createState: createInitialGameState,
+    systems: createFightSimulationSystems(),
+    shouldStep: ({ state }) => !state.gameOver,
     onStateCreated: initAttackTimestamps,
     onPlayerConnected: (state, playerId) => {
       state.players[playerId].connected = true;
@@ -341,11 +398,6 @@ export function registerFightGame(io) {
       emitEvent({ nsp, gameId, type: "rematchStarted", target: "game" });
     },
     beforeUpdate: scheduleFightStart,
-    updateState: (state, dt) => {
-      if (!state.gameOver) {
-        updateGameState(state, dt);
-      }
-    },
     shouldCleanup: (state, now) => {
       if (!state.abandonedAt) return false;
       return now - state.abandonedAt > ROOM_CLEANUP_DELAY_MS;

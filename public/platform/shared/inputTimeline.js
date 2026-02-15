@@ -30,6 +30,7 @@ export function createInputTimeline(config = {}) {
 
   let running = false;
   let timerId = null;
+  let expectedNextMs = null;
   let nextSeq = 0;
   let lastSampleMs = null;
   const pendingFrames = [];
@@ -66,17 +67,28 @@ export function createInputTimeline(config = {}) {
     if (running) return;
     running = true;
     resetClock();
-    timerId = setInterval(() => {
+    expectedNextMs = nowFn() + intervalMs;
+    timerId = setTimeout(function tick() {
+      if (!running) return;
       enqueueFrame();
+      expectedNextMs += intervalMs;
+      const nowMs = nowFn();
+      const driftMs = nowMs - expectedNextMs;
+      if (driftMs > intervalMs * 4) {
+        expectedNextMs = nowMs + intervalMs;
+      }
+      const delayMs = Math.max(0, expectedNextMs - nowMs);
+      timerId = setTimeout(tick, delayMs);
     }, intervalMs);
   }
 
   function stop() {
     running = false;
     if (timerId != null) {
-      clearInterval(timerId);
+      clearTimeout(timerId);
       timerId = null;
     }
+    expectedNextMs = null;
   }
 
   function reset() {

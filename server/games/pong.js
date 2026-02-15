@@ -1,7 +1,7 @@
 import { pongGameMeta } from "./metadata.js";
 import {
   emitEvent,
-  registerGame,
+  registerPluggableGame,
   scheduleStart,
 } from "../utils/utils.js";
 
@@ -87,18 +87,20 @@ function sanitize(state) {
   };
 }
 
-function updateGameState(state, dt) {
-  const { p1, p2 } = state.players;
-  const ball = state.ball;
-  const now = Date.now();
+function isPongActive(state) {
+  return Boolean(state.started && !state.gameOver);
+}
 
-  // Ensure countdown starts if both players are connected
+function syncPongStartState(state, nowMs) {
   scheduleStart(state, COUNTDOWN_MS);
-
-  if (!state.started && state.startAt && now >= state.startAt) {
+  if (!state.started && state.startAt && nowMs >= state.startAt) {
     state.started = true;
     state.startAt = null;
   }
+}
+
+function runPongPaddleSystem({ state, dt }) {
+  const { p1, p2 } = state.players;
 
   // Paddles move regardless to respond instantly
   for (const player of [p1, p2]) {
@@ -108,8 +110,13 @@ function updateGameState(state, dt) {
     player.y += vy * dt;
     player.y = Math.max(PADDLE_H / 2, Math.min(HEIGHT - PADDLE_H / 2, player.y));
   }
+}
 
-  if (!state.started || state.gameOver) return;
+function runPongBallSystem({ state, dt }) {
+  if (!isPongActive(state)) return;
+
+  const { p1, p2 } = state.players;
+  const ball = state.ball;
 
   // Ball physics
   ball.x += ball.vx * dt;
@@ -175,11 +182,37 @@ function updateGameState(state, dt) {
   }
 }
 
+function createPongSimulationSystems() {
+  return [
+    {
+      priority: -100,
+      system: {
+        name: "timestamp",
+        update: ({ state, nowMs }) => {
+          state.lastUpdate = nowMs;
+        },
+      },
+    },
+    {
+      priority: -80,
+      system: {
+        name: "start-transition",
+        update: ({ state, nowMs }) => {
+          syncPongStartState(state, nowMs);
+        },
+      },
+    },
+    { priority: -40, system: { name: "paddle", update: runPongPaddleSystem } },
+    { priority: 0, system: { name: "ball", update: runPongBallSystem } },
+  ];
+}
+
 export function registerPongGame(io) {
-  registerGame({
+  registerPluggableGame({
     io,
     meta: pongGameMeta,
     createState: createInitialGameState,
+    systems: createPongSimulationSystems(),
     onPlayerConnected: (state, playerId) => {
       state.players[playerId].connected = true;
       state.abandonedAt = null;
@@ -250,7 +283,6 @@ export function registerPongGame(io) {
       if (!state.abandonedAt) return false;
       return now - state.abandonedAt > ROOM_CLEANUP_DELAY_MS;
     },
-    updateState: updateGameState,
     serializeState: sanitize,
     afterEmit: (state) => {
       state.lastLost = null;

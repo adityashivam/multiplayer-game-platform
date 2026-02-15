@@ -28,6 +28,8 @@ server/
     pong.js                      # Pong game server logic
   utils/
     registerGame.js              # Generic game registration framework
+    simulationPipeline.js        # Priority-based simulation systems engine
+    pluggableGameRuntime.js      # registerPluggableGame() helper API
     gameLoop.js                  # 60Hz tick loop + state broadcast
     rooms.js                     # Room join/leave/rejoin logic
     inputProtocol.js             # Sequenced input with rollback support
@@ -41,6 +43,8 @@ public/
       gameDom.js                 # Canvas ref + controller input API
       interpolation.js           # Hermite cubic interpolation engine
       interpolationWorker.js     # Recommended interpolation wrapper
+      modularRuntime.js          # Unity-style Update/FixedUpdate runtime
+      pluggablePoseRuntime.js    # Genre-agnostic pose interpolation runtime
       clientPrediction.js        # Client-side prediction + reconciliation
       inputTimeline.js           # Input buffering with sequence tracking
       connectionBridge.js        # Connection state for React UI
@@ -88,6 +92,8 @@ export const myGameMeta = {
 ### Step 2: Create Server Game Handler
 
 **File: `server/games/myGame.js`**
+
+`registerGame(...)` below is the minimal path. For a modular, genre-agnostic system architecture, use `registerPluggableGame(...)` (documented in the Server-Side API section).
 
 ```js
 import { myGameMeta } from "./metadata.js";
@@ -245,7 +251,7 @@ const interpolator = createWorkerInterpolator({
     p1x: state.players.p1.vx || 0, p1y: state.players.p1.vy || 0,
     p2x: state.players.p2.vx || 0, p2y: state.players.p2.vy || 0,
   }),
-  interpDelayMs: 50,
+  interpDelayMs: 45,
   maxBufferSize: 12,
 });
 
@@ -387,6 +393,41 @@ The core framework for registering a multiplayer game. Handles room creation, so
 | `dtFallback` | number | `1/60` | Fallback delta time if measurement fails |
 | `stateEvent` | string | `"state"` | Socket event name for state broadcast |
 
+### `registerPluggableGame(options)` (Recommended for New Games)
+
+**Import:** `import { registerPluggableGame } from "../utils/utils.js";`
+
+`registerPluggableGame` wraps `registerGame` and runs your simulation as prioritized, pluggable systems. This is the preferred path for building genre-agnostic game logic (fighting, shooter, racer, sports, etc.).
+
+Additional options (on top of all `registerGame` options):
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `systems` | `Array<{ priority?: number, system: Object }>` | `[]` | Ordered simulation modules. Each `system` may implement `update(ctx)`, `shouldRun(ctx)`, `onReset(ctx)`. |
+| `shouldStep` | `({ state, dt, options }) => boolean` | — | Global guard before each simulation tick. Return `false` to skip stepping. |
+| `simulationShared` | Object | `{}` | Shared mutable context exposed to all systems as `ctx.shared`. |
+| `simulationNowFn` | `() => number` | `Date.now` | Custom time source used by simulation context. |
+| `afterSimulationStep` | `(state, dt) => void` | — | Hook called after systems run, before state serialization. |
+
+**Minimal example:**
+
+```js
+import { registerPluggableGame } from "../utils/utils.js";
+
+registerPluggableGame({
+  io,
+  meta: myGameMeta,
+  createState,
+  systems: [
+    { priority: -100, system: { name: "input", update: runInputSystem } },
+    { priority: -50, system: { name: "physics", update: runPhysicsSystem } },
+    { priority: 10, system: { name: "combat", update: runCombatSystem } },
+  ],
+  shouldStep: ({ state }) => !state.gameOver,
+  serializeState,
+});
+```
+
 ### `applySequencedInput(options)`
 
 **Import:** `import { applySequencedInput } from "../utils/inputProtocol.js";`
@@ -522,7 +563,7 @@ Despite the name, this runs **synchronously on the main thread** (not a Web Work
 |--------|------|---------|-------------|
 | `extractPositions` | `(state) => Object` | *required* | Extract `{key: number}` position fields from server state |
 | `extractVelocities` | `(state) => Object` | — | Extract matching velocity fields. Enables Hermite cubic interpolation. |
-| `interpDelayMs` | number | 50 | Render delay behind server (ms). Lower = less latency, more extrapolation. Range: 30-100. |
+| `interpDelayMs` | number | 45 | Render delay behind server (ms). Lower = less latency, more extrapolation. Range: 30-100. |
 | `maxBufferSize` | number | 10 | Max snapshots in buffer. At 60Hz, 12 = 200ms of history. Range: 6-20. |
 | `adaptive` | boolean | true | Auto-tune delay based on network quality. |
 
@@ -553,7 +594,7 @@ const interpolator = createWorkerInterpolator({
     p2x: state.players.p2.vx || 0,
     p2y: state.players.p2.vy || 0,
   }),
-  interpDelayMs: 50,
+  interpDelayMs: 45,
   maxBufferSize: 12,
 });
 
@@ -567,6 +608,62 @@ onUpdate(() => {
     player1.pos.x = pos.p1x;
     player2.pos.x = pos.p2x;
   }
+});
+```
+
+### pluggablePoseRuntime.js (Genre-Agnostic Runtime API)
+
+```js
+import { createPluggablePoseRuntime } from "/platform/shared/pluggablePoseRuntime.js";
+```
+
+Use this when building custom movement/render pipelines for any genre. It provides fixed-step simulation + interpolated render poses through callbacks.
+
+**Config:**
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `fixedDtSec` | number | `1/120` | Fixed simulation step in seconds. |
+| `maxFrameSec` | number | `0.08` | Clamp for large frame deltas after hitches/tab resume. |
+| `maxFixedSteps` | number | `10` | Max fixed steps consumed per frame before dropping overflow. |
+| `targetRenderFps` | number \| null | `60` | Render cap. Use `null` to render every frame. |
+| `shared` | Object | `{}` | Shared mutable context available in callbacks as `ctx.shared`. |
+| `nowFn` | `() => number` | `performance.now` | Custom millisecond clock. |
+| `samplePose` | `(ctx) => Object \| null` | *required* | Return numeric pose fields (`{x,y,...}`) each fixed step. |
+| `applyPose` | `(pose, ctx) => void` | *required* | Apply interpolated pose to render objects. |
+| `shouldSample` | `(ctx) => boolean` | — | Optional gate to skip sampling for a fixed step. |
+| `onReset` | `(ctx) => void` | — | Optional hook when runtime resets. |
+| `onDispose` | `(ctx) => void` | — | Optional hook when runtime is destroyed. |
+
+**Methods:**
+
+| Method | Signature | Description |
+|--------|-----------|-------------|
+| `step` | `(options?) => Object` | Advance runtime for this frame (call from `onUpdate`). |
+| `reset` | `() => void` | Clear interpolation buffers and reset runtime clocks. |
+| `destroy` | `() => void` | Stop runtime and free state. |
+| `setTargetRenderFps` | `(fps \| null) => void` | Change render cap at runtime. |
+| `setFixedDtSec` | `(sec) => void` | Change fixed simulation step at runtime. |
+| `getStats` | `() => Object` | Get runtime stats (`fixedDtSec`, dropped steps, etc.). |
+
+**Example:**
+
+```js
+const poseRuntime = createPluggablePoseRuntime({
+  fixedDtSec: 1 / 120,
+  targetRenderFps: 60,
+  samplePose: (ctx) => {
+    // Run prediction/interpolation and return the current pose for this fixed step
+    return { playerX: 120, playerY: 380 };
+  },
+  applyPose: (pose) => {
+    player.pos.x = pose.playerX;
+    player.pos.y = pose.playerY;
+  },
+});
+
+onUpdate(() => {
+  poseRuntime.step({ nowMs: performance.now() });
 });
 ```
 
@@ -839,7 +936,7 @@ Remote players are rendered using **Hermite cubic spline interpolation** between
 
 **How it works:**
 1. Server sends state at 60Hz. Each snapshot is buffered with a timestamp.
-2. The client renders 50ms behind the latest snapshot (configurable `interpDelayMs`).
+2. The client renders about 45ms behind the latest snapshot by default (configurable `interpDelayMs`).
 3. Each frame, the interpolator finds the two snapshots surrounding the render time and interpolates between them.
 4. If `extractVelocities` is provided, Hermite cubic interpolation is used. Otherwise, linear lerp.
 5. If the render time is ahead of all snapshots (packet loss), the system extrapolates using velocity data.
@@ -870,9 +967,9 @@ When prediction diverges too far from the server:
 
 | Parameter | Default | Range | Description |
 |-----------|---------|-------|-------------|
-| `RESIM_ERROR_PX` | 12 | 6-30 | Soft trigger: resim when prediction diverges this far (px) |
-| `RESIM_HARD_ERROR_PX` | 28 | 16-60 | Hard trigger: force resim at this error |
-| `RESIM_COOLDOWN_MS` | 50 | 30-200 | Min time between resimulations (ms) |
+| `RESIM_ERROR_PX` | 9 | 6-30 | Soft trigger: resim when prediction diverges this far (px) |
+| `RESIM_HARD_ERROR_PX` | 22 | 16-60 | Hard trigger: force resim at this error |
+| `RESIM_COOLDOWN_MS` | 33 | 30-200 | Min time between resimulations (ms) |
 
 ### Tuning Guide
 

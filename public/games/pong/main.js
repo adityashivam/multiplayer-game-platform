@@ -13,6 +13,7 @@ import {
 } from "/platform/shared/performanceSettings.js";
 import { createWorkerInterpolator } from "/platform/shared/interpolationWorker.js";
 import { updateConnectionState } from "/platform/shared/connectionBridge.js";
+import { createPluggablePoseRuntime } from "/platform/shared/pluggablePoseRuntime.js";
 
 const GAME_SLUG = "pong";
 const ROOM_READY_EVENT = "kaboom:room-ready";
@@ -148,18 +149,17 @@ const unsubscribeConnection = socket.onConnectionChange((snapshot) => {
 });
 let rematchPending = false;
 let targetRenderFps = initialPerformanceProfile.targetFps;
-let renderFrameBudgetMs = 1000 / targetRenderFps;
-let lastRenderFrameTs = 0;
+let activePongRuntime = null;
 const interpolator = createWorkerInterpolator({
   extractPositions: extractPongPositions,
-  interpDelayMs: 50,
-  maxBufferSize: 12,
+  interpDelayMs: 36,
+  maxBufferSize: 14,
 });
 
 function applyRuntimePerformanceProfile(nextProfile) {
   const profile = normalizePerformanceProfile(nextProfile);
   targetRenderFps = profile.targetFps;
-  renderFrameBudgetMs = 1000 / targetRenderFps;
+  activePongRuntime?.setTargetRenderFps(targetRenderFps);
   if (typeof setPixelDensity === "function") {
     try {
       setPixelDensity(profile.resolutionScale);
@@ -321,6 +321,10 @@ function initControllerNavigation() {
 scene("pong", () => {
   setGravity(0);
   interpolator.reset();
+  if (activePongRuntime) {
+    activePongRuntime.destroy();
+    activePongRuntime = null;
+  }
   socket.offEvent("state");
   socket.offEvent("playerJoined");
   socket.offEvent("playerLeft");
@@ -414,6 +418,35 @@ scene("pong", () => {
   toast.hidden = true;
   let toastTimer = null;
   let gameOverFlag = false;
+  const interpRuntimeOpts = {
+    pingMs: 0,
+    pingP95Ms: 0,
+    jitterP95Ms: 0,
+    packetLossPct: 0,
+    nowMs: 0,
+  };
+
+  const movementRuntime = createPluggablePoseRuntime({
+    fixedDtSec: 1 / 120,
+    maxFrameSec: 0.08,
+    maxFixedSteps: 10,
+    targetRenderFps,
+    samplePose: (ctx) => {
+      interpRuntimeOpts.pingMs = latestConnectionSnapshot?.ping;
+      interpRuntimeOpts.pingP95Ms = latestConnectionSnapshot?.pingP95Ms;
+      interpRuntimeOpts.jitterP95Ms = latestConnectionSnapshot?.jitterP95Ms;
+      interpRuntimeOpts.packetLossPct = latestConnectionSnapshot?.packetLossPct;
+      interpRuntimeOpts.nowMs = ctx.nowMs;
+      return interpolator.getInterpolatedPositions(interpRuntimeOpts);
+    },
+    applyPose: (pose) => {
+      paddle1.pos.y = pose.p1y;
+      paddle2.pos.y = pose.p2y;
+      ball.pos.x = pose.ballx;
+      ball.pos.y = pose.bally;
+    },
+  });
+  activePongRuntime = movementRuntime;
 
   function showToast(msg) {
     if (!toast) return;
@@ -471,7 +504,7 @@ scene("pong", () => {
     rematchPending = false;
     hasPlayedRound = false;
     gameOverFlag = false;
-    lastRenderFrameTs = 0;
+    movementRuntime.reset();
     hideEndGameModal();
   });
 
@@ -480,7 +513,7 @@ scene("pong", () => {
     rematchPending = false;
     hasPlayedRound = false;
     gameOverFlag = false;
-    lastRenderFrameTs = 0;
+    movementRuntime.reset();
     interpolator.reset();
     hideEndGameModal();
   });
@@ -492,7 +525,7 @@ scene("pong", () => {
     interpolator.pushState(state);
 
     // Discrete updates use latest state immediately
-    const { players, ball: ballState, gameOver, winner, started, startAt, lastLost } = state;
+    const { players, gameOver, winner, started, startAt, lastLost } = state;
     const connected = { p1: players.p1.connected, p2: players.p2.connected };
 
     if (connected.p1 !== lastConnected.p1 || connected.p2 !== lastConnected.p2) {
@@ -537,22 +570,7 @@ scene("pong", () => {
 
   // Per-frame interpolated position updates
   onUpdate(() => {
-    const nowMs = performance.now();
-    if (lastRenderFrameTs && nowMs - lastRenderFrameTs < renderFrameBudgetMs - 0.5) return;
-    lastRenderFrameTs = nowMs;
-
-    const positions = interpolator.getInterpolatedPositions({
-      pingMs: latestConnectionSnapshot?.ping,
-      pingP95Ms: latestConnectionSnapshot?.pingP95Ms,
-      jitterP95Ms: latestConnectionSnapshot?.jitterP95Ms,
-      packetLossPct: latestConnectionSnapshot?.packetLossPct,
-    });
-    if (!positions) return;
-
-    paddle1.pos.y = positions.p1y;
-    paddle2.pos.y = positions.p2y;
-    ball.pos.x = positions.ballx;
-    ball.pos.y = positions.bally;
+    movementRuntime.step({ nowMs: performance.now() });
   });
 });
 
@@ -567,6 +585,8 @@ function disposeGameRuntime() {
   cleanupControllerNavigation?.();
   registerRematchHandler(null);
   hideEndGameModal();
+  activePongRuntime?.destroy?.();
+  activePongRuntime = null;
   interpolator.destroy?.();
   unsubscribeConnection?.();
   unsubscribePerformanceProfile?.();

@@ -15,7 +15,7 @@ export function createWorkerInterpolator(config = {}) {
     ? config.extractVelocities
     : null;
   const interpolationConfig = {
-    interpDelayMs: config.interpDelayMs ?? 50,
+    interpDelayMs: config.interpDelayMs ?? 45,
     maxBufferSize: config.maxBufferSize ?? 10,
     adaptive: config.adaptive ?? true,
     extractVelocities: extractVelocities

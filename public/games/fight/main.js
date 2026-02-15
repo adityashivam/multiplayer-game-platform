@@ -11,6 +11,7 @@ import { createWorkerInterpolator } from "/platform/shared/interpolationWorker.j
 import { updateConnectionState } from "/platform/shared/connectionBridge.js";
 import { createClientPredictor } from "/platform/shared/clientPrediction.js";
 import { createInputTimeline } from "/platform/shared/inputTimeline.js";
+import { createPluggablePoseRuntime } from "/platform/shared/pluggablePoseRuntime.js";
 
 // ---------- Kaboom init ----------
 const { canvas } = getGameDomRefs();
@@ -47,20 +48,20 @@ const ROOM_READY_EVENT = "kaboom:room-ready";
 const DISPOSE_GAME_EVENT = "kaboom:dispose-game";
 const NET_STATS_REFRESH_MS = 150;
 const SERVER_TICK_MS = 1000 / 60;
-const INPUT_STREAM_HZ = 60;
+const INPUT_STREAM_HZ = 120;
 const MAX_PENDING_INPUT_FRAMES = 240;
 // ── Resimulation Tuning ──
 // Controls when the client replays inputs from an authoritative server snapshot.
 // More aggressive = tighter sync with server, but more visual corrections.
 // More conservative = fewer corrections, but prediction can drift further.
-const RESIM_ERROR_PX = 12;       // Soft threshold: trigger resim when prediction diverges this many px from server.
+const RESIM_ERROR_PX = 9;        // Soft threshold: trigger resim when prediction diverges this many px from server.
                                   //   Lower → tighter sync, more frequent resims. Higher → more drift tolerance.
                                   //   Range: 6-30. Below 6 causes constant resim churn.
-const RESIM_HARD_ERROR_PX = 28;  // Hard threshold: force resim even if soft threshold wasn't met.
+const RESIM_HARD_ERROR_PX = 22;  // Hard threshold: force resim even if soft threshold wasn't met.
                                   //   Should be ~2x RESIM_ERROR_PX. Range: 16-60.
-const RESIM_COOLDOWN_MS = 50;    // Minimum time between resimulations in ms.
+const RESIM_COOLDOWN_MS = 33;    // Minimum time between resimulations in ms.
                                   //   Lower → more responsive but more CPU. Higher → less CPU but more drift.
-                                  //   Range: 30-200. At 50ms, resim can happen every ~3 frames.
+                                  //   Range: 30-200. At 33ms, resim can happen every ~2 frames.
 const LOCAL_NET_HUD_ENABLED = false;
 let shareModalShown = false;
 let toggleNetworkDiagnostics = () => {};
@@ -68,6 +69,7 @@ let cleanupNetworkDiagnostics = () => {};
 let resetFightNetcodeState = () => {};
 let stopFightInputStream = () => {};
 let sendFightInputNow = () => {};
+let activeFightRuntime = null;
 
 const localInputState = {
   left: false,
@@ -102,16 +104,6 @@ function clampNumber(value, min, max) {
 
 function toFiniteNumber(value) {
   return Number.isFinite(value) ? value : null;
-}
-
-function smoothToward(current, target, ratePerSec, dtSec, snapThreshold) {
-  if (!Number.isFinite(current)) return target;
-  if (!Number.isFinite(target)) return current;
-  const delta = target - current;
-  if (Math.abs(delta) >= snapThreshold) return target;
-  const x = Math.max(0, ratePerSec) * Math.max(0, dtSec);
-  const alpha = x / (1 + x);
-  return current + delta * alpha;
 }
 
 function resetLocalInputState() {
@@ -240,13 +232,13 @@ function deriveSmoothingConfig(stats, pingMs) {
   const packetLossPct = stats?.packetLossPct ?? 0;
   const rttMs = Number.isFinite(pingMs) ? pingMs : 0;
 
-  let interpDelayMs = 40 + avgIntervalMs * 1.25 + jitterMs * 2.0 + packetLossPct * 2;
-  if (rttMs > 120) interpDelayMs += (rttMs - 120) * 0.14;
-  interpDelayMs = clampNumber(interpDelayMs, 40, 180);
+  let interpDelayMs = 34 + avgIntervalMs * 1.1 + jitterMs * 1.4 + packetLossPct * 1.4;
+  if (rttMs > 100) interpDelayMs += (rttMs - 100) * 0.1;
+  interpDelayMs = clampNumber(interpDelayMs, 34, 140);
 
-  let extrapolateMs = 6 + jitterMs * 1.0 + packetLossPct * 1.5;
-  if (rttMs > 180) extrapolateMs += 6;
-  extrapolateMs = clampNumber(extrapolateMs, 6, 70);
+  let extrapolateMs = 8 + jitterMs * 0.85 + packetLossPct * 1.2;
+  if (rttMs > 170) extrapolateMs += 4;
+  extrapolateMs = clampNumber(extrapolateMs, 8, 50);
 
   return { interpDelayMs, extrapolateMs };
 }
@@ -453,11 +445,11 @@ let rematchPending = false;
 const interpolator = createWorkerInterpolator({
   extractPositions: extractFightPositions,
   extractVelocities: extractFightVelocities,
-  interpDelayMs: 50,   // Base render delay behind server in ms. The remote player is rendered this far
+  interpDelayMs: 42,   // Base render delay behind server in ms. The remote player is rendered this far
                         //   in the past to have snapshots to interpolate between.
                         //   Lower → less visual latency but more extrapolation (guessing). Higher → smoother but laggier.
                         //   Range: 30-100. 50 is a good default for 60Hz server tick.
-  maxBufferSize: 12,   // Max server snapshots to keep in the interpolation buffer.
+  maxBufferSize: 14,   // Max server snapshots to keep in the interpolation buffer.
                         //   Higher → survives longer packet loss bursts. Lower → less memory.
                         //   Range: 6-20. At 60Hz tick, 12 = 200ms of history.
 });
@@ -755,6 +747,10 @@ const PLAYER2_Y_OFFSET = 0;
 scene("fight", () => {
   setGravity(0); // Server handles physics
   interpolator.reset();
+  if (activeFightRuntime) {
+    activeFightRuntime.destroy();
+    activeFightRuntime = null;
+  }
   socket.offEvent("state");
   socket.offEvent("playerJoined");
   socket.offEvent("playerLeft");
@@ -823,9 +819,16 @@ scene("fight", () => {
   let hasAuthoritativeSync = false;
   const netEstimator = createNetworkEstimator();
   let latestNetStats = netEstimator.getStats();
-  let smoothingConfig = { interpDelayMs: 55, extrapolateMs: 14 };
+  let smoothingConfig = { interpDelayMs: 42, extrapolateMs: 10 };
   // Reusable options object to avoid allocation per frame
-  const _interpRuntimeOpts = { pingMs: 0, pingP95Ms: 0, jitterP95Ms: 0, packetLossPct: 0 };
+  const _interpRuntimeOpts = {
+    pingMs: 0,
+    pingP95Ms: 0,
+    jitterP95Ms: 0,
+    packetLossPct: 0,
+    interpDelayMs: 42,
+    extrapolateMs: 10,
+  };
   // ── Client Prediction Tuning (local player responsiveness) ──
   const predictor = createClientPredictor({
     // Physics constants — MUST match server/games/fight.js exactly or prediction will diverge.
@@ -837,23 +840,27 @@ scene("fight", () => {
     groundY: 870,
     minSeparation: 120,
 
+    correctionBlendFactor: 0.45,
+    correctionDeadzone: 0.35,
+    correctionDecayCoeff: 28,
+
     // ── Contact / Near-Opponent Feel ──
     // When two players are close, the client can't accurately predict push-apart
     // because the opponent's position is delayed. These params control how the
     // client handles this uncertainty zone.
     contactExitBuffer: 64,         // Extra px beyond minSeparation before contact assist fully releases.
                                     //   Higher → contact assist lingers longer after separating. Range: 30-100.
-    contactAssistRiseRate: 18,     // How fast contact assist engages when entering contact zone (1/sec).
+    contactAssistRiseRate: 20,     // How fast contact assist engages when entering contact zone (1/sec).
                                     //   Higher → snappier engagement. Lower → gradual transition.
                                     //   Range: 10-30. Too high causes jitter at contact boundary.
-    contactAssistFallRate: 9,      // How fast contact assist releases when leaving contact zone (1/sec).
+    contactAssistFallRate: 11,     // How fast contact assist releases when leaving contact zone (1/sec).
                                     //   Lower → smoother exit from contact. Higher → snappier release.
                                     //   Range: 4-20.
-    contactMoveSuppression: 0.7,   // How much local X movement is suppressed near opponent (0-1).
+    contactMoveSuppression: 0.58,  // How much local X movement is suppressed near opponent (0-1).
                                     //   0 = no suppression (full local control, but oscillates).
                                     //   1 = full suppression (server-only movement near contact).
                                     //   Range: 0.5-0.9. Higher = more stable but less responsive.
-    contactServerFollowRate: 20,   // How fast position follows server near contact (1/sec).
+    contactServerFollowRate: 24,   // How fast position follows server near contact (1/sec).
                                     //   Higher → tighter server tracking. Lower → more local feel.
                                     //   Range: 10-30. Too high causes rubber-banding.
   });
@@ -865,6 +872,90 @@ scene("fight", () => {
     opponentY: undefined,
     replay: true,
   };
+  const movementRuntime = createPluggablePoseRuntime({
+    fixedDtSec: 1 / 120,
+    maxFrameSec: 0.08,
+    maxFixedSteps: 10,
+    targetRenderFps: 60,
+    samplePose: (ctx) => {
+      if (!player1 || !player2) return;
+
+      _interpRuntimeOpts.pingMs = latestConnectionSnapshot?.ping ?? 0;
+      _interpRuntimeOpts.pingP95Ms = latestConnectionSnapshot?.pingP95Ms ?? 0;
+      _interpRuntimeOpts.jitterP95Ms = latestConnectionSnapshot?.jitterP95Ms ?? 0;
+      _interpRuntimeOpts.packetLossPct = latestConnectionSnapshot?.packetLossPct ?? 0;
+      _interpRuntimeOpts.interpDelayMs = smoothingConfig.interpDelayMs;
+      _interpRuntimeOpts.extrapolateMs = smoothingConfig.extrapolateMs;
+      _interpRuntimeOpts.nowMs = ctx.nowMs;
+
+      const positions = interpolator.getInterpolatedPositions(_interpRuntimeOpts);
+      if (!positions) return;
+
+      const localServerPlayer = myPlayerId && latestServerState?.players?.[myPlayerId];
+      _predictionOpts.active = Boolean(
+        latestServerState?.started &&
+          !latestServerState?.gameOver &&
+          latestServerState?.connected?.p1 &&
+          latestServerState?.connected?.p2,
+      );
+      _predictionOpts.attackSlowdown = Boolean(
+        localServerPlayer?.attacking ||
+          localInputState.attack ||
+          localInputState.heavyAttack ||
+          localInputState.aerialAttack,
+      );
+      const remoteServerPlayer = myPlayerId === "p1"
+        ? latestServerState?.players?.p2
+        : myPlayerId === "p2"
+          ? latestServerState?.players?.p1
+          : null;
+      _predictionOpts.opponentX = remoteServerPlayer?.x ??
+        (myPlayerId === "p1" ? positions.p2x : myPlayerId === "p2" ? positions.p1x : undefined);
+      _predictionOpts.opponentY = remoteServerPlayer?.y ??
+        (myPlayerId === "p1" ? positions.p2y : myPlayerId === "p2" ? positions.p1y : undefined);
+
+      const predicted = predictor.step(
+        ctx.fixedDtSec,
+        localServerPlayer,
+        localInputState,
+        _predictionOpts,
+      );
+
+      if (myPlayerId === "p1") {
+        return {
+          p1x: predicted ? predicted.x : positions.p1x,
+          p1y: (predicted ? predicted.y : positions.p1y) + PLAYER1_Y_OFFSET,
+          p2x: positions.p2x,
+          p2y: positions.p2y + PLAYER2_Y_OFFSET,
+        };
+      }
+
+      if (myPlayerId === "p2") {
+        return {
+          p1x: positions.p1x,
+          p1y: positions.p1y + PLAYER1_Y_OFFSET,
+          p2x: predicted ? predicted.x : positions.p2x,
+          p2y: (predicted ? predicted.y : positions.p2y) + PLAYER2_Y_OFFSET,
+        };
+      }
+
+      return {
+        p1x: positions.p1x,
+        p1y: positions.p1y + PLAYER1_Y_OFFSET,
+        p2x: positions.p2x,
+        p2y: positions.p2y + PLAYER2_Y_OFFSET,
+      };
+    },
+    applyPose: (pose) => {
+      if (!player1 || !player2) return;
+      player1.pos.x = pose.p1x;
+      player1.pos.y = pose.p1y;
+      player2.pos.x = pose.p2x;
+      player2.pos.y = pose.p2y;
+    },
+  });
+  activeFightRuntime = movementRuntime;
+
   const inputTimeline = createInputTimeline({
     hz: INPUT_STREAM_HZ,
     maxPendingFrames: MAX_PENDING_INPUT_FRAMES,
@@ -927,10 +1018,11 @@ scene("fight", () => {
   }
 
   function resetNetcodeState() {
+    movementRuntime.reset();
     interpolator.reset();
     netEstimator.reset();
     latestNetStats = netEstimator.getStats();
-    smoothingConfig = { interpDelayMs: 55, extrapolateMs: 14 };
+    smoothingConfig = { interpDelayMs: 42, extrapolateMs: 10 };
     latestServerState = null;
     latestStateSeq = null;
     lastAckSeq = 0;
@@ -1305,66 +1397,8 @@ scene("fight", () => {
   });
 
   // Per-frame interpolated position updates
-  let _lastUpdateTime = performance.now();
   onUpdate(() => {
-    if (!player1 || !player2) return;
-
-    const nowMs = performance.now();
-    const deltaSec = clampNumber((nowMs - _lastUpdateTime) / 1000, 0, 0.05);
-    _lastUpdateTime = nowMs;
-
-    _interpRuntimeOpts.pingMs = latestConnectionSnapshot?.ping ?? 0;
-    _interpRuntimeOpts.pingP95Ms = latestConnectionSnapshot?.pingP95Ms ?? 0;
-    _interpRuntimeOpts.jitterP95Ms = latestConnectionSnapshot?.jitterP95Ms ?? 0;
-    _interpRuntimeOpts.packetLossPct = latestConnectionSnapshot?.packetLossPct ?? 0;
-    const positions = interpolator.getInterpolatedPositions(_interpRuntimeOpts);
-    if (!positions) return;
-
-    // Local player: use client-side prediction for instant response
-    // Remote player: use interpolated server state
-    const localServerPlayer = myPlayerId && latestServerState?.players?.[myPlayerId];
-
-    // Evaluate fight-game-specific conditions for the generic predictor
-    _predictionOpts.active = Boolean(
-      latestServerState?.started &&
-        !latestServerState?.gameOver &&
-        latestServerState?.connected?.p1 &&
-        latestServerState?.connected?.p2,
-    );
-    _predictionOpts.attackSlowdown = Boolean(
-      localServerPlayer?.attacking ||
-        localInputState.attack ||
-        localInputState.heavyAttack ||
-        localInputState.aerialAttack,
-    );
-    const remoteServerPlayer = myPlayerId === "p1"
-      ? latestServerState?.players?.p2
-      : myPlayerId === "p2"
-        ? latestServerState?.players?.p1
-        : null;
-    _predictionOpts.opponentX = remoteServerPlayer?.x ??
-      (myPlayerId === "p1" ? positions.p2x : myPlayerId === "p2" ? positions.p1x : undefined);
-    _predictionOpts.opponentY = remoteServerPlayer?.y ??
-      (myPlayerId === "p1" ? positions.p2y : myPlayerId === "p2" ? positions.p1y : undefined);
-    const predicted = predictor.step(deltaSec, localServerPlayer, localInputState, _predictionOpts);
-
-    if (myPlayerId === "p1") {
-      player1.pos.x = predicted ? predicted.x : positions.p1x;
-      player1.pos.y = (predicted ? predicted.y : positions.p1y) + PLAYER1_Y_OFFSET;
-      player2.pos.x = positions.p2x;
-      player2.pos.y = positions.p2y + PLAYER2_Y_OFFSET;
-    } else if (myPlayerId === "p2") {
-      player1.pos.x = positions.p1x;
-      player1.pos.y = positions.p1y + PLAYER1_Y_OFFSET;
-      player2.pos.x = predicted ? predicted.x : positions.p2x;
-      player2.pos.y = (predicted ? predicted.y : positions.p2y) + PLAYER2_Y_OFFSET;
-    } else {
-      // Spectator: interpolate both
-      player1.pos.x = positions.p1x;
-      player1.pos.y = positions.p1y + PLAYER1_Y_OFFSET;
-      player2.pos.x = positions.p2x;
-      player2.pos.y = positions.p2y + PLAYER2_Y_OFFSET;
-    }
+    movementRuntime.step({ nowMs: performance.now() });
   });
 
   // Track per-player attack animation state to vary speed by type
@@ -1424,6 +1458,8 @@ function disposeGameRuntime() {
   registerRematchHandler(null);
   hideEndGameModal();
   resetLocalInputState();
+  activeFightRuntime?.destroy?.();
+  activeFightRuntime = null;
   interpolator.destroy?.();
   unsubscribeConnection?.();
   updateConnectionState({ status: "disconnected", ping: null });

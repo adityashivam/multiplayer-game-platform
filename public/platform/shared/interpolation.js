@@ -169,33 +169,33 @@ function deriveAdaptiveSmoothing(baseInterpDelayMs, metrics, runtimeOptions, con
   const renderPenaltyMs = Math.max(0, renderIntervalMs - DEFAULT_STATE_INTERVAL_MS);
 
   let interpDelayMs =
-    Math.max(baseInterpDelayMs, 55) +
-    avgIntervalMs * 1.35 +
-    jitterMs * 1.8 +
-    jitterP95Ms * 0.6 +
-    packetLossPct * 2.5 +
-    rttPressureMs * 0.32 +
-    rttBurstMs * 0.28 +
-    renderPenaltyMs * 1.0;
-  if (rttMs > 180) {
-    interpDelayMs += (rttMs - 180) * 0.14;
+    Math.max(baseInterpDelayMs, 42) +
+    avgIntervalMs * 1.15 +
+    jitterMs * 1.45 +
+    jitterP95Ms * 0.45 +
+    packetLossPct * 1.9 +
+    rttPressureMs * 0.22 +
+    rttBurstMs * 0.2 +
+    renderPenaltyMs * 0.7;
+  if (rttMs > 170) {
+    interpDelayMs += (rttMs - 170) * 0.1;
   }
-  if (renderIntervalMs > 28) {
-    interpDelayMs += (renderIntervalMs - 28) * 0.8;
+  if (renderIntervalMs > 30) {
+    interpDelayMs += (renderIntervalMs - 30) * 0.55;
   }
-  interpDelayMs = clamp(interpDelayMs, 55, 250);
+  interpDelayMs = clamp(interpDelayMs, 40, 200);
 
   let extrapolateMs =
-    8 +
-    jitterMs * 1.0 +
-    jitterP95Ms * 0.35 +
-    packetLossPct * 1.8 +
-    rttBurstMs * 0.08 +
-    renderPenaltyMs * 0.25;
+    10 +
+    jitterMs * 0.9 +
+    jitterP95Ms * 0.3 +
+    packetLossPct * 1.4 +
+    rttBurstMs * 0.06 +
+    renderPenaltyMs * 0.2;
   if (rttMs > 170) {
-    extrapolateMs += (rttMs - 170) * 0.06;
+    extrapolateMs += (rttMs - 170) * 0.04;
   }
-  extrapolateMs = clamp(extrapolateMs, 8, 100);
+  extrapolateMs = clamp(extrapolateMs, 10, 80);
 
   return { interpDelayMs, extrapolateMs };
 }
@@ -205,12 +205,12 @@ function deriveAdaptiveSmoothing(baseInterpDelayMs, metrics, runtimeOptions, con
  * and lerps positional data between them for smooth rendering.
  *
  * @param {Object} [config]
- * @param {number} [config.interpDelayMs=50] Base render delay behind latest state in ms.
+ * @param {number} [config.interpDelayMs=45] Base render delay behind latest state in ms.
  * @param {number} [config.maxBufferSize=10] Max snapshots to retain.
  * @param {boolean} [config.adaptive=true] Whether to auto-tune interpolation from live net quality.
  */
 export function createInterpolator(config = {}) {
-  const baseInterpDelayMs = config.interpDelayMs ?? 50;
+  const baseInterpDelayMs = config.interpDelayMs ?? 45;
   const maxBufferSize = config.maxBufferSize ?? 10;
   const adaptive = config.adaptive ?? true;
   const connectionProvider = typeof config.connectionProvider === "function"
