@@ -6,7 +6,8 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { registerFightGame } from "./games/fight.js";
 import { registerPongGame } from "./games/pong.js";
-import { fightGameMeta, pongGameMeta } from "./games/metadata.js";
+import { registerRoadRashGame } from "./games/roadrash.js";
+import { fightGameMeta, pongGameMeta, roadRashGameMeta } from "./games/metadata.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -26,6 +27,7 @@ const io = new Server(httpServer, {
 const catalog = [
   { ...fightGameMeta },
   { ...pongGameMeta },
+  { ...roadRashGameMeta },
 ];
 
 app.use(
@@ -85,6 +87,7 @@ app.get("/games/:gameId/:roomId?", (req, res) => {
 // Register socket handlers for each game
 registerFightGame(io);
 registerPongGame(io);
+registerRoadRashGame(io);
 
 const PORT = process.env.PORT || 3000;
 httpServer.listen(PORT, () => {

@@ -15,3 +15,12 @@ export const pongGameMeta = {
   path: "/games/pong",
   tags: ["Arcade", "2 players", "Fast"],
 };
+
+export const roadRashGameMeta = {
+  id: "roadrash",
+  name: "Road Rash Online",
+  description: "Road Rash-inspired 2-player race with kicking, traffic, and real-time multiplayer.",
+  namespace: "/roadrash",
+  path: "/games/roadrash",
+  tags: ["Racing", "2 players", "Action"],
+};

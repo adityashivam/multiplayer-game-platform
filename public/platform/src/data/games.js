@@ -1,6 +1,7 @@
 export const gameTitles = {
   fight: "Kaboom Fight",
   pong: "Kaboom Pong",
+  roadrash: "Road Rash Online",
 };
 
 export const fallbackGames = [
@@ -17,6 +18,13 @@ export const fallbackGames = [
     description: "Classic two-player pong with server-run ball physics.",
     path: "/games/pong",
     tags: ["Arcade", "2 players", "Fast"],
+  },
+  {
+    id: "roadrash",
+    name: "Road Rash Online",
+    description: "Road Rash-inspired two-player bike race with kicks and highway traffic.",
+    path: "/games/roadrash",
+    tags: ["Racing", "2 players", "Action"],
   },
 ];
 
@@ -35,5 +43,11 @@ export const visualsByGame = {
     icon: "sports_tennis",
     art:
       "https://lh3.googleusercontent.com/aida-public/AB6AXuCU-xEUh7OsSfRk3s2Bt77jkrHr-TZvbGTC28QtcnpavWc88RXHY6OpNjB2jXpD_auchl2SDu6xQw1LPd0sXqmc36wOh89AkyKmKIPB31mN9AiBjnMJbykmX4bRMANwHiPtliTIaFF_DDYiuBRPrqropD_hk6DRRmZdowywoFAVGPk8RWx2E_VTmf-dDoAY9R1a3F82Op4wEPZy_d8zQ3Gfc20VPFoEpNZ3ejkpXCuvzpGA0CGPPHSeL7bqOQJHStW6d-dNLmCu995Y",
+  },
+  roadrash: {
+    status: "RACE",
+    players: "2P",
+    icon: "two_wheeler",
+    art: "/games/roadrash/assets/roadrash.png",
   },
 };
