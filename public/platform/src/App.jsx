@@ -432,6 +432,15 @@ export default function App() {
     if (!route?.gameId || !route?.roomId) return "";
     return `${window.location.origin}/games/${route.gameId}/${route.roomId}`;
   }, [route?.gameId, route?.roomId]);
+  const activeGame = useMemo(() => {
+    if (!route?.gameId) return null;
+    return (
+      games.find((game) => game.id === route.gameId) ||
+      fallbackGames.find((game) => game.id === route.gameId) ||
+      null
+    );
+  }, [games, route?.gameId]);
+  const showPlatformControlButtons = !isGameView || activeGame?.platformControlButtons !== false;
 
   const selectedThemeData = useMemo(
     () => getThemeById(selectedThemeId) || builtInThemes[0] || null,
@@ -1071,7 +1080,23 @@ export default function App() {
           )}
         </div>
 
-        <Controller onDirectional={handleDirectionalInput} onAction={handleActionInput} disabled={false} />
+        {showPlatformControlButtons ? (
+          <Controller onDirectional={handleDirectionalInput} onAction={handleActionInput} disabled={false} />
+        ) : (
+          <div className={styles.controllerSlimBar}>
+            <button
+              type="button"
+              className={styles.controllerSlimHomeButton}
+              onClick={() => handleActionInput("home")}
+              aria-label="Home"
+            >
+              <span className="material-symbols-outlined" aria-hidden="true">
+                home
+              </span>
+              <span className={styles.controllerSlimHomeLabel}>Home</span>
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

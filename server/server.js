@@ -7,12 +7,15 @@ import { fileURLToPath } from "url";
 import { registerFightGame } from "./games/fight.js";
 import { registerPongGame } from "./games/pong.js";
 import { registerRoadRashGame } from "./games/roadrash.js";
-import { registerMarioGame } from "./games/mario.js";
+import { registerMarioGame, registerMarioTouchGame } from "./games/mario.js";
+import { registerDrawGame } from "./games/draw.js";
 import {
   fightGameMeta,
   pongGameMeta,
   roadRashGameMeta,
   marioGameMeta,
+  marioTouchGameMeta,
+  drawGameMeta,
 } from "./games/metadata.js";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -35,6 +38,8 @@ const catalog = [
   { ...pongGameMeta },
   { ...roadRashGameMeta },
   { ...marioGameMeta },
+  { ...marioTouchGameMeta },
+  { ...drawGameMeta },
 ];
 
 app.use(
@@ -56,6 +61,7 @@ app.get("/api/games", (req, res) => {
       description: game.description,
       path: game.path,
       tags: game.tags || [],
+      platformControlButtons: game.platformControlButtons !== false,
       url: `${req.protocol}://${req.get("host")}${game.path}`,
     })),
   });
@@ -96,6 +102,8 @@ registerFightGame(io);
 registerPongGame(io);
 registerRoadRashGame(io);
 registerMarioGame(io);
+registerMarioTouchGame(io);
+registerDrawGame(io);
 
 const PORT = process.env.PORT || 3000;
 httpServer.listen(PORT, () => {

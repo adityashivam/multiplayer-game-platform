@@ -1,4 +1,4 @@
-import { marioGameMeta } from "./metadata.js";
+import { marioGameMeta, marioTouchGameMeta } from "./metadata.js";
 import { emitEvent, registerPluggableGame, scheduleStart } from "../utils/utils.js";
 import { buildOneOneTrack } from "../../public/games/mario/levelData.js";
 
@@ -509,10 +509,10 @@ function resetRaceStateInPlace(state, { keepConnections = true } = {}) {
   state.lastUpdate = nextState.lastUpdate;
 }
 
-export function registerMarioGame(io) {
+function registerMarioWithMeta(io, meta) {
   registerPluggableGame({
     io,
-    meta: marioGameMeta,
+    meta,
     createState: createInitialGameState,
     systems: createMarioSystems(),
     onPlayerConnected: (state, playerId) => {
@@ -595,4 +595,12 @@ export function registerMarioGame(io) {
     dtFallback: DT,
     tickMs: 1000 / FPS,
   });
+}
+
+export function registerMarioGame(io) {
+  registerMarioWithMeta(io, marioGameMeta);
+}
+
+export function registerMarioTouchGame(io) {
+  registerMarioWithMeta(io, marioTouchGameMeta);
 }

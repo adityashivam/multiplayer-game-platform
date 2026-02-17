@@ -11,7 +11,21 @@ import { createWorkerInterpolator } from "/platform/shared/interpolationWorker.j
 import { updateConnectionState } from "/platform/shared/connectionBridge.js";
 import { LEVEL_1_1, buildOneOneTrack } from "/games/mario/levelData.js";
 
-const GAME_SLUG = "mario";
+function getGameSlugFromPath() {
+  const match = window.location.pathname.match(/^\/games\/([^/]+)/i);
+  return match && match[1] ? match[1] : "mario";
+}
+
+const GAME_SLUG = getGameSlugFromPath();
+const TOUCH_VARIANT_SLUG = "mario-touch";
+const TOUCH_VARIANT_ENABLED = GAME_SLUG === TOUCH_VARIANT_SLUG;
+const ASSET_SLUG = "mario";
+const TOUCH_OVERLAY_ID = "mario-touch-overlay";
+const TOUCH_ROTATE_HINT_ID = "mario-touch-rotate-hint";
+const TOUCH_STYLE_ID = "mario-touch-style";
+const WORLD_RENDER_OFFSET_Y = TOUCH_VARIANT_ENABLED ? 108 : 0;
+const HUD_TOP_SAFE_PX = TOUCH_VARIANT_ENABLED ? 14 : 0;
+const LANDSCAPE_ENFORCE_COOLDOWN_MS = 1200;
 const ROOM_READY_EVENT = "kaboom:room-ready";
 const OPPONENT_JOIN_EVENT = "kaboom:opponent-joined";
 const DISPOSE_GAME_EVENT = "kaboom:dispose-game";
@@ -90,9 +104,13 @@ canvas.style.maxWidth = "100%";
 canvas.style.display = "block";
 canvas.style.objectFit = "contain";
 canvas.style.objectPosition = "center";
-canvas.style.height = "auto";
+canvas.style.height = TOUCH_VARIANT_ENABLED ? "100%" : "auto";
 canvas.style.maxHeight = "100%";
+canvas.style.touchAction = "none";
 canvas.style.imageRendering = "pixelated";
+if (TOUCH_VARIANT_ENABLED) {
+  canvas.style.aspectRatio = "16 / 9";
+}
 
 const socket = getGameSocket(GAME_SLUG);
 let latestConnectionSnapshot = {
@@ -158,6 +176,8 @@ let assetsFailed = false;
 let audioUnlocked = false;
 let bgmPlaying = false;
 let victorySoundPlayed = false;
+let landscapeEnforceInFlight = false;
+let lastLandscapeEnforceAttemptMs = 0;
 
 const interpolationRuntimeOptions = {
   pingMs: 0,
@@ -652,7 +672,51 @@ function onStartAction() {
   });
 }
 
+function tryLockLandscapeOrientation() {
+  if (!TOUCH_VARIANT_ENABLED) return;
+  const orientation = globalThis.screen?.orientation;
+  if (!orientation || typeof orientation.lock !== "function") return;
+  orientation.lock("landscape").catch(() => {});
+}
+
+function isTouchLikeDevice() {
+  const coarsePointer = globalThis.matchMedia?.("(pointer: coarse)")?.matches;
+  if (typeof coarsePointer === "boolean") return coarsePointer;
+  return (globalThis.navigator?.maxTouchPoints || 0) > 0;
+}
+
+function isTallViewport() {
+  return globalThis.innerHeight > globalThis.innerWidth;
+}
+
+function shouldForceLandscapeMode() {
+  return TOUCH_VARIANT_ENABLED && isTouchLikeDevice() && isTallViewport();
+}
+
+function tryEnterFullscreen() {
+  const target = document.documentElement;
+  if (!target?.requestFullscreen || document.fullscreenElement) return Promise.resolve();
+  return target.requestFullscreen().catch(() => {});
+}
+
+function enforceLandscapeMode() {
+  if (!shouldForceLandscapeMode()) return;
+  const now = Date.now();
+  if (landscapeEnforceInFlight || now - lastLandscapeEnforceAttemptMs < LANDSCAPE_ENFORCE_COOLDOWN_MS) {
+    return;
+  }
+  landscapeEnforceInFlight = true;
+  lastLandscapeEnforceAttemptMs = now;
+  Promise.resolve()
+    .then(() => tryEnterFullscreen())
+    .then(() => tryLockLandscapeOrientation())
+    .finally(() => {
+      landscapeEnforceInFlight = false;
+    });
+}
+
 function unlockAudio() {
+  enforceLandscapeMode();
   if (audioUnlocked) return;
   audioUnlocked = true;
 
@@ -718,6 +782,302 @@ function playResultSound(winner) {
       // Ignore blocked audio play.
     }
   }
+}
+
+function ensureTouchStyles() {
+  if (!TOUCH_VARIANT_ENABLED || document.getElementById(TOUCH_STYLE_ID)) return;
+  const style = document.createElement("style");
+  style.id = TOUCH_STYLE_ID;
+  style.textContent = `
+    #${TOUCH_OVERLAY_ID} {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      padding-top: max(clamp(6px, 1.6vh, 10px), env(safe-area-inset-top));
+      padding-right: max(clamp(8px, 2vw, 14px), env(safe-area-inset-right));
+      padding-bottom: max(clamp(10px, 2.4vh, 16px), calc(env(safe-area-inset-bottom) + 6px));
+      padding-left: max(clamp(8px, 2vw, 14px), env(safe-area-inset-left));
+      pointer-events: none;
+      z-index: 9;
+      touch-action: none;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    #${TOUCH_OVERLAY_ID} .touch-cluster {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: clamp(5px, 1.2vw, 8px);
+      pointer-events: none;
+      border: 1px solid rgba(138, 177, 224, 0.22);
+      background: linear-gradient(180deg, rgba(12, 25, 44, 0.56), rgba(7, 15, 28, 0.34));
+      border-radius: 14px;
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      box-shadow: 0 8px 22px rgba(0, 0, 0, 0.38);
+      padding: clamp(5px, 1.2vw, 8px);
+    }
+
+    #${TOUCH_OVERLAY_ID} .touch-btn {
+      width: clamp(38px, 7.2vw, 50px);
+      height: clamp(38px, 7.2vw, 50px);
+      border-radius: 12px;
+      border: 2px solid var(--touch-accent, rgba(148, 163, 184, 0.8));
+      background:
+        radial-gradient(circle at 30% 22%, rgba(255, 255, 255, 0.2), transparent 56%),
+        linear-gradient(180deg, rgba(15, 31, 53, 0.95), rgba(7, 16, 32, 0.94));
+      color: #eaf2ff;
+      font: 700 clamp(8px, 1.25vw, 10px) "Rajdhani", ui-monospace, monospace;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.18),
+        0 5px 14px rgba(0, 0, 0, 0.45);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      touch-action: none;
+      pointer-events: auto;
+      cursor: pointer;
+      transition: transform 80ms ease, box-shadow 80ms ease, filter 80ms ease;
+      will-change: transform;
+    }
+
+    #${TOUCH_OVERLAY_ID} .touch-btn.touch-btn-active {
+      transform: translateY(2px) scale(0.97);
+      filter: brightness(1.08);
+      box-shadow:
+        inset 0 2px 4px rgba(0, 0, 0, 0.48),
+        0 2px 6px rgba(0, 0, 0, 0.34);
+    }
+
+    #${TOUCH_OVERLAY_ID} .touch-btn-left,
+    #${TOUCH_OVERLAY_ID} .touch-btn-right {
+      --touch-accent: rgba(56, 189, 248, 0.85);
+    }
+
+    #${TOUCH_OVERLAY_ID} .touch-btn-run {
+      --touch-accent: rgba(249, 115, 22, 0.9);
+    }
+
+    #${TOUCH_OVERLAY_ID} .touch-btn-jump {
+      --touch-accent: rgba(34, 197, 94, 0.9);
+    }
+
+    @media (max-width: 820px) {
+      #${TOUCH_OVERLAY_ID} {
+        padding-top: max(5px, env(safe-area-inset-top));
+        padding-right: max(6px, env(safe-area-inset-right));
+        padding-bottom: max(10px, calc(env(safe-area-inset-bottom) + 6px));
+        padding-left: max(6px, env(safe-area-inset-left));
+      }
+
+      #${TOUCH_OVERLAY_ID} .touch-cluster {
+        border-radius: 12px;
+        padding: 4px;
+      }
+    }
+  `;
+  document.head.appendChild(style);
+}
+
+function createTouchButton(label, className) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.textContent = label;
+  button.setAttribute("aria-label", label);
+  button.className = `touch-btn ${className}`;
+  return button;
+}
+
+function bindTouchHold(button, onDown, onUp) {
+  const start = (event) => {
+    event.preventDefault();
+    enforceLandscapeMode();
+    unlockAudio();
+    button.classList.add("touch-btn-active");
+    onDown();
+  };
+  const end = (event) => {
+    event.preventDefault();
+    button.classList.remove("touch-btn-active");
+    onUp();
+  };
+  const preventContextMenu = (event) => {
+    event.preventDefault();
+  };
+
+  button.addEventListener("pointerdown", start);
+  button.addEventListener("pointerup", end);
+  button.addEventListener("pointercancel", end);
+  button.addEventListener("pointerleave", end);
+  button.addEventListener("contextmenu", preventContextMenu);
+
+  return () => {
+    button.removeEventListener("pointerdown", start);
+    button.removeEventListener("pointerup", end);
+    button.removeEventListener("pointercancel", end);
+    button.removeEventListener("pointerleave", end);
+    button.removeEventListener("contextmenu", preventContextMenu);
+  };
+}
+
+function initTouchOverlayControls() {
+  if (!TOUCH_VARIANT_ENABLED) return () => {};
+  ensureTouchStyles();
+
+  const host = canvas.parentElement || document.getElementById("game-view");
+  if (!host) return () => {};
+
+  const existing = document.getElementById(TOUCH_OVERLAY_ID);
+  existing?.remove();
+
+  const overlay = document.createElement("div");
+  overlay.id = TOUCH_OVERLAY_ID;
+
+  const leftCluster = document.createElement("div");
+  leftCluster.className = "touch-cluster touch-cluster-left";
+
+  const actionCluster = document.createElement("div");
+  actionCluster.className = "touch-cluster touch-cluster-action";
+
+  const leftButton = createTouchButton("LEFT", "touch-btn-left");
+  const rightButton = createTouchButton("RIGHT", "touch-btn-right");
+  const runButton = createTouchButton("RUN", "touch-btn-run");
+  const jumpButton = createTouchButton("JUMP", "touch-btn-jump");
+
+  leftCluster.append(leftButton, rightButton);
+  actionCluster.append(runButton, jumpButton);
+  overlay.append(leftCluster, actionCluster);
+  host.appendChild(overlay);
+
+  const cleanups = [
+    bindTouchHold(leftButton, () => setHoldInput("left", true), () => setHoldInput("left", false)),
+    bindTouchHold(rightButton, () => setHoldInput("right", true), () => setHoldInput("right", false)),
+    bindTouchHold(runButton, () => setHoldInput("run", true), () => setHoldInput("run", false)),
+    bindTouchHold(jumpButton, () => triggerJump(true), () => triggerJump(false)),
+  ];
+
+  const onBlur = () => {
+    releaseAllInputs();
+  };
+  window.addEventListener("blur", onBlur);
+
+  return () => {
+    window.removeEventListener("blur", onBlur);
+    releaseAllInputs();
+    cleanups.forEach((cleanup) => cleanup?.());
+    overlay.remove();
+  };
+}
+
+function initTouchLandscapeViewport() {
+  if (!TOUCH_VARIANT_ENABLED) return () => {};
+
+  const gameView = document.getElementById("game-view");
+  const canvasFrame = canvas.parentElement;
+  if (!gameView || !canvasFrame) return () => {};
+
+  const originalGameViewStyle = gameView.getAttribute("style");
+  const originalCanvasFrameStyle = canvasFrame.getAttribute("style");
+  const previousHint = document.getElementById(TOUCH_ROTATE_HINT_ID);
+  previousHint?.remove();
+
+  const rotateHint = document.createElement("div");
+  rotateHint.id = TOUCH_ROTATE_HINT_ID;
+  rotateHint.textContent = "Rotate device for landscape mode";
+  rotateHint.style.position = "absolute";
+  rotateHint.style.left = "50%";
+  rotateHint.style.bottom = "10px";
+  rotateHint.style.transform = "translateX(-50%)";
+  rotateHint.style.padding = "7px 11px";
+  rotateHint.style.borderRadius = "12px";
+  rotateHint.style.background = "rgba(5, 13, 26, 0.78)";
+  rotateHint.style.border = "1px solid rgba(96, 165, 250, 0.46)";
+  rotateHint.style.color = "#f8fafc";
+  rotateHint.style.font = "700 11px ui-monospace, monospace";
+  rotateHint.style.letterSpacing = "0.06em";
+  rotateHint.style.pointerEvents = "none";
+  rotateHint.style.zIndex = "11";
+  rotateHint.style.opacity = "0";
+  rotateHint.style.boxShadow = "0 8px 22px rgba(0, 0, 0, 0.38)";
+  gameView.appendChild(rotateHint);
+
+  const applyLayout = () => {
+    const viewportW = window.innerWidth;
+    const viewportH = window.innerHeight;
+    const portrait = viewportH > viewportW;
+    const forceLandscape = shouldForceLandscapeMode();
+
+    gameView.style.position = "relative";
+    gameView.style.width = "100%";
+    gameView.style.height = "100%";
+    gameView.style.minHeight = "0";
+    gameView.style.overflow = "hidden";
+
+    if (portrait && forceLandscape) {
+      const targetWidth = viewportH;
+      const targetHeight = viewportW;
+      canvasFrame.style.position = "absolute";
+      canvasFrame.style.left = "50%";
+      canvasFrame.style.top = "50%";
+      canvasFrame.style.width = `${targetWidth}px`;
+      canvasFrame.style.height = `${targetHeight}px`;
+      canvasFrame.style.transform = "translate(-50%, -50%) rotate(90deg)";
+      canvasFrame.style.transformOrigin = "center center";
+      rotateHint.style.opacity = "0";
+    } else if (portrait) {
+      const targetWidth = viewportW;
+      const targetHeight = Math.floor((targetWidth * 9) / 16);
+      canvasFrame.style.position = "absolute";
+      canvasFrame.style.left = "50%";
+      canvasFrame.style.top = "50%";
+      canvasFrame.style.width = `${targetWidth}px`;
+      canvasFrame.style.height = `${targetHeight}px`;
+      canvasFrame.style.transform = "translate(-50%, -50%)";
+      canvasFrame.style.transformOrigin = "center center";
+      rotateHint.style.opacity = "1";
+    } else {
+      canvasFrame.style.position = "relative";
+      canvasFrame.style.left = "0";
+      canvasFrame.style.top = "0";
+      canvasFrame.style.width = "100%";
+      canvasFrame.style.height = "100%";
+      canvasFrame.style.transform = "none";
+      canvasFrame.style.transformOrigin = "center center";
+      rotateHint.style.opacity = "0";
+    }
+  };
+
+  const onViewportChange = () => {
+    applyLayout();
+    enforceLandscapeMode();
+  };
+
+  window.addEventListener("resize", onViewportChange);
+  window.addEventListener("orientationchange", onViewportChange);
+  applyLayout();
+  enforceLandscapeMode();
+
+  return () => {
+    window.removeEventListener("resize", onViewportChange);
+    window.removeEventListener("orientationchange", onViewportChange);
+
+    if (originalGameViewStyle == null) {
+      gameView.removeAttribute("style");
+    } else {
+      gameView.setAttribute("style", originalGameViewStyle);
+    }
+
+    if (originalCanvasFrameStyle == null) {
+      canvasFrame.removeAttribute("style");
+    } else {
+      canvasFrame.setAttribute("style", originalCanvasFrameStyle);
+    }
+    rotateHint.remove();
+  };
 }
 
 function initControllerNavigation() {
@@ -820,12 +1180,12 @@ function loadImage(src) {
 
 async function loadAssets() {
   const [playerRight, playerLeft, tiles, items, enemyLeft, enemyRight] = await Promise.all([
-    loadImage(`/games/${GAME_SLUG}/assets/sprites/player.png`),
-    loadImage(`/games/${GAME_SLUG}/assets/sprites/playerl.png`),
-    loadImage(`/games/${GAME_SLUG}/assets/sprites/tiles.png`),
-    loadImage(`/games/${GAME_SLUG}/assets/sprites/items.png`),
-    loadImage(`/games/${GAME_SLUG}/assets/sprites/enemy.png`),
-    loadImage(`/games/${GAME_SLUG}/assets/sprites/enemyr.png`),
+    loadImage(`/games/${ASSET_SLUG}/assets/sprites/player.png`),
+    loadImage(`/games/${ASSET_SLUG}/assets/sprites/playerl.png`),
+    loadImage(`/games/${ASSET_SLUG}/assets/sprites/tiles.png`),
+    loadImage(`/games/${ASSET_SLUG}/assets/sprites/items.png`),
+    loadImage(`/games/${ASSET_SLUG}/assets/sprites/enemy.png`),
+    loadImage(`/games/${ASSET_SLUG}/assets/sprites/enemyr.png`),
   ]);
 
   imageAssets.playerRight = playerRight;
@@ -835,10 +1195,10 @@ async function loadAssets() {
   imageAssets.enemyLeft = enemyLeft;
   imageAssets.enemyRight = enemyRight;
 
-  const bgm = new Audio(`/games/${GAME_SLUG}/assets/sounds/aboveground_bgm.ogg`);
-  const jump = new Audio(`/games/${GAME_SLUG}/assets/sounds/jump-small.wav`);
-  const clear = new Audio(`/games/${GAME_SLUG}/assets/sounds/stage_clear.wav`);
-  const lose = new Audio(`/games/${GAME_SLUG}/assets/sounds/mariodie.wav`);
+  const bgm = new Audio(`/games/${ASSET_SLUG}/assets/sounds/aboveground_bgm.ogg`);
+  const jump = new Audio(`/games/${ASSET_SLUG}/assets/sounds/jump-small.wav`);
+  const clear = new Audio(`/games/${ASSET_SLUG}/assets/sounds/stage_clear.wav`);
+  const lose = new Audio(`/games/${ASSET_SLUG}/assets/sounds/mariodie.wav`);
   bgm.loop = true;
 
   audioAssets.bgm = bgm;
@@ -888,7 +1248,7 @@ function drawTileEntry(entry) {
   if (!image || !entry) return;
 
   const dx = Math.round(entry.x - cameraX);
-  const dy = Math.round(entry.y);
+  const dy = Math.round(entry.y + WORLD_RENDER_OFFSET_Y);
   const dw = entry.dw || entry.sw;
   const dh = entry.dh || entry.sh;
 
@@ -978,7 +1338,7 @@ function drawPlayer(playerId, player, nowMs) {
   const frameX = getPlayerFrame(player, nowMs);
 
   const dx = Math.round(player.x - cameraX - (RENDER_W - PLAYER_W) / 2);
-  const dy = Math.round(player.y - (RENDER_H - PLAYER_H));
+  const dy = Math.round(player.y - (RENDER_H - PLAYER_H) + WORLD_RENDER_OFFSET_Y);
 
   if (image) {
     ctx.drawImage(
@@ -1018,7 +1378,7 @@ function drawEnemy(enemy, nowMs) {
     const sw = 16;
     const sh = 16;
 
-    ctx.drawImage(image, sx, sy, sw, sh, dx, Math.round(enemy.y), sw * 2, sh * 2);
+    ctx.drawImage(image, sx, sy, sw, sh, dx, Math.round(enemy.y + WORLD_RENDER_OFFSET_Y), sw * 2, sh * 2);
     return;
   }
 
@@ -1029,7 +1389,7 @@ function drawEnemy(enemy, nowMs) {
     if (!image) return;
 
     if (stomped) {
-      ctx.drawImage(image, 160, 0, 16, 16, dx, Math.round(enemy.y), 32, 32);
+      ctx.drawImage(image, 160, 0, 16, 16, dx, Math.round(enemy.y + WORLD_RENDER_OFFSET_Y), 32, 32);
       return;
     }
 
@@ -1038,7 +1398,7 @@ function drawEnemy(enemy, nowMs) {
     const sy = 0;
     const sw = 16;
     const sh = 32;
-    ctx.drawImage(image, sx, sy, sw, sh, dx, Math.round(enemy.y), sw * 2, sh * 2);
+    ctx.drawImage(image, sx, sy, sw, sh, dx, Math.round(enemy.y + WORLD_RENDER_OFFSET_Y), sw * 2, sh * 2);
   }
 }
 
@@ -1085,21 +1445,22 @@ function drawProgressBar(state, myPlayer, rivalPlayer) {
 function drawHud(state) {
   const myPlayer = state?.players?.[myPlayerId] || state?.players?.p1 || null;
   const rivalPlayer = myPlayerId === "p1" ? state?.players?.p2 : state?.players?.p1;
+  const hudTop = 18 + HUD_TOP_SAFE_PX;
 
   ctx.fillStyle = "rgba(15,23,42,0.78)";
-  ctx.fillRect(18, 18, 320, 96);
+  ctx.fillRect(18, hudTop, 320, 96);
 
   const myRank = myPlayer?.rank || "-";
   const speed = Math.round(Math.abs(myPlayer?.vx || 0));
 
   ctx.fillStyle = "#f8fafc";
   ctx.font = "bold 24px monospace";
-  ctx.fillText(`${speed}`, 36, 50);
+  ctx.fillText(`${speed}`, 36, hudTop + 32);
   ctx.font = "bold 12px monospace";
-  ctx.fillText("SPEED", 108, 50);
+  ctx.fillText("SPEED", 108, hudTop + 32);
 
   ctx.font = "bold 22px monospace";
-  ctx.fillText(`RANK ${myRank}/2`, 36, 82);
+  ctx.fillText(`RANK ${myRank}/2`, 36, hudTop + 64);
 
   if (Date.now() < statusUntilMs && statusMessage) {
     const message = statusMessage;
@@ -1331,6 +1692,8 @@ socket.onEvent("state", (state) => {
 
 const cleanupControllerNavigation = initControllerNavigation();
 const cleanupKeyboardNavigation = initKeyboardNavigation();
+const cleanupTouchViewport = initTouchLandscapeViewport();
+const cleanupTouchOverlay = initTouchOverlayControls();
 
 function disposeGameRuntime() {
   if (disposed) return;
@@ -1339,6 +1702,11 @@ function disposeGameRuntime() {
   releaseAllInputs();
   cleanupControllerNavigation?.();
   cleanupKeyboardNavigation?.();
+  cleanupTouchViewport?.();
+  cleanupTouchOverlay?.();
+  if (TOUCH_VARIANT_ENABLED && typeof globalThis.screen?.orientation?.unlock === "function") {
+    globalThis.screen.orientation.unlock();
+  }
   registerRematchHandler(null);
   hideEndGameModal();
   window.__kaboomOpponentJoined = null;

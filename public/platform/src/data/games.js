@@ -3,6 +3,8 @@ export const gameTitles = {
   pong: "Kaboom Pong",
   roadrash: "Road Rash Online",
   mario: "Mario Rival Rush",
+  "mario-touch": "Mario Rival Rush Touch",
+  draw: "Live Draw Duel",
 };
 
 export const fallbackGames = [
@@ -12,6 +14,7 @@ export const fallbackGames = [
     description: "Duel with a friend in this 2-player sword fight built with Kaboom.js.",
     path: "/games/fight",
     tags: ["Real-time", "2 players", "Action"],
+    platformControlButtons: true,
   },
   {
     id: "pong",
@@ -19,6 +22,7 @@ export const fallbackGames = [
     description: "Classic two-player pong with server-run ball physics.",
     path: "/games/pong",
     tags: ["Arcade", "2 players", "Fast"],
+    platformControlButtons: true,
   },
   {
     id: "roadrash",
@@ -26,6 +30,7 @@ export const fallbackGames = [
     description: "Road Rash-inspired two-player bike race with kicks and highway traffic.",
     path: "/games/roadrash",
     tags: ["Racing", "2 players", "Action"],
+    platformControlButtons: true,
   },
   {
     id: "mario",
@@ -33,6 +38,24 @@ export const fallbackGames = [
     description: "Head-to-head Mario platform race. Beat your rival to the flag.",
     path: "/games/mario",
     tags: ["Platformer", "2 players", "Race"],
+    platformControlButtons: true,
+  },
+  {
+    id: "mario-touch",
+    name: "Mario Rival Rush Touch",
+    description:
+      "Mario race tuned for fullscreen landscape play with on-screen touch controls.",
+    path: "/games/mario-touch",
+    tags: ["Platformer", "2 players", "Race", "Touch"],
+    platformControlButtons: false,
+  },
+  {
+    id: "draw",
+    name: "Live Draw Duel",
+    description: "Touch and draw together. Your strokes appear live on your rival screen.",
+    path: "/games/draw",
+    tags: ["Creative", "2 players", "Realtime"],
+    platformControlButtons: true,
   },
 ];
 
@@ -64,5 +87,16 @@ export const visualsByGame = {
     icon: "sports_esports",
     art: "/games/mario/assets/sprites/player.png",
     featured: true,
+  },
+  "mario-touch": {
+    status: "TOUCH",
+    players: "2P",
+    icon: "screen_rotation",
+    art: "/games/mario/assets/sprites/player.png",
+  },
+  draw: {
+    status: "LAB",
+    players: "2P",
+    icon: "draw",
   },
 };

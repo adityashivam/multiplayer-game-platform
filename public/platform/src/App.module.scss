@@ -1773,6 +1773,133 @@
   border-radius: 12px;
 }
 
+.controllerSlimBar {
+  position: relative;
+  flex: 0 0 20px;
+  height: 20px;
+  width: 100%;
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--surface-console-background, var(--color-console)) 82%, white 8%),
+    color-mix(in srgb, var(--surface-console-background, var(--color-console)) 84%, black 14%)
+  );
+  border-top: 1px solid color-mix(in srgb, var(--surface-console-border-color, #000) 32%, transparent);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: visible;
+  z-index: 4;
+}
+
+.controllerSlimBar::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 2px;
+  width: min(210px, 54vw);
+  height: 2px;
+  transform: translateX(-50%);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-title-accent) 38%, transparent);
+  opacity: 0.58;
+}
+
+.controllerSlimHomeButton {
+  height: 16px;
+  min-width: 70px;
+  padding: 0 10px;
+  border: 1px solid color-mix(in srgb, var(--color-title-accent) 35%, #fff 20%);
+  border-radius: 999px;
+  background:
+    radial-gradient(circle at 22% 18%, rgba(255, 255, 255, 0.32), transparent 52%),
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--color-accent) 56%, #fff 18%),
+      color-mix(in srgb, var(--color-accent) 84%, #0b1220)
+    );
+  color: #f8fafc;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.24),
+    0 4px 10px rgba(0, 0, 0, 0.34);
+  touch-action: manipulation;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  transition: transform 90ms ease, filter 90ms ease, box-shadow 90ms ease;
+}
+
+.controllerSlimHomeButton :global(.material-symbols-outlined) {
+  font-size: 12px;
+  font-variation-settings: "wght" 600;
+}
+
+.controllerSlimHomeLabel {
+  font-family: "Press Start 2P", cursive;
+  font-size: 7px;
+  line-height: 1;
+  transform: translateY(0.5px);
+}
+
+.controllerSlimHomeButton:active {
+  transform: translateY(1px) scale(0.98);
+  filter: brightness(1.06);
+  box-shadow:
+    inset 0 2px 4px rgba(0, 0, 0, 0.35),
+    0 2px 5px rgba(0, 0, 0, 0.26);
+}
+
+:global(.dark) .controllerSlimBar {
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--surface-console-background, #000) 64%, #1e293b),
+    color-mix(in srgb, var(--surface-console-background, #000) 78%, black)
+  );
+  border-top-color: color-mix(in srgb, var(--surface-console-border-color-dark, #fff) 22%, transparent);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+:global(.dark) .controllerSlimBar::before {
+  background: color-mix(in srgb, var(--color-title-accent) 52%, transparent);
+  opacity: 0.48;
+}
+
+:global(.dark) .controllerSlimHomeButton {
+  border-color: color-mix(in srgb, var(--color-title-accent) 42%, #0f172a);
+  background:
+    radial-gradient(circle at 24% 16%, rgba(255, 255, 255, 0.18), transparent 56%),
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--color-surface-dark) 58%, #374151),
+      color-mix(in srgb, var(--color-surface-dark) 84%, #0f172a)
+    );
+}
+
+@media (max-width: 430px) {
+  .controllerSlimBar {
+    flex-basis: 20px;
+    height: 20px;
+  }
+
+  .controllerSlimHomeButton {
+    min-width: 58px;
+    height: 15px;
+    padding: 0 8px;
+    gap: 3px;
+  }
+
+  .controllerSlimHomeButton :global(.material-symbols-outlined) {
+    font-size: 11px;
+  }
+
+  .controllerSlimHomeLabel {
+    font-size: 6px;
+  }
+}
+
 @media (max-width: 430px) {
   .controllerSection {
     padding: clamp(9px, 1.8vh, 12px) clamp(8px, 2.6vw, 12px)
