@@ -24,3 +24,12 @@ export const roadRashGameMeta = {
   path: "/games/roadrash",
   tags: ["Racing", "2 players", "Action"],
 };
+
+export const marioGameMeta = {
+  id: "mario",
+  name: "Mario Rival Rush",
+  description: "Head-to-head 2-player Mario platform race. Reach the flag first to win.",
+  namespace: "/mario",
+  path: "/games/mario",
+  tags: ["Platformer", "2 players", "Race"],
+};

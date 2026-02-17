@@ -2,6 +2,7 @@ export const gameTitles = {
   fight: "Kaboom Fight",
   pong: "Kaboom Pong",
   roadrash: "Road Rash Online",
+  mario: "Mario Rival Rush",
 };
 
 export const fallbackGames = [
@@ -26,6 +27,13 @@ export const fallbackGames = [
     path: "/games/roadrash",
     tags: ["Racing", "2 players", "Action"],
   },
+  {
+    id: "mario",
+    name: "Mario Rival Rush",
+    description: "Head-to-head Mario platform race. Beat your rival to the flag.",
+    path: "/games/mario",
+    tags: ["Platformer", "2 players", "Race"],
+  },
 ];
 
 export const visualsByGame = {
@@ -49,5 +57,12 @@ export const visualsByGame = {
     players: "2P",
     icon: "two_wheeler",
     art: "/games/roadrash/assets/roadrash.png",
+  },
+  mario: {
+    status: "NEW",
+    players: "2P",
+    icon: "sports_esports",
+    art: "/games/mario/assets/sprites/player.png",
+    featured: true,
   },
 };

@@ -7,7 +7,13 @@ import { fileURLToPath } from "url";
 import { registerFightGame } from "./games/fight.js";
 import { registerPongGame } from "./games/pong.js";
 import { registerRoadRashGame } from "./games/roadrash.js";
-import { fightGameMeta, pongGameMeta, roadRashGameMeta } from "./games/metadata.js";
+import { registerMarioGame } from "./games/mario.js";
+import {
+  fightGameMeta,
+  pongGameMeta,
+  roadRashGameMeta,
+  marioGameMeta,
+} from "./games/metadata.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -28,6 +34,7 @@ const catalog = [
   { ...fightGameMeta },
   { ...pongGameMeta },
   { ...roadRashGameMeta },
+  { ...marioGameMeta },
 ];
 
 app.use(
@@ -88,6 +95,7 @@ app.get("/games/:gameId/:roomId?", (req, res) => {
 registerFightGame(io);
 registerPongGame(io);
 registerRoadRashGame(io);
+registerMarioGame(io);
 
 const PORT = process.env.PORT || 3000;
 httpServer.listen(PORT, () => {
