@@ -5,6 +5,7 @@ export const fightGameMeta = {
   namespace: "/fight",
   path: "/games/fight",
   tags: ["Real-time", "2 players", "Action"],
+  startInLandscape: true,
   platformControlButtons: true,
 };
 
@@ -15,6 +16,7 @@ export const pongGameMeta = {
   namespace: "/pong",
   path: "/games/pong",
   tags: ["Arcade", "2 players", "Fast"],
+  startInLandscape: true,
   platformControlButtons: true,
 };
 
@@ -25,6 +27,7 @@ export const roadRashGameMeta = {
   namespace: "/roadrash",
   path: "/games/roadrash",
   tags: ["Racing", "2 players", "Action"],
+  startInLandscape: true,
   platformControlButtons: true,
 };
 
@@ -35,6 +38,7 @@ export const marioGameMeta = {
   namespace: "/mario",
   path: "/games/mario",
   tags: ["Platformer", "2 players", "Race"],
+  startInLandscape: true,
   platformControlButtons: true,
 };
 
@@ -45,6 +49,7 @@ export const marioTouchGameMeta = {
   namespace: "/mario-touch",
   path: "/games/mario-touch",
   tags: ["Platformer", "2 players", "Race", "Touch"],
+  startInLandscape: true,
   platformControlButtons: false,
 };
 
@@ -55,5 +60,6 @@ export const drawGameMeta = {
   namespace: "/draw",
   path: "/games/draw",
   tags: ["Creative", "2 players", "Realtime"],
+  startInLandscape: true,
   platformControlButtons: true,
 };

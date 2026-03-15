@@ -61,6 +61,7 @@ app.get("/api/games", (req, res) => {
       description: game.description,
       path: game.path,
       tags: game.tags || [],
+      startInLandscape: game.startInLandscape === true,
       platformControlButtons: game.platformControlButtons !== false,
       url: `${req.protocol}://${req.get("host")}${game.path}`,
     })),

@@ -440,7 +440,9 @@ export default function App() {
       null
     );
   }, [games, route?.gameId]);
+  const startInLandscape = Boolean(activeGame?.startInLandscape);
   const showPlatformControlButtons = !isGameView || activeGame?.platformControlButtons !== false;
+  const showSplitLandscapeControls = isGameView && startInLandscape && showPlatformControlButtons;
 
   const selectedThemeData = useMemo(
     () => getThemeById(selectedThemeId) || builtInThemes[0] || null,
@@ -621,13 +623,13 @@ export default function App() {
   }, []);
 
   const requestFullscreen = useCallback(() => {
-    if (typeof document === "undefined") return;
+    if (typeof document === "undefined") return Promise.resolve();
     const target = document.getElementById("root") || document.documentElement;
     if (!document.fullscreenEnabled || !target?.requestFullscreen) {
       applyPseudoFullscreen(true);
-      return;
+      return Promise.resolve();
     }
-    target.requestFullscreen().catch(() => {});
+    return target.requestFullscreen().catch(() => {});
   }, [applyPseudoFullscreen]);
 
   const exitFullscreen = useCallback(() => {
@@ -648,6 +650,24 @@ export default function App() {
       requestFullscreen();
     }
   }, [exitFullscreen, pseudoFullscreen, requestFullscreen]);
+
+  const lockLandscapeOrientation = useCallback(() => {
+    const orientation = globalThis.screen?.orientation;
+    if (!orientation || typeof orientation.lock !== "function") return;
+    orientation.lock("landscape").catch(() => {});
+  }, []);
+
+  const unlockOrientation = useCallback(() => {
+    const orientation = globalThis.screen?.orientation;
+    if (!orientation || typeof orientation.unlock !== "function") return;
+    orientation.unlock();
+  }, []);
+
+  const presentLandscapeGame = useCallback(() => {
+    Promise.resolve(requestFullscreen()).finally(() => {
+      lockLandscapeOrientation();
+    });
+  }, [lockLandscapeOrientation, requestFullscreen]);
 
 
   useEffect(() => {
@@ -760,6 +780,14 @@ export default function App() {
   }, [route?.gameId]);
 
   useEffect(() => {
+    if (!isGameView || !startInLandscape) return () => {};
+    presentLandscapeGame();
+    return () => {
+      unlockOrientation();
+    };
+  }, [isGameView, presentLandscapeGame, startInLandscape, unlockOrientation]);
+
+  useEffect(() => {
     return () => {
       const activeGameId = activeGameRef.current.gameId;
       if (activeGameId) {
@@ -795,17 +823,25 @@ export default function App() {
     const game = games[selectedIndex];
     if (game?.path) {
       triggerHaptic();
+      if (game.startInLandscape) {
+        presentLandscapeGame();
+      }
       navigateTo(game.path);
     }
-  }, [games, navigateTo, selectedIndex, triggerHaptic]);
+  }, [games, navigateTo, presentLandscapeGame, selectedIndex, triggerHaptic]);
 
   const handleLobbyActivate = useCallback(
     (path) => {
       if (!path) return;
+      const nextGame =
+        games.find((game) => game.path === path) || fallbackGames.find((game) => game.path === path) || null;
       triggerHaptic();
+      if (nextGame?.startInLandscape) {
+        presentLandscapeGame();
+      }
       navigateTo(path);
     },
-    [navigateTo, triggerHaptic],
+    [games, navigateTo, presentLandscapeGame, triggerHaptic],
   );
 
   const handleActionInput = useCallback(
@@ -995,8 +1031,23 @@ export default function App() {
         fullscreenActive && styles.appFullscreen,
       )}
     >
-      <div className={styles.console}>
-        <div className={classNames(styles.screen, isGameView && styles.screenInGame)}>
+      <div className={classNames(styles.console, showSplitLandscapeControls && styles.consoleLandscape)}>
+        {showSplitLandscapeControls && (
+          <Controller
+            onDirectional={handleDirectionalInput}
+            onAction={handleActionInput}
+            disabled={false}
+            variant="split-left"
+          />
+        )}
+
+        <div
+          className={classNames(
+            styles.screen,
+            isGameView && styles.screenInGame,
+            showSplitLandscapeControls && styles.screenLandscape,
+          )}
+        >
           <div className={styles.scanlines} aria-hidden="true" />
           <div className={styles.screenOverlay} aria-hidden="true" />
           <div className={styles.screenBody}>
@@ -1080,7 +1131,14 @@ export default function App() {
           )}
         </div>
 
-        {showPlatformControlButtons ? (
+        {showSplitLandscapeControls ? (
+          <Controller
+            onDirectional={handleDirectionalInput}
+            onAction={handleActionInput}
+            disabled={false}
+            variant="split-right"
+          />
+        ) : showPlatformControlButtons ? (
           <Controller onDirectional={handleDirectionalInput} onAction={handleActionInput} disabled={false} />
         ) : (
           <div className={styles.controllerSlimBar}>

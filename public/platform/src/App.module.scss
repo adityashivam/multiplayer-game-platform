@@ -104,6 +104,11 @@
   gap: 0;
 }
 
+.consoleLandscape {
+  flex-direction: row;
+  align-items: stretch;
+}
+
 .screen {
   flex: 1 1 auto;
   min-height: 0;
@@ -118,6 +123,12 @@
   overflow: hidden;
   display: flex;
   flex-direction: column;
+}
+
+.screenLandscape {
+  flex: 0 0 70%;
+  width: 70%;
+  min-width: 0;
 }
 
 :global(.dark) .screen {
@@ -1376,6 +1387,16 @@
   user-select: none;
 }
 
+.controllerSplitSection {
+  flex: 0 0 15%;
+  width: 15%;
+  max-width: 15%;
+  min-width: 0;
+  min-height: 100%;
+  padding: clamp(12px, 2.2vh, 18px) clamp(8px, 1vw, 14px) clamp(14px, 2.8vh, 22px);
+  justify-content: space-between;
+}
+
 .controllerSection::before {
   content: "";
   position: absolute;
@@ -1443,6 +1464,50 @@
   width: 100%;
   flex-wrap: nowrap;
   padding-top: clamp(8px, 2vh, 16px);
+}
+
+.controllerSplitBody {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  gap: clamp(14px, 3vh, 26px);
+  padding: clamp(6px, 1.2vh, 12px) 0;
+}
+
+.controllerSplitMain {
+  flex: 1;
+  width: 100%;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.controllerSplitMainLeft .dpadShell {
+  width: clamp(76px, 11vw, 156px);
+}
+
+.controllerSplitMainRight .actionShell {
+  --pad-size: clamp(88px, 11vw, 170px);
+}
+
+.controllerSplitUtility {
+  width: 100%;
+  display: flex;
+  align-items: center;
+}
+
+.controllerSplitUtilityLeft {
+  justify-content: flex-end;
+  transform: rotate(-12deg);
+}
+
+.controllerSplitUtilityRight {
+  justify-content: flex-start;
+  transform: rotate(12deg);
 }
 
 .dpadShell {
@@ -1630,6 +1695,16 @@
   letter-spacing: 0.08em;
 }
 
+.controllerSplitSection .miniButton {
+  width: clamp(24px, 4vw, 40px);
+  height: clamp(9px, 1.2vw, 14px);
+}
+
+.controllerSplitSection .miniLabel {
+  margin-top: 5px;
+  font-size: clamp(5px, 0.7vw, 7px);
+}
+
 .actionShell {
   position: relative;
   --pad-size: clamp(102px, 30vw, 210px);
@@ -1773,6 +1848,10 @@
   border-radius: 12px;
 }
 
+.controllerSplitSection .controllerDeco {
+  margin-top: auto;
+}
+
 .controllerSlimBar {
   position: relative;
   flex: 0 0 20px;
@@ -1897,6 +1976,37 @@
 
   .controllerSlimHomeLabel {
     font-size: 6px;
+  }
+}
+
+@media (max-width: 980px), (max-height: 760px) {
+  .controllerSplitSection {
+    padding: clamp(10px, 1.9vh, 14px) clamp(6px, 0.8vw, 10px) clamp(12px, 2.2vh, 16px);
+  }
+
+  .controllerSplitBody {
+    gap: clamp(10px, 2.2vh, 18px);
+  }
+
+  .controllerSplitMainLeft .dpadShell {
+    width: clamp(66px, 10vw, 124px);
+  }
+
+  .controllerSplitMainRight .actionShell {
+    --pad-size: clamp(74px, 10vw, 136px);
+  }
+
+  .controllerSplitSection .miniButton {
+    width: clamp(22px, 3.6vw, 34px);
+    height: clamp(8px, 1vw, 12px);
+  }
+
+  .controllerSplitSection .miniLabel {
+    font-size: clamp(4.8px, 0.62vw, 6px);
+  }
+
+  .controllerSplitSection .controllerDeco span {
+    height: 16px;
   }
 }
 
