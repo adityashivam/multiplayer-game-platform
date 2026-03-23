@@ -10,7 +10,7 @@ A server-authoritative multiplayer game platform built on **Kaboom.js** and **So
 
 ```bash
 npm install
-node server/server.js
+node server/platform-backend-server/server.js
 ```
 
 Open `http://localhost:3000` in two browser tabs to play.
@@ -38,7 +38,7 @@ server/
 
 public/
   platform/
-    shared/                      # Shared client modules (import from games)
+    frontend-engine/             # Browser game runtime modules (import from games)
       gameSocket.js              # Socket.IO wrapper with msgpack + metrics
       gameDom.js                 # Canvas ref + controller input API
       interpolation.js           # Hermite cubic interpolation engine
@@ -52,7 +52,7 @@ public/
       shareModalBridge.js        # Share/invite modal bridge
       performanceSettings.js     # FPS/resolution settings
     src/
-      App.jsx                    # React shell (lobby, game loader, UI)
+      platform-ui/PlatformApp.jsx # React shell (lobby, game loader, UI)
       data/games.js              # Frontend game catalog
       components/
         Controller.jsx           # D-pad + action buttons (touch/click)
@@ -76,7 +76,7 @@ This walkthrough creates a minimal game called **"myGame"** from scratch.
 
 ### Step 1: Add Game Metadata
 
-**File: `server/games/metadata.js`**
+**File: `server/platform-backend-engine/games/metadata.js`**
 
 ```js
 export const myGameMeta = {
@@ -91,14 +91,14 @@ export const myGameMeta = {
 
 ### Step 2: Create Server Game Handler
 
-**File: `server/games/myGame.js`**
+**File: `server/platform-backend-engine/games/myGame.js`**
 
 `registerGame(...)` below is the minimal path. For a modular, genre-agnostic system architecture, use `registerPluggableGame(...)` (documented in the Server-Side API section).
 
 ```js
 import { myGameMeta } from "./metadata.js";
-import { registerGame } from "../utils/registerGame.js";
-import { applySequencedInput } from "../utils/inputProtocol.js";
+import { registerGame } from "../core/registerGame.js";
+import { applySequencedInput } from "../core/inputProtocol.js";
 
 const DEFAULT_INPUT = { left: false, right: false };
 
@@ -182,11 +182,11 @@ export function registerMyGame(io) {
 
 ### Step 3: Register in Server
 
-**File: `server/server.js`** — add these lines:
+**File: `server/platform-backend-server/server.js`** — add these lines:
 
 ```js
-import { registerMyGame } from "./games/myGame.js";
-import { myGameMeta } from "./games/metadata.js";
+import { registerMyGame } from "../platform-backend-engine/games/myGame.js";
+import { myGameMeta } from "../platform-backend-engine/games/metadata.js";
 
 // Add to catalog array:
 const catalog = [
@@ -220,12 +220,12 @@ registerMyGame(io);          // <-- add
 **File: `public/games/myGame/main.js`**
 
 ```js
-import { getGameDomRefs, getGameControls } from "/platform/shared/gameDom.js";
-import { getGameSocket } from "/platform/shared/gameSocket.js";
-import { createWorkerInterpolator } from "/platform/shared/interpolationWorker.js";
-import { createClientPredictor } from "/platform/shared/clientPrediction.js";
-import { createInputTimeline } from "/platform/shared/inputTimeline.js";
-import { showEndGameModal, hideEndGameModal, registerRematchHandler } from "/platform/shared/endGameBridge.js";
+import { getGameDomRefs, getGameControls } from "/platform/frontend-engine/gameDom.js";
+import { getGameSocket } from "/platform/frontend-engine/gameSocket.js";
+import { createWorkerInterpolator } from "/platform/frontend-engine/interpolationWorker.js";
+import { createClientPredictor } from "/platform/frontend-engine/clientPrediction.js";
+import { createInputTimeline } from "/platform/frontend-engine/inputTimeline.js";
+import { showEndGameModal, hideEndGameModal, registerRematchHandler } from "/platform/frontend-engine/endGameBridge.js";
 
 const GAME_SLUG = "myGame";
 const { canvas } = getGameDomRefs();
@@ -395,7 +395,7 @@ The core framework for registering a multiplayer game. Handles room creation, so
 
 ### `registerPluggableGame(options)` (Recommended for New Games)
 
-**Import:** `import { registerPluggableGame } from "../utils/utils.js";`
+**Import:** `import { registerPluggableGame } from "../core/index.js";`
 
 `registerPluggableGame` wraps `registerGame` and runs your simulation as prioritized, pluggable systems. This is the preferred path for building genre-agnostic game logic (fighting, shooter, racer, sports, etc.).
 
@@ -412,7 +412,7 @@ Additional options (on top of all `registerGame` options):
 **Minimal example:**
 
 ```js
-import { registerPluggableGame } from "../utils/utils.js";
+import { registerPluggableGame } from "../core/index.js";
 
 registerPluggableGame({
   io,
@@ -430,7 +430,7 @@ registerPluggableGame({
 
 ### `applySequencedInput(options)`
 
-**Import:** `import { applySequencedInput } from "../utils/inputProtocol.js";`
+**Import:** `import { applySequencedInput } from "../core/inputProtocol.js";`
 
 Applies sequenced input from the client with automatic ack tracking. Supports both streaming input frames and discrete events.
 
@@ -461,12 +461,12 @@ The `player.lastInputSeqAck` field is automatically updated. Include it in your 
 
 ## Client Platform API
 
-All client modules are ES modules. Import them from `/platform/shared/` in your game's `main.js`.
+All client modules are ES modules. Import them from `/platform/frontend-engine/` in your game's `main.js`.
 
 ### gameSocket.js
 
 ```js
-import { getGameSocket } from "/platform/shared/gameSocket.js";
+import { getGameSocket } from "/platform/frontend-engine/gameSocket.js";
 const socket = getGameSocket("myGame");
 ```
 
@@ -500,7 +500,7 @@ socket.send("input", { type: "inputFrame", seq: 1, state: { left: true } });
 ### gameDom.js
 
 ```js
-import { getGameDomRefs, getGameControls } from "/platform/shared/gameDom.js";
+import { getGameDomRefs, getGameControls } from "/platform/frontend-engine/gameDom.js";
 ```
 
 **`getGameDomRefs()`** — Returns `{ canvas }` with a reference to the game canvas element.
@@ -550,7 +550,7 @@ dpad.up.onHold(() => { input.jump = true; }, () => { input.jump = false; });
 ### interpolationWorker.js (Recommended)
 
 ```js
-import { createWorkerInterpolator } from "/platform/shared/interpolationWorker.js";
+import { createWorkerInterpolator } from "/platform/frontend-engine/interpolationWorker.js";
 ```
 
 Smooth position rendering for remote players. Buffers server snapshots and interpolates between them using Hermite cubic splines (when velocities are provided) or linear lerp.
@@ -614,7 +614,7 @@ onUpdate(() => {
 ### pluggablePoseRuntime.js (Genre-Agnostic Runtime API)
 
 ```js
-import { createPluggablePoseRuntime } from "/platform/shared/pluggablePoseRuntime.js";
+import { createPluggablePoseRuntime } from "/platform/frontend-engine/pluggablePoseRuntime.js";
 ```
 
 Use this when building custom movement/render pipelines for any genre. It provides fixed-step simulation + interpolated render poses through callbacks.
@@ -670,7 +670,7 @@ onUpdate(() => {
 ### clientPrediction.js
 
 ```js
-import { createClientPredictor } from "/platform/shared/clientPrediction.js";
+import { createClientPredictor } from "/platform/frontend-engine/clientPrediction.js";
 ```
 
 Instant local input response via client-side physics simulation. The predictor runs the same physics as the server, then reconciles with authoritative server state via soft correction offsets that decay over time.
@@ -751,7 +751,7 @@ if (predicted) {
 ### inputTimeline.js
 
 ```js
-import { createInputTimeline } from "/platform/shared/inputTimeline.js";
+import { createInputTimeline } from "/platform/frontend-engine/inputTimeline.js";
 ```
 
 Captures input at a fixed rate, assigns sequence numbers, and maintains a pending queue for rollback replay.
@@ -810,7 +810,7 @@ import {
   hideEndGameModal,
   updateEndGameModal,
   registerRematchHandler,
-} from "/platform/shared/endGameBridge.js";
+} from "/platform/frontend-engine/endGameBridge.js";
 ```
 
 | Function | Description |
@@ -823,7 +823,7 @@ import {
 ### shareModalBridge.js
 
 ```js
-import { openShareModal, closeShareModal } from "/platform/shared/shareModalBridge.js";
+import { openShareModal, closeShareModal } from "/platform/frontend-engine/shareModalBridge.js";
 ```
 
 Opens/closes the room invite modal so players can share the room URL.
@@ -831,7 +831,7 @@ Opens/closes the room invite modal so players can share the room URL.
 ### connectionBridge.js
 
 ```js
-import { updateConnectionState, subscribeConnectionState, getConnectionState } from "/platform/shared/connectionBridge.js";
+import { updateConnectionState, subscribeConnectionState, getConnectionState } from "/platform/frontend-engine/connectionBridge.js";
 ```
 
 Bridge between game socket metrics and the React UI. Call `updateConnectionState({ status, ping })` from your game to update the connection indicator.
@@ -843,7 +843,7 @@ import {
   loadPerformanceSettings,
   savePerformanceSettings,
   getRuntimePerformanceProfile,
-} from "/platform/shared/performanceSettings.js";
+} from "/platform/frontend-engine/performanceSettings.js";
 ```
 
 Manages FPS target and resolution scale. Settings persist in localStorage.

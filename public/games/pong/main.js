@@ -1,19 +1,19 @@
-import { getGameControls, getGameDomRefs } from "/platform/shared/gameDom.js";
-import { getGameSocket } from "/platform/shared/gameSocket.js";
+import { getGameControls, getGameDomRefs } from "/platform/frontend-engine/gameDom.js";
+import { getGameSocket } from "/platform/frontend-engine/gameSocket.js";
 import {
   hideEndGameModal,
   registerRematchHandler,
   showEndGameModal,
   updateEndGameModal,
-} from "/platform/shared/endGameBridge.js";
-import { openShareModal } from "/platform/shared/shareModalBridge.js";
+} from "/platform/frontend-engine/endGameBridge.js";
+import { openShareModal } from "/platform/frontend-engine/shareModalBridge.js";
 import {
   getRuntimePerformanceProfile,
   subscribeRuntimePerformanceProfile,
-} from "/platform/shared/performanceSettings.js";
-import { createWorkerInterpolator } from "/platform/shared/interpolationWorker.js";
-import { updateConnectionState } from "/platform/shared/connectionBridge.js";
-import { createPluggablePoseRuntime } from "/platform/shared/pluggablePoseRuntime.js";
+} from "/platform/frontend-engine/performanceSettings.js";
+import { createWorkerInterpolator } from "/platform/frontend-engine/interpolationWorker.js";
+import { updateConnectionState } from "/platform/frontend-engine/connectionBridge.js";
+import { createPluggablePoseRuntime } from "/platform/frontend-engine/pluggablePoseRuntime.js";
 
 const GAME_SLUG = "pong";
 const ROOM_READY_EVENT = "kaboom:room-ready";

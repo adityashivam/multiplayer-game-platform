@@ -3,14 +3,14 @@
   "name": "kaboom-fight",
   "version": "1.0.0",
   "description": "Multiplayer fighting game with Kaboom.js",
-  "main": "server/server.js",
+  "main": "server/platform-backend-server/server.js",
   "scripts": {
-    "start": "node server/server.js",
-    "dev": "node --watch server/server.js",
+    "start": "node server/platform-backend-server/server.js",
+    "dev": "node --watch server/platform-backend-server/server.js",
     "platform:dev": "vite --config public/platform/vite.config.js",
     "platform:build": "vite build --config public/platform/vite.config.js",
     "platform:preview": "vite preview --config public/platform/vite.config.js",
-    "build:msgpack": "esbuild node_modules/socket.io-msgpack-parser/index.js --bundle --format=esm --outfile=public/platform/shared/msgpackParser.js --platform=browser --minify",
+    "build:msgpack": "esbuild node_modules/socket.io-msgpack-parser/index.js --bundle --format=esm --outfile=public/platform/frontend-engine/msgpackParser.js --platform=browser --minify",
     "build": "npm run build:msgpack && npm run platform:build",
     "postinstall": "npm run build"
   },

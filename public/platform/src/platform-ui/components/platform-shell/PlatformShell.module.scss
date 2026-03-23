@@ -1,0 +1,273 @@
+:global(html),
+:global(body),
+:global(#root) {
+  width: 100%;
+  height: 100%;
+}
+
+:global(body) {
+  background:
+    radial-gradient(circle at top, rgba(0, 229, 255, 0.12), transparent 38%),
+    radial-gradient(circle at bottom, rgba(255, 86, 44, 0.1), transparent 30%),
+    #090909;
+}
+
+:global(html[data-pseudo-fullscreen="true"]),
+:global(body[data-pseudo-fullscreen="true"]) {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+.platformRoot {
+  width: 100%;
+  height: 100%;
+  min-height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: clamp(12px, 2vw, 24px);
+  overflow: hidden;
+}
+
+.platformRootFullscreen {
+  width: 100vw;
+  height: 100dvh;
+  padding: 0;
+}
+
+.platformConsole {
+  position: relative;
+  width: min(1400px, 100%);
+  height: min(700px, calc(100dvh - clamp(24px, 4vw, 48px)));
+  min-height: 540px;
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  gap: 0;
+  overflow: hidden;
+  border-radius: clamp(34px, 4vw, 48px);
+  border-top: 1px solid rgba(132, 147, 150, 0.16);
+  background: linear-gradient(145deg, #1c1b1b 0%, #0e0e0e 100%);
+  box-shadow: 0 50px 100px -20px rgba(0, 0, 0, 1);
+}
+
+.platformConsole::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at top left, rgba(255, 255, 255, 0.06), transparent 20%),
+    radial-gradient(circle at bottom right, rgba(0, 229, 255, 0.06), transparent 18%);
+  pointer-events: none;
+}
+
+.platformVent {
+  position: absolute;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  opacity: 0.22;
+  pointer-events: none;
+}
+
+.platformVent span {
+  width: 32px;
+  height: 2px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.9);
+}
+
+.platformVentRight {
+  top: 32px;
+  right: 64px;
+}
+
+.platformVentLeft {
+  bottom: 32px;
+  left: 64px;
+}
+
+.platformScreen {
+  position: relative;
+  z-index: 1;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  background: #131313;
+  border-left: 1px solid rgba(0, 0, 0, 0.45);
+  border-right: 1px solid rgba(0, 0, 0, 0.45);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.platformScreenSplit {
+  flex: 1 1 auto;
+  width: auto;
+}
+
+.platformScreenGame {
+  .screenScanlines,
+  .screenOverlay {
+    display: none;
+  }
+}
+
+.screenScanlines {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0),
+    rgba(255, 255, 255, 0) 50%,
+    rgba(0, 0, 0, 0.08) 50%,
+    rgba(0, 0, 0, 0.08)
+  );
+  background-size: 100% 4px;
+  pointer-events: none;
+  opacity: 0.08;
+  z-index: 30;
+}
+
+.screenOverlay {
+  position: absolute;
+  inset: 0;
+  box-shadow: inset 0 0 24px rgba(0, 0, 0, 0.4);
+  pointer-events: none;
+  z-index: 20;
+}
+
+.screenBody {
+  position: relative;
+  z-index: 10;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.screenContent {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  padding: clamp(12px, 1.8vh, 20px) clamp(12px, 1.8vw, 20px) clamp(10px, 1.6vh, 18px);
+  display: flex;
+  flex-direction: column;
+  gap: clamp(12px, 1.4vh, 18px);
+}
+
+.screenContentGame {
+  overflow: hidden;
+  padding: 0;
+  gap: 0;
+}
+
+.screenContentTransition {
+  animation: routeSwapIn 260ms cubic-bezier(0.2, 0.75, 0.25, 1);
+  will-change: opacity, transform;
+}
+
+@keyframes routeSwapIn {
+  0% {
+    opacity: 0;
+    transform: translateY(10px) scale(0.992);
+  }
+
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .screenContentTransition {
+    animation: none;
+  }
+}
+
+.platformBadge,
+.platformBackLink {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 32px;
+  padding: 0 12px;
+  border: 1px solid rgba(132, 147, 150, 0.32);
+  border-radius: 999px;
+  background: rgba(28, 27, 27, 0.88);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 10px 24px rgba(0, 0, 0, 0.2);
+  color: #c3f5ff;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  font-size: 10px;
+  font-family: "Space Grotesk", sans-serif;
+  font-weight: 700;
+}
+
+.platformBackLink {
+  gap: 6px;
+  color: #ffdad2;
+}
+
+.homeBar {
+  display: none;
+}
+
+.homeBarButton {
+  display: none;
+}
+
+@media (max-width: 980px) {
+  .platformConsole {
+    height: min(640px, calc(100dvh - 18px));
+    min-height: 460px;
+    border-radius: 32px;
+  }
+
+  .platformVentRight {
+    top: 24px;
+    right: 32px;
+  }
+
+  .platformVentLeft {
+    bottom: 24px;
+    left: 32px;
+  }
+}
+
+@media (max-width: 720px) {
+  .platformRoot {
+    padding: 0;
+  }
+
+  .platformConsole {
+    width: 100%;
+    height: 100dvh;
+    min-height: 100dvh;
+    border-radius: 0;
+  }
+
+  .platformVentRight {
+    top: 18px;
+    right: 18px;
+  }
+
+  .platformVentLeft {
+    bottom: 18px;
+    left: 18px;
+  }
+
+  .platformVent span {
+    width: 24px;
+  }
+
+  .screenContent {
+    padding: 12px 10px 10px;
+    gap: 10px;
+  }
+}

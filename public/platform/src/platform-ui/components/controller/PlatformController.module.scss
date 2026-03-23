@@ -1,0 +1,460 @@
+.controllerFrame {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+}
+
+.controllerFrame button {
+  user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  touch-action: manipulation;
+}
+
+.controllerFrameSplit {
+  flex: 0 0 clamp(132px, 14vw, 172px);
+  min-width: clamp(132px, 14vw, 172px);
+  padding: clamp(22px, 3vw, 48px) clamp(12px, 1.6vw, 20px);
+  justify-content: center;
+  z-index: 2;
+}
+
+.controllerFrameSplitLeft {
+  align-items: center;
+}
+
+.controllerFrameSplitRight {
+  align-items: center;
+}
+
+.controllerTopBar,
+.controllerDecoration {
+  display: none;
+}
+
+.controllerBody {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.controllerBodySplit {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(18px, 4vh, 40px);
+}
+
+.controllerSplitMain {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.controllerSplitMainDpad .directionPadShell {
+  width: clamp(84px, 8.8vw, 112px);
+}
+
+.controllerSplitMainAction .actionPadShell {
+  --pad-size: clamp(108px, 9.8vw, 136px);
+}
+
+.analogStickHousing {
+  width: clamp(84px, 8.8vw, 112px);
+  aspect-ratio: 1 / 1;
+  padding: clamp(10px, 1vw, 14px);
+  border-radius: 28px;
+  background: #121212;
+  box-shadow:
+    inset 0 4px 12px rgba(0, 0, 0, 0.8),
+    0 1px 1px rgba(255, 255, 255, 0.05);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.analogStickCap {
+  width: 100%;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(145deg, #2a2a2a, #131313);
+  box-shadow:
+    0 10px 20px rgba(0, 0, 0, 0.6),
+    inset 0 1px 2px rgba(255, 255, 255, 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.analogStickCore {
+  width: 72%;
+  height: 72%;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: linear-gradient(to bottom right, rgba(255, 255, 255, 0.06), transparent);
+}
+
+.directionPadShell {
+  position: relative;
+  width: clamp(92px, 28vw, 126px);
+  aspect-ratio: 1 / 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.directionPadHalo {
+  display: none;
+}
+
+.directionPadCross {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.directionPadVertical,
+.directionPadHorizontal {
+  position: absolute;
+  background: linear-gradient(145deg, #222, #111);
+  box-shadow:
+    0 4px 8px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.directionPadVertical {
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 32%;
+  transform: translateX(-50%);
+  border-radius: 8px;
+}
+
+.directionPadHorizontal {
+  top: 50%;
+  left: 0;
+  right: 0;
+  height: 32%;
+  transform: translateY(-50%);
+  border-radius: 8px;
+}
+
+.directionPadCenter {
+  position: absolute;
+  inset: 34%;
+  background: #1a1a1a;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.45);
+  z-index: 2;
+}
+
+.directionButton {
+  position: absolute;
+  z-index: 3;
+  background: transparent;
+  border: none;
+  padding: 0;
+  transition: filter 120ms ease;
+}
+
+.directionButton:active {
+  filter: brightness(1.18);
+}
+
+.directionButtonUp {
+  top: 0;
+  left: 50%;
+  width: 32%;
+  height: 34%;
+  transform: translateX(-50%);
+  border-radius: 8px 8px 0 0;
+}
+
+.directionButtonDown {
+  bottom: 0;
+  left: 50%;
+  width: 32%;
+  height: 34%;
+  transform: translateX(-50%);
+  border-radius: 0 0 8px 8px;
+}
+
+.directionButtonLeft {
+  top: 50%;
+  left: 0;
+  width: 34%;
+  height: 32%;
+  transform: translateY(-50%);
+  border-radius: 8px 0 0 8px;
+}
+
+.directionButtonRight {
+  top: 50%;
+  right: 0;
+  width: 34%;
+  height: 32%;
+  transform: translateY(-50%);
+  border-radius: 0 8px 8px 0;
+}
+
+.directionHint {
+  position: absolute;
+  color: rgba(186, 201, 204, 0.4);
+  font-size: 14px;
+  pointer-events: none;
+  z-index: 4;
+}
+
+.directionHintUp {
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.directionHintDown {
+  bottom: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.directionHintLeft {
+  left: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.directionHintRight {
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.utilityButtonGroup {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.utilityButtonGroupSplit {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+}
+
+.utilityButtonGroupSplitStart,
+.utilityButtonGroupSplitEnd {
+  justify-content: center;
+}
+
+.utilityButtonItem {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.utilityButton {
+  min-width: 56px;
+  height: 14px;
+  padding: 0 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+  background: linear-gradient(180deg, #252525 0%, #121212 100%);
+  box-shadow:
+    0 4px 8px rgba(0, 0, 0, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  transition: transform 90ms ease, filter 90ms ease;
+}
+
+.utilityButton:active {
+  transform: translateY(1px);
+  filter: brightness(1.08);
+}
+
+.utilityButtonLabel {
+  font-family: "Space Grotesk", sans-serif;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: rgba(186, 201, 204, 0.56);
+}
+
+.actionPadShell {
+  position: relative;
+  --pad-size: clamp(116px, 32vw, 152px);
+  width: var(--pad-size);
+  aspect-ratio: 1 / 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.actionPadHalo {
+  display: none;
+}
+
+.actionPad {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.actionButton {
+  position: absolute;
+  width: 32%;
+  height: 32%;
+  border-radius: 999px;
+  border: none;
+  background: linear-gradient(145deg, #2a2a2a, #131313);
+  box-shadow:
+    0 6px 12px rgba(0, 0, 0, 0.7),
+    inset 0 1px 1px rgba(255, 255, 255, 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 90ms ease, filter 90ms ease;
+}
+
+.actionButton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  background: radial-gradient(circle at 50% 0%, rgba(255, 255, 255, 0.05) 0%, transparent 70%);
+}
+
+.actionButton:active {
+  transform: translateY(1px);
+  filter: brightness(1.08);
+}
+
+.actionButtonY {
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  color: #ffeac0;
+  text-shadow: 0 0 8px rgba(255, 234, 192, 0.4);
+}
+
+.actionButtonA {
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  color: #c3f5ff;
+  text-shadow: 0 0 8px rgba(0, 229, 255, 0.4);
+}
+
+.actionButtonX {
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #bac9cc;
+  text-shadow: 0 0 8px rgba(186, 201, 204, 0.4);
+}
+
+.actionButtonB {
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #ffb4a2;
+  text-shadow: 0 0 8px rgba(255, 180, 162, 0.4);
+}
+
+.actionButtonLabel {
+  position: relative;
+  z-index: 1;
+  font-family: "Space Grotesk", sans-serif;
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+@media (max-width: 980px) {
+  .controllerFrameSplit {
+    flex-basis: clamp(110px, 15vw, 138px);
+    min-width: clamp(110px, 15vw, 138px);
+    padding: 18px 10px;
+  }
+
+  .controllerBodySplit {
+    gap: 22px;
+  }
+
+  .controllerSplitMainDpad .directionPadShell {
+    width: clamp(74px, 8vw, 96px);
+  }
+
+  .controllerSplitMainAction .actionPadShell {
+    --pad-size: clamp(96px, 9vw, 120px);
+  }
+
+  .analogStickHousing {
+    width: clamp(74px, 8vw, 96px);
+    border-radius: 22px;
+  }
+
+  .utilityButton {
+    min-width: 46px;
+  }
+
+  .utilityButtonLabel {
+    font-size: 8px;
+  }
+}
+
+@media (max-width: 720px) {
+  .controllerFrameSplit {
+    flex-basis: 92px;
+    min-width: 92px;
+    padding: 16px 8px;
+  }
+
+  .controllerBodySplit {
+    gap: 16px;
+  }
+
+  .controllerSplitMainDpad .directionPadShell {
+    width: 64px;
+  }
+
+  .controllerSplitMainAction .actionPadShell {
+    --pad-size: 82px;
+  }
+
+  .analogStickHousing {
+    width: 64px;
+    padding: 8px;
+    border-radius: 18px;
+  }
+
+  .utilityButton {
+    min-width: 38px;
+    height: 12px;
+    padding: 0 8px;
+  }
+
+  .utilityButtonLabel {
+    font-size: 7px;
+    letter-spacing: 0.12em;
+  }
+
+  .directionHint {
+    font-size: 11px;
+  }
+
+  .actionButtonLabel {
+    font-size: 13px;
+  }
+}

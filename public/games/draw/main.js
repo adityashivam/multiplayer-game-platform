@@ -1,8 +1,8 @@
-import { getGameControls, getGameDomRefs } from "/platform/shared/gameDom.js";
-import { getGameSocket } from "/platform/shared/gameSocket.js";
-import { hideEndGameModal, registerRematchHandler } from "/platform/shared/endGameBridge.js";
-import { openShareModal } from "/platform/shared/shareModalBridge.js";
-import { updateConnectionState } from "/platform/shared/connectionBridge.js";
+import { getGameControls, getGameDomRefs } from "/platform/frontend-engine/gameDom.js";
+import { getGameSocket } from "/platform/frontend-engine/gameSocket.js";
+import { hideEndGameModal, registerRematchHandler } from "/platform/frontend-engine/endGameBridge.js";
+import { openShareModal } from "/platform/frontend-engine/shareModalBridge.js";
+import { updateConnectionState } from "/platform/frontend-engine/connectionBridge.js";
 
 const GAME_SLUG = "draw";
 const ROOM_READY_EVENT = "kaboom:room-ready";
