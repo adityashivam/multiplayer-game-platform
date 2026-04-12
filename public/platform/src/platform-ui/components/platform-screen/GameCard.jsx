@@ -41,6 +41,13 @@ const LIBRARY_META = {
     progress: "12%",
     lastPlayed: "YESTERDAY",
   },
+  "webgl-sample": {
+    banner: "WebGL",
+    genre: "Single Player Dodge Runner",
+    playtime: "0H 28M",
+    progress: "100%",
+    lastPlayed: "TODAY",
+  },
 };
 
 function fallbackGenre(game) {

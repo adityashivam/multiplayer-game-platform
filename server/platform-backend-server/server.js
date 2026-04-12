@@ -16,6 +16,7 @@ import {
   marioGameMeta,
   marioTouchGameMeta,
   drawGameMeta,
+  webglSampleGameMeta,
 } from "../platform-backend-engine/games/metadata.js";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -40,6 +41,7 @@ const catalog = [
   { ...marioGameMeta },
   { ...marioTouchGameMeta },
   { ...drawGameMeta },
+  { ...webglSampleGameMeta },
 ];
 
 app.use(
@@ -60,9 +62,13 @@ app.get("/api/games", (req, res) => {
       name: game.name,
       description: game.description,
       path: game.path,
+      engine: game.engine || "kaboom",
+      runtime: game.runtime || null,
       tags: game.tags || [],
       startInLandscape: game.startInLandscape === true,
       platformControlButtons: game.platformControlButtons !== false,
+      shareRoom: game.shareRoom !== false,
+      networked: game.networked !== false,
       url: `${req.protocol}://${req.get("host")}${game.path}`,
     })),
   });

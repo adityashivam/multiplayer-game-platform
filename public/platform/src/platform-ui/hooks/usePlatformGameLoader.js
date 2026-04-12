@@ -1,35 +1,38 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { disposeGameRuntime, loadGameClient, removeGameClientScripts } from "../services/gameRuntime.js";
 
-export default function usePlatformGameLoader({ gameId, setShareModal }) {
+export default function usePlatformGameLoader({ game, setShareModal }) {
   const [gameLoadError, setGameLoadError] = useState(null);
-  const activeGameRef = useRef({ gameId: null, scriptId: null });
+  const activeRuntimeRef = useRef(null);
+  const gameId = game?.id || null;
 
   const disposeGameSession = useCallback(
-    (targetGameId) => {
+    async (targetGameId) => {
       if (!targetGameId) return;
 
-      disposeGameRuntime(targetGameId);
-      removeGameClientScripts(targetGameId);
-
-      if (activeGameRef.current.gameId === targetGameId) {
-        activeGameRef.current = { gameId: null, scriptId: null };
+      const activeRuntime = activeRuntimeRef.current;
+      if (activeRuntime?.gameId === targetGameId) {
+        await disposeGameRuntime(activeRuntime);
+        activeRuntimeRef.current = null;
+      } else {
+        await disposeGameRuntime(targetGameId);
       }
 
+      removeGameClientScripts(targetGameId);
       setShareModal(false);
     },
     [setShareModal],
   );
 
   useEffect(() => {
-    const previousGameId = activeGameRef.current.gameId;
+    const previousGameId = activeRuntimeRef.current?.gameId;
     if (previousGameId && previousGameId !== gameId) {
-      disposeGameSession(previousGameId);
+      void disposeGameSession(previousGameId);
     }
   }, [disposeGameSession, gameId]);
 
   useEffect(() => {
-    if (!gameId) {
+    if (!gameId || !game) {
       setGameLoadError(null);
       return;
     }
@@ -38,36 +41,39 @@ export default function usePlatformGameLoader({ gameId, setShareModal }) {
 
     async function startGameClient() {
       try {
-        disposeGameRuntime(gameId);
+        await disposeGameRuntime(activeRuntimeRef.current || gameId);
         removeGameClientScripts(gameId);
 
-        const scriptId = await loadGameClient(gameId);
+        const runtimeSession = await loadGameClient(game);
         if (cancelled) {
+          await disposeGameRuntime(runtimeSession);
           removeGameClientScripts(gameId);
           return;
         }
 
-        activeGameRef.current = { gameId, scriptId };
+        activeRuntimeRef.current = runtimeSession;
         setGameLoadError(null);
       } catch (error) {
         console.error(error);
         if (!cancelled) {
+          activeRuntimeRef.current = null;
           setGameLoadError("Failed to load game.");
         }
       }
     }
 
-    startGameClient();
+    void startGameClient();
+
     return () => {
       cancelled = true;
     };
-  }, [gameId]);
+  }, [game, gameId]);
 
   useEffect(() => {
     return () => {
-      const activeGameId = activeGameRef.current.gameId;
+      const activeGameId = activeRuntimeRef.current?.gameId;
       if (activeGameId) {
-        disposeGameSession(activeGameId);
+        void disposeGameSession(activeGameId);
       }
     };
   }, [disposeGameSession]);

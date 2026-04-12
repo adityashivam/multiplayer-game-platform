@@ -1,0 +1,61 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 960" fill="none">
+  <defs>
+    <linearGradient id="bg" x1="360" y1="0" x2="360" y2="960" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#071018"/>
+      <stop offset="1" stop-color="#020406"/>
+    </linearGradient>
+    <linearGradient id="glow" x1="170" y1="200" x2="560" y2="720" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#00E5FF" stop-opacity=".8"/>
+      <stop offset="1" stop-color="#006875" stop-opacity=".1"/>
+    </linearGradient>
+    <linearGradient id="ship" x1="360" y1="606" x2="360" y2="790" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#1AF3FF"/>
+      <stop offset="1" stop-color="#067C8D"/>
+    </linearGradient>
+  </defs>
+  <rect width="720" height="960" fill="url(#bg)"/>
+  <rect x="68" y="72" width="584" height="816" rx="28" fill="#0A1118" stroke="#13303A" stroke-width="3"/>
+  <rect x="92" y="96" width="536" height="768" rx="18" fill="url(#glow)" opacity=".22"/>
+  <g opacity=".26" stroke="#0D2A34" stroke-width="2">
+    <path d="M164 120V840"/>
+    <path d="M276 120V840"/>
+    <path d="M388 120V840"/>
+    <path d="M500 120V840"/>
+    <path d="M612 120V840"/>
+  </g>
+  <g fill="#00E5FF" opacity=".18">
+    <rect x="164" y="138" width="8" height="72" rx="4"/>
+    <rect x="276" y="262" width="8" height="72" rx="4"/>
+    <rect x="388" y="388" width="8" height="72" rx="4"/>
+    <rect x="500" y="262" width="8" height="72" rx="4"/>
+    <rect x="612" y="138" width="8" height="72" rx="4"/>
+    <rect x="164" y="520" width="8" height="72" rx="4"/>
+    <rect x="276" y="650" width="8" height="72" rx="4"/>
+    <rect x="388" y="744" width="8" height="72" rx="4"/>
+    <rect x="500" y="650" width="8" height="72" rx="4"/>
+    <rect x="612" y="520" width="8" height="72" rx="4"/>
+  </g>
+  <g>
+    <rect x="246" y="656" width="228" height="76" rx="24" fill="url(#ship)"/>
+    <rect x="282" y="672" width="156" height="42" rx="18" fill="#0F1720"/>
+    <rect x="336" y="622" width="48" height="34" rx="12" fill="#8FF8FF" fill-opacity=".84"/>
+  </g>
+  <g fill="#FF6A49">
+    <rect x="120" y="256" width="82" height="54" rx="18"/>
+    <rect x="510" y="360" width="92" height="58" rx="18"/>
+    <rect x="206" y="494" width="110" height="64" rx="18"/>
+    <rect x="482" y="590" width="96" height="60" rx="18"/>
+  </g>
+  <g fill="#B8F9FF" opacity=".7">
+    <circle cx="156" cy="178" r="6"/>
+    <circle cx="570" cy="160" r="5"/>
+    <circle cx="530" cy="246" r="4"/>
+    <circle cx="202" cy="416" r="5"/>
+    <circle cx="576" cy="470" r="6"/>
+    <circle cx="148" cy="632" r="5"/>
+    <circle cx="566" cy="758" r="4"/>
+  </g>
+  <text x="112" y="168" fill="#C3F5FF" font-family="Space Grotesk, Arial, sans-serif" font-size="48" font-weight="700" letter-spacing="6">WEBGL</text>
+  <text x="112" y="220" fill="#E5E2E1" font-family="Space Grotesk, Arial, sans-serif" font-size="76" font-weight="800" letter-spacing="2">DRIFT</text>
+  <text x="112" y="274" fill="#BAC9CC" font-family="Manrope, Arial, sans-serif" font-size="18" font-weight="600" letter-spacing="4">SINGLE PLAYER DODGE RUNNER</text>
+</svg>

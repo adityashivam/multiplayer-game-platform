@@ -28,7 +28,9 @@ function quantileFromSamples(samples, q) {
 }
 
 export default function GameView({
+  runtimeSpec,
   shareOpen,
+  showNetworkUi = true,
   onCloseShare,
   roomLabel,
   shareUrl,
@@ -52,6 +54,12 @@ export default function GameView({
   icons,
 }) {
   const [networkPanelOpen, setNetworkPanelOpen] = useState(false);
+  const runtimeKind = runtimeSpec?.kind || "module";
+  const runtimeMount = runtimeSpec?.mount || "canvas";
+  const showModuleCanvas = runtimeKind === "module" && runtimeMount !== "dom";
+  const showModuleDom = runtimeKind === "module" && runtimeMount === "dom";
+  const showUnity = runtimeKind === "unity-webgl";
+  const showIframe = runtimeKind === "iframe";
   const fullscreenIcon = isFullscreen
     ? icons?.game?.fullscreenOff || "fullscreen_exit"
     : icons?.game?.fullscreenOn || "fullscreen";
@@ -78,6 +86,14 @@ export default function GameView({
   }, [networkPanelOpen]);
 
   useEffect(() => {
+    if (!showNetworkUi && networkPanelOpen) {
+      setNetworkPanelOpen(false);
+    }
+  }, [networkPanelOpen, showNetworkUi]);
+
+  useEffect(() => {
+    if (!showNetworkUi) return undefined;
+
     const handleKeydown = (event) => {
       const tag = event?.target?.tagName?.toLowerCase();
       if (tag === "input" || tag === "textarea" || tag === "select") return;
@@ -96,7 +112,7 @@ export default function GameView({
       window.removeEventListener("keydown", handleKeydown);
       window.removeEventListener(TOGGLE_NETWORK_PANEL_EVENT, handleToggleNetworkPanel);
     };
-  }, []);
+  }, [showNetworkUi]);
 
   useEffect(() => {
     let rafId = 0;
@@ -283,18 +299,43 @@ export default function GameView({
   return (
     <div id="game-view" className={styles.gameView}>
       <div className={styles.canvasFrame}>
-        <canvas id="game-canvas" className={styles.gameCanvas} />
+        <div id="game-root" className={styles.gameRuntimeRoot}>
+          <div
+            id="dom-game-container"
+            className={`${styles.gameDomContainer} ${showModuleDom ? styles.gameSurfaceVisible : styles.gameSurfaceHidden}`}
+          />
+          <canvas
+            id="game-canvas"
+            className={`${styles.gameCanvas} ${showModuleCanvas ? styles.gameSurfaceVisible : styles.gameSurfaceHidden}`}
+          />
+          <div
+            id="unity-game-container"
+            className={`${styles.unityGameContainer} ${showUnity ? styles.gameSurfaceVisible : styles.gameSurfaceHidden}`}
+          >
+            <canvas id="unity-game-canvas" className={styles.unityGameCanvas} />
+          </div>
+          <iframe
+            id="game-iframe"
+            title="Embedded game"
+            className={`${styles.gameIframe} ${showIframe ? styles.gameSurfaceVisible : styles.gameSurfaceHidden}`}
+            allow="autoplay; fullscreen; gamepad; clipboard-read; clipboard-write"
+          />
+        </div>
         <div className={styles.canvasOverlay} />
-        <ConnectionIndicator status={connectionStatus} ping={connectionPing} icons={icons?.connection} />
-        <button
-          type="button"
-          className={styles.networkButton}
-          onClick={() => setNetworkPanelOpen((prev) => !prev)}
-          aria-pressed={networkPanelOpen}
-        >
-          NET
-        </button>
-        {networkPanelOpen && (
+        {showNetworkUi ? (
+          <ConnectionIndicator status={connectionStatus} ping={connectionPing} icons={icons?.connection} />
+        ) : null}
+        {showNetworkUi ? (
+          <button
+            type="button"
+            className={styles.networkButton}
+            onClick={() => setNetworkPanelOpen((prev) => !prev)}
+            aria-pressed={networkPanelOpen}
+          >
+            NET
+          </button>
+        ) : null}
+        {showNetworkUi && networkPanelOpen && (
           <div className={styles.networkPanel} aria-live="polite">
             {networkRows.map((row) => (
               <div key={row.label} className={styles.networkRow}>

@@ -5,7 +5,28 @@ export const gameTitles = {
   mario: "Mario Rival Rush",
   "mario-touch": "Mario Rival Rush Touch",
   draw: "Live Draw Duel",
+  "webgl-sample": "WebGL Drift",
 };
+
+function makeKaboomRuntime(id) {
+  return {
+    kind: "module",
+    mount: "canvas",
+    entryUrl: `/games/${id}/main.js`,
+    socketIo: true,
+    kaboom: true,
+  };
+}
+
+function makeWebglRuntime(id) {
+  return {
+    kind: "module",
+    mount: "canvas",
+    entryUrl: `/games/${id}/main.js`,
+    socketIo: false,
+    kaboom: false,
+  };
+}
 
 export const fallbackGames = [
   {
@@ -13,6 +34,8 @@ export const fallbackGames = [
     name: "Kaboom Fight",
     description: "Duel with a friend in this 2-player sword fight built with Kaboom.js.",
     path: "/games/fight",
+    engine: "kaboom",
+    runtime: makeKaboomRuntime("fight"),
     tags: ["Real-time", "2 players", "Action"],
     startInLandscape: true,
     platformControlButtons: true,
@@ -22,6 +45,8 @@ export const fallbackGames = [
     name: "Kaboom Pong",
     description: "Classic two-player pong with server-run ball physics.",
     path: "/games/pong",
+    engine: "kaboom",
+    runtime: makeKaboomRuntime("pong"),
     tags: ["Arcade", "2 players", "Fast"],
     startInLandscape: true,
     platformControlButtons: true,
@@ -31,6 +56,8 @@ export const fallbackGames = [
     name: "Road Rash Online",
     description: "Road Rash-inspired two-player bike race with kicks and highway traffic.",
     path: "/games/roadrash",
+    engine: "kaboom",
+    runtime: makeKaboomRuntime("roadrash"),
     tags: ["Racing", "2 players", "Action"],
     startInLandscape: true,
     platformControlButtons: true,
@@ -40,6 +67,8 @@ export const fallbackGames = [
     name: "Mario Rival Rush",
     description: "Head-to-head Mario platform race. Beat your rival to the flag.",
     path: "/games/mario",
+    engine: "kaboom",
+    runtime: makeKaboomRuntime("mario"),
     tags: ["Platformer", "2 players", "Race"],
     startInLandscape: true,
     platformControlButtons: true,
@@ -50,6 +79,8 @@ export const fallbackGames = [
     description:
       "Mario race tuned for fullscreen landscape play with on-screen touch controls.",
     path: "/games/mario-touch",
+    engine: "kaboom",
+    runtime: makeKaboomRuntime("mario-touch"),
     tags: ["Platformer", "2 players", "Race", "Touch"],
     startInLandscape: true,
     platformControlButtons: false,
@@ -59,9 +90,24 @@ export const fallbackGames = [
     name: "Live Draw Duel",
     description: "Touch and draw together. Your strokes appear live on your rival screen.",
     path: "/games/draw",
+    engine: "kaboom",
+    runtime: makeKaboomRuntime("draw"),
     tags: ["Creative", "2 players", "Realtime"],
     startInLandscape: true,
     platformControlButtons: true,
+  },
+  {
+    id: "webgl-sample",
+    name: "WebGL Drift",
+    description: "Single-player WebGL dodge runner built on the standard browser canvas/WebGL runtime path.",
+    path: "/games/webgl-sample/play",
+    engine: "webgl",
+    runtime: makeWebglRuntime("webgl-sample"),
+    tags: ["Arcade", "Action", "Single Player", "WebGL"],
+    startInLandscape: true,
+    platformControlButtons: true,
+    shareRoom: false,
+    networked: false,
   },
 ];
 
@@ -104,5 +150,12 @@ export const visualsByGame = {
     status: "LAB",
     players: "2P",
     icon: "draw",
+  },
+  "webgl-sample": {
+    status: "WEBGL",
+    players: "1P",
+    icon: "deployed_code",
+    art: "/games/webgl-sample/assets/poster.svg",
+    featured: true,
   },
 };

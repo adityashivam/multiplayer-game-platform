@@ -15,6 +15,7 @@ import usePlatformGameLoader from "./hooks/usePlatformGameLoader.js";
 import usePlatformGameUiState from "./hooks/usePlatformGameUiState.js";
 import usePlatformPresentation from "./hooks/usePlatformPresentation.js";
 import usePlatformRoute from "./hooks/usePlatformRoute.js";
+import { getGameRuntimeSpec } from "./services/gameRuntime.js";
 import styles from "./PlatformApp.module.scss";
 
 const CARD_ZOOM_STEPS = [0.85, 1, 1.075, 1.15];
@@ -62,14 +63,16 @@ export default function App() {
   const { fullscreenActive, toggleFullscreen, presentLandscapeMode, unlockOrientation } =
     usePlatformPresentation();
   const { connectionState, endGameState, endGameBridgeRef } = usePlatformGameUiState(setShareModal);
+  const activeGame = useMemo(() => resolveGameById(route?.gameId), [resolveGameById, route?.gameId]);
   const { disposeGameSession, gameLoadError } = usePlatformGameLoader({
-    gameId: route?.gameId || null,
+    game: activeGame,
     setShareModal,
   });
-
-  const activeGame = useMemo(() => resolveGameById(route?.gameId), [resolveGameById, route?.gameId]);
+  const activeGameRuntime = useMemo(() => getGameRuntimeSpec(activeGame), [activeGame]);
   const startInLandscape = Boolean(activeGame?.startInLandscape);
   const showPlatformControlButtons = !isGameView || activeGame?.platformControlButtons !== false;
+  const showShareInvite = !isGameView || activeGame?.shareRoom !== false;
+  const showNetworkUi = !isGameView || activeGame?.networked !== false;
   const controllerMode = useMemo(() => {
     if (isGameView && startInLandscape && showPlatformControlButtons) return "split";
     if (showPlatformControlButtons) return "full";
@@ -193,7 +196,7 @@ export default function App() {
   }, [isGameView, endGameBridgeRef]);
 
   useEffect(() => {
-    if (!isGameView) {
+    if (!isGameView || !showShareInvite) {
       setShareModal(false);
       return;
     }
@@ -205,7 +208,7 @@ export default function App() {
     }
 
     setShareModal(true);
-  }, [isGameView, route?.gameId, route?.roomId, setShareModal]);
+  }, [isGameView, route?.gameId, route?.roomId, setShareModal, showShareInvite]);
 
   useEffect(() => {
     const handleOpponentJoined = () => {
@@ -474,7 +477,9 @@ export default function App() {
 
       {isGameView && (
         <GameView
-          shareOpen={shareOpen}
+          runtimeSpec={activeGameRuntime}
+          shareOpen={showShareInvite && shareOpen}
+          showNetworkUi={showNetworkUi}
           onCloseShare={() => setShareModal(false)}
           roomLabel={roomLabel}
           shareUrl={shareUrl}
