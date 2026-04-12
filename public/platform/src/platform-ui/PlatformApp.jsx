@@ -7,8 +7,6 @@ import ConfigPanel from "./components/platform-screen/ConfigPanel.jsx";
 import GameView from "./components/platform-screen/GameView.jsx";
 import LobbyHeader from "./components/platform-screen/LobbyHeader.jsx";
 import LobbyList from "./components/platform-screen/LobbyList.jsx";
-import PlatformBackLink from "./components/platform-shell/PlatformBackLink.jsx";
-import PlatformBadge from "./components/platform-shell/PlatformBadge.jsx";
 import PlatformShell from "./components/platform-shell/PlatformShell.jsx";
 import { TOGGLE_NETWORK_PANEL_EVENT } from "./constants/events.js";
 import useGameCatalog from "./hooks/useGameCatalog.js";
@@ -19,6 +17,19 @@ import usePlatformPresentation from "./hooks/usePlatformPresentation.js";
 import usePlatformRoute from "./hooks/usePlatformRoute.js";
 import styles from "./PlatformApp.module.scss";
 
+const CARD_ZOOM_STEPS = [0.85, 1, 1.075, 1.15];
+const NON_FILTER_TAG_PATTERN = /^(?:\d+\s*players?|fast|demo|preview)$/i;
+
+function normalizeFilterTag(tag) {
+  const normalized = tag.trim().toLowerCase().replace(/[-\s]+/g, " ");
+  return normalized === "real time" ? "realtime" : normalized;
+}
+
+function formatFilterLabel(tag) {
+  if (tag === "realtime") return "Real-time";
+  return tag.replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
 export default function App() {
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [copyLabel, setCopyLabel] = useState("Copy");
@@ -26,6 +37,9 @@ export default function App() {
   const [exitConfirmOpen, setExitConfirmOpen] = useState(false);
   const [routeTransitioning, setRouteTransitioning] = useState(false);
   const [activeTab, setActiveTab] = useState("multi");
+  const [cardZoomIndex, setCardZoomIndex] = useState(1);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [activeFilter, setActiveFilter] = useState("all");
 
   const cardRefs = useRef([]);
   const prevSelectedRef = useRef(0);
@@ -67,7 +81,7 @@ export default function App() {
       return gameTitles[route?.gameId] || route?.gameId?.replace(/-/g, " ")?.toUpperCase() || "GAME VIEW";
     }
 
-    if (activeTab === "config") return "CONFIG";
+    if (activeTab === "config") return "SETTINGS";
     return "SELECT GAME CARTRIDGE";
   }, [activeTab, isGameView, route?.gameId]);
 
@@ -78,6 +92,56 @@ export default function App() {
 
   const roomLabel = route?.roomId ? `Room #${route.roomId}` : "Room #----";
   const rematchDisabled = endGameState.phase === "waiting";
+  const cardScale = CARD_ZOOM_STEPS[cardZoomIndex] || 1;
+  const canZoomOut = cardZoomIndex > 0;
+  const canZoomIn = cardZoomIndex < CARD_ZOOM_STEPS.length - 1;
+  const filterOptions = useMemo(() => {
+    const uniqueTags = new Set();
+
+    games.forEach((game) => {
+      (game.tags || []).forEach((tag) => {
+        if (!tag || NON_FILTER_TAG_PATTERN.test(tag)) return;
+        uniqueTags.add(normalizeFilterTag(tag));
+      });
+    });
+
+    return [
+      { value: "all", label: "All Genres" },
+      ...Array.from(uniqueTags)
+        .sort((left, right) => left.localeCompare(right))
+        .map((tag) => ({
+          value: tag,
+          label: formatFilterLabel(tag),
+        })),
+    ];
+  }, [games]);
+  const visibleGames = useMemo(() => {
+    const normalizedQuery = searchQuery.trim().toLowerCase();
+
+    return games.filter((game) => {
+      const matchesFilter =
+        activeFilter === "all" ||
+        (game.tags || []).some((tag) => normalizeFilterTag(tag) === activeFilter);
+
+      if (!matchesFilter) return false;
+      if (!normalizedQuery) return true;
+
+      const haystack = [
+        game.name,
+        game.description,
+        ...(Array.isArray(game.tags) ? game.tags : []),
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+
+      return haystack.includes(normalizedQuery);
+    });
+  }, [activeFilter, games, searchQuery]);
+  const emptyLobbyMessage =
+    searchQuery.trim() || activeFilter !== "all"
+      ? "No games match the current search or filter."
+      : "No games available right now.";
 
   useEffect(() => {
     document.documentElement.classList.add("dark");
@@ -88,9 +152,22 @@ export default function App() {
 
   useEffect(() => {
     if (!loadingGames) {
-      setSelectedIndex((current) => Math.min(current, Math.max(0, games.length - 1)));
+      setSelectedIndex((current) => Math.min(current, Math.max(0, visibleGames.length - 1)));
     }
-  }, [games.length, loadingGames]);
+  }, [loadingGames, visibleGames.length]);
+
+  useEffect(() => {
+    cardRefs.current.length = visibleGames.length;
+  }, [visibleGames.length]);
+
+  useEffect(() => {
+    setSelectedIndex(0);
+  }, [activeFilter, searchQuery]);
+
+  useEffect(() => {
+    if (filterOptions.some((option) => option.value === activeFilter)) return;
+    setActiveFilter("all");
+  }, [activeFilter, filterOptions]);
 
   useEffect(() => {
     setRouteTransitioning(true);
@@ -183,13 +260,13 @@ export default function App() {
   const handleDirectionalInput = useCallback(
     (direction) => {
       ensureLobbyMusicPlayback();
-      if (isGameView || !games.length) return;
+      if (isGameView || !visibleGames.length) return;
 
       setSelectedIndex((current) => {
         const nextIndex =
           direction === "up" || direction === "left"
             ? Math.max(0, current - 1)
-            : Math.min(games.length - 1, current + 1);
+            : Math.min(visibleGames.length - 1, current + 1);
 
         if (nextIndex !== current) {
           triggerHaptic();
@@ -198,16 +275,16 @@ export default function App() {
         return nextIndex;
       });
     },
-    [ensureLobbyMusicPlayback, games.length, isGameView, triggerHaptic],
+    [ensureLobbyMusicPlayback, isGameView, triggerHaptic, visibleGames.length],
   );
 
   const activateSelectedGame = useCallback(() => {
-    if (!games.length) return;
-    const game = games[selectedIndex];
+    if (!visibleGames.length) return;
+    const game = visibleGames[selectedIndex];
     if (game?.path) {
       openGamePath(game.path);
     }
-  }, [games, openGamePath, selectedIndex]);
+  }, [openGamePath, selectedIndex, visibleGames]);
 
   const handleActionInput = useCallback(
     (action) => {
@@ -326,11 +403,19 @@ export default function App() {
     [ensureLobbyMusicPlayback],
   );
 
-  const headerLeft = isGameView ? (
-    <PlatformBackLink onNavigate={returnToLobby}>Lobby</PlatformBackLink>
-  ) : (
-    <PlatformBadge>KABOOM CONSOLE</PlatformBadge>
-  );
+  const handleZoomOut = useCallback(() => {
+    if (!canZoomOut) return;
+    ensureLobbyMusicPlayback();
+    triggerHaptic();
+    setCardZoomIndex((current) => Math.max(0, current - 1));
+  }, [canZoomOut, ensureLobbyMusicPlayback, triggerHaptic]);
+
+  const handleZoomIn = useCallback(() => {
+    if (!canZoomIn) return;
+    ensureLobbyMusicPlayback();
+    triggerHaptic();
+    setCardZoomIndex((current) => Math.min(CARD_ZOOM_STEPS.length - 1, current + 1));
+  }, [canZoomIn, ensureLobbyMusicPlayback, triggerHaptic]);
 
   const footer = !isGameView ? (
     <BottomNav activeTab={activeTab} onTabChange={handleTabChange} icons={DEFAULT_THEME_ICONS.nav} />
@@ -348,23 +433,30 @@ export default function App() {
     >
       {!isGameView && (
         <LobbyHeader
-          headerLeft={headerLeft}
           title={headerTitle}
-          icons={DEFAULT_THEME_ICONS.header}
-          onToggleFullscreen={toggleFullscreen}
-          isFullscreen={fullscreenActive}
-          muted={muted}
-          onToggleMute={() => setMuted((prev) => !prev)}
+          showZoomControls={activeTab !== "config"}
+          canZoomIn={canZoomIn}
+          canZoomOut={canZoomOut}
+          searchQuery={searchQuery}
+          onSearchChange={setSearchQuery}
+          filterOptions={filterOptions}
+          activeFilter={activeFilter}
+          onFilterChange={setActiveFilter}
+          onZoomIn={handleZoomIn}
+          onZoomOut={handleZoomOut}
         />
       )}
 
       {!isGameView && activeTab !== "config" && (
         <LobbyList
           loading={loadingGames}
-          games={games}
+          games={visibleGames}
+          emptyMessage={emptyLobbyMessage}
           selectedIndex={selectedIndex}
           onSelectIndex={setSelectedIndex}
           onActivate={openGamePath}
+          cardScale={cardScale}
+          cardZoomIndex={cardZoomIndex}
           registerCardRef={(index, node) => {
             cardRefs.current[index] = node;
           }}

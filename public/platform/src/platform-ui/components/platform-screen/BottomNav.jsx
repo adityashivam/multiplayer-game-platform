@@ -5,16 +5,16 @@ import styles from "../../PlatformApp.module.scss";
 const tabs = [
   { id: "solo", label: "Solo" },
   { id: "multi", label: "Multi" },
-  { id: "profile", label: "Profile" },
   { id: "friends", label: "Friends" },
+  { id: "profile", label: "Profile" },
   { id: "config", label: "Config" },
 ];
 
 const fallbackIcons = {
-  solo: "videogame_asset",
-  multi: "hub",
-  profile: "id_card",
-  friends: "group",
+  solo: "home",
+  multi: "videogame_asset",
+  friends: "groups",
+  profile: "person",
   config: "settings",
 };
 
@@ -23,7 +23,7 @@ export default function BottomNav({ activeTab = "multi", onTabChange, icons }) {
     <nav className={styles.navBar} aria-label="Primary">
       {tabs.map((tab) => {
         const isActive = tab.id === activeTab;
-        const icon = icons?.[tab.id] || fallbackIcons[tab.id];
+        const icon = fallbackIcons[tab.id] || icons?.[tab.id];
         return (
           <button
             key={tab.id}
@@ -31,6 +31,7 @@ export default function BottomNav({ activeTab = "multi", onTabChange, icons }) {
             className={classNames(styles.navButton, isActive && styles.navButtonActive)}
             onClick={() => onTabChange?.(tab.id)}
             aria-current={isActive ? "page" : undefined}
+            aria-label={tab.label}
           >
             <span className={classNames("material-symbols-outlined", styles.navIcon)}>
               {icon}

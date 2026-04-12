@@ -90,6 +90,19 @@
   left: 64px;
 }
 
+.platformControllerPane {
+  display: flex;
+  align-items: stretch;
+}
+
+.platformPortraitDeck {
+  display: none;
+}
+
+.platformPortraitToggle {
+  display: none;
+}
+
 .platformScreen {
   position: relative;
   z-index: 1;
@@ -269,5 +282,295 @@
   .screenContent {
     padding: 12px 10px 10px;
     gap: 10px;
+  }
+}
+
+@media (max-height: 540px) and (orientation: landscape) {
+  .platformRoot {
+    padding: 0;
+  }
+
+  .platformConsole {
+    width: 100vw;
+    max-width: none;
+    height: 100dvh;
+    min-height: 100dvh;
+    border-radius: 0;
+    border-top: none;
+    box-shadow: none;
+  }
+
+  .platformScreen {
+    border-left: none;
+    border-right: none;
+  }
+
+  .platformVentRight {
+    top: 14px;
+    right: 14px;
+  }
+
+  .platformVentLeft {
+    bottom: 14px;
+    left: 14px;
+  }
+
+  .platformVent span {
+    width: 22px;
+  }
+
+  .screenContent {
+    padding: 10px 12px 8px;
+    gap: 8px;
+  }
+}
+
+@media (max-width: 900px) and (orientation: portrait) {
+  .platformRoot {
+    padding: 0;
+    background: linear-gradient(180deg, #1f1f1f 0%, #121212 100%);
+    overflow: hidden;
+  }
+
+  .platformConsole {
+    width: 100%;
+    max-width: none;
+    height: 100dvh;
+    min-height: 100dvh;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 7fr) minmax(0, 3fr);
+    grid-template-areas:
+      "screen"
+      "deck";
+    align-items: stretch;
+    gap: 0;
+    padding: 0;
+    border-radius: 0;
+    border-top: none;
+    background: linear-gradient(180deg, #2b2b2b 0%, #1a1a1a 42%, #121212 100%);
+    box-shadow: none;
+    overflow: hidden;
+    transition: grid-template-rows 520ms cubic-bezier(0.2, 0.82, 0.2, 1);
+  }
+
+  .platformConsole::before {
+    background:
+      radial-gradient(circle at top center, rgba(255, 255, 255, 0.07), transparent 26%),
+      radial-gradient(circle at 22% 84%, rgba(0, 229, 255, 0.03), transparent 16%),
+      radial-gradient(circle at 82% 80%, rgba(255, 180, 162, 0.03), transparent 16%),
+      linear-gradient(180deg, rgba(255, 255, 255, 0.03), transparent 22%),
+      linear-gradient(180deg, transparent 70%, rgba(0, 0, 0, 0.08) 70%, rgba(0, 0, 0, 0.14) 100%);
+  }
+
+  .platformConsole::after {
+    display: none;
+  }
+
+  .platformControllerPane {
+    display: none;
+  }
+
+  .platformPortraitDeck {
+    grid-area: deck;
+    display: block;
+    position: relative;
+    min-height: 0;
+    height: 100%;
+    padding: 8px 8px 10px;
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 0;
+    background: linear-gradient(180deg, #202020 0%, #161616 100%);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.04),
+      inset 0 -16px 22px rgba(0, 0, 0, 0.12);
+    z-index: 2;
+    overflow: hidden;
+    transform: translateY(0);
+    opacity: 1;
+    transition:
+      transform 520ms cubic-bezier(0.2, 0.82, 0.2, 1),
+      opacity 360ms ease,
+      border-top-color 320ms ease;
+    will-change: transform, opacity;
+  }
+
+  .platformPortraitDeckInner {
+    height: 100%;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 44px minmax(0, 1fr);
+    align-items: stretch;
+    gap: 6px;
+  }
+
+  .platformPortraitController {
+    min-width: 0;
+    display: flex;
+    align-items: stretch;
+    justify-content: center;
+  }
+
+  .platformPortraitCenter {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding-bottom: 0;
+    min-width: 44px;
+  }
+
+  .platformPortraitBrand {
+    font-family: "Space Grotesk", sans-serif;
+    font-size: 7px;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: rgba(186, 201, 204, 0.38);
+    white-space: nowrap;
+  }
+
+  .platformPortraitSpeaker {
+    display: flex;
+    gap: 4px;
+    opacity: 0.24;
+  }
+
+  .platformPortraitSpeaker span {
+    width: 3px;
+    height: 14px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.42);
+  }
+
+  .platformScreen {
+    grid-area: screen;
+    width: 100%;
+    justify-self: center;
+    align-self: stretch;
+    height: 100%;
+    max-height: 100%;
+    min-height: 0;
+    margin-top: 0;
+    border: none;
+    border-left: none;
+    border-right: none;
+    border-radius: 0;
+    background: #111;
+    box-shadow: none;
+    overflow: hidden;
+    transition:
+      width 520ms cubic-bezier(0.2, 0.82, 0.2, 1),
+      border-radius 520ms cubic-bezier(0.2, 0.82, 0.2, 1),
+      box-shadow 520ms cubic-bezier(0.2, 0.82, 0.2, 1);
+  }
+
+  .platformPortraitToggle {
+    position: absolute;
+    left: 50%;
+    bottom: calc(30% - 14px);
+    z-index: 6;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 24px;
+    padding: 0;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 999px;
+    background: rgba(14, 14, 14, 0.38);
+    box-shadow:
+      0 10px 22px rgba(0, 0, 0, 0.28),
+      inset 0 1px 0 rgba(255, 255, 255, 0.08);
+    color: rgba(229, 226, 225, 0.88);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+    transform: translateX(-50%);
+    transition:
+      bottom 520ms cubic-bezier(0.2, 0.82, 0.2, 1),
+      transform 180ms ease,
+      background 180ms ease,
+      border-color 180ms ease,
+      opacity 300ms ease;
+  }
+
+  .platformPortraitToggle:active {
+    transform: translateX(-50%) translateY(1px);
+  }
+
+  .platformPortraitToggleIcon {
+    font-size: 18px;
+    line-height: 1;
+  }
+
+  .platformConsolePortraitExpanded {
+    grid-template-rows: minmax(0, 1fr) 0fr;
+  }
+
+  .platformConsolePortraitExpanded .platformPortraitDeck {
+    opacity: 0;
+    transform: translateY(110%);
+    border-top-color: transparent;
+    pointer-events: none;
+  }
+
+  .platformConsolePortraitExpanded .platformPortraitToggle {
+    bottom: 72px;
+  }
+
+  .platformConsolePortraitExpanded .platformScreen {
+    width: 100%;
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+  .platformVentRight {
+    display: none;
+  }
+
+  .platformVentLeft {
+    top: 18px;
+    left: 20px;
+    bottom: auto;
+    flex-direction: row;
+    gap: 6px;
+    opacity: 0.22;
+  }
+
+  .platformVentLeft span {
+    width: 7px;
+    height: 7px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.22);
+    box-shadow: 0 0 10px rgba(0, 229, 255, 0.08);
+  }
+
+  .platformVentRight span {
+    width: 34px;
+    height: 3px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.46);
+  }
+
+  .screenContent {
+    height: 100%;
+    max-height: 100%;
+    min-height: 0;
+    padding: 8px 8px 6px;
+    gap: 8px;
+  }
+
+  .screenBody {
+    min-height: 0;
+    overflow: hidden;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .platformPortraitToggle,
+  .platformScreen,
+  .platformPortraitDeck,
+  .platformConsole {
+    transition: none;
   }
 }
