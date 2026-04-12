@@ -16,9 +16,9 @@
 }
 
 .controllerFrameSplit {
-  flex: 0 0 clamp(132px, 14vw, 172px);
-  min-width: clamp(132px, 14vw, 172px);
-  padding: clamp(22px, 3vw, 48px) clamp(12px, 1.6vw, 20px);
+  flex: 0 0 clamp(164px, 17vw, 228px);
+  min-width: clamp(164px, 17vw, 228px);
+  padding: clamp(26px, 3.4vw, 56px) clamp(16px, 2vw, 26px);
   justify-content: center;
   z-index: 2;
 }
@@ -51,7 +51,7 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: clamp(18px, 4vh, 40px);
+  gap: clamp(22px, 4.4vh, 48px);
 }
 
 .controllerSplitMain {
@@ -62,18 +62,18 @@
 }
 
 .controllerSplitMainDpad .directionPadShell {
-  width: clamp(84px, 8.8vw, 112px);
+  width: clamp(112px, 10.8vw, 156px);
 }
 
 .controllerSplitMainAction .actionPadShell {
-  --pad-size: clamp(108px, 9.8vw, 136px);
+  --pad-size: clamp(136px, 12vw, 176px);
 }
 
 .analogStickHousing {
-  width: clamp(84px, 8.8vw, 112px);
+  width: clamp(96px, 9.6vw, 132px);
   aspect-ratio: 1 / 1;
-  padding: clamp(10px, 1vw, 14px);
-  border-radius: 28px;
+  padding: clamp(12px, 1.2vw, 16px);
+  border-radius: 32px;
   background: #121212;
   box-shadow:
     inset 0 4px 12px rgba(0, 0, 0, 0.8),
@@ -106,7 +106,7 @@
 
 .directionPadShell {
   position: relative;
-  width: clamp(92px, 28vw, 126px);
+  width: clamp(112px, 28vw, 150px);
   aspect-ratio: 1 / 1;
   display: flex;
   align-items: center;
@@ -210,7 +210,7 @@
 .directionHint {
   position: absolute;
   color: rgba(186, 201, 204, 0.4);
-  font-size: 14px;
+  font-size: 16px;
   pointer-events: none;
   z-index: 4;
 }
@@ -249,7 +249,7 @@
   width: 100%;
   display: flex;
   justify-content: center;
-  gap: 12px;
+  gap: 14px;
 }
 
 .utilityButtonGroupSplitStart,
@@ -265,9 +265,9 @@
 }
 
 .utilityButton {
-  min-width: 56px;
-  height: 14px;
-  padding: 0 10px;
+  min-width: 64px;
+  height: 16px;
+  padding: 0 12px;
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 999px;
   background: linear-gradient(180deg, #252525 0%, #121212 100%);
@@ -284,7 +284,7 @@
 
 .utilityButtonLabel {
   font-family: "Space Grotesk", sans-serif;
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.16em;
   text-transform: uppercase;
@@ -293,7 +293,7 @@
 
 .actionPadShell {
   position: relative;
-  --pad-size: clamp(116px, 32vw, 152px);
+  --pad-size: clamp(136px, 32vw, 176px);
   width: var(--pad-size);
   aspect-ratio: 1 / 1;
   display: flex;
@@ -376,86 +376,135 @@
   position: relative;
   z-index: 1;
   font-family: "Space Grotesk", sans-serif;
-  font-size: 16px;
+  font-size: 18px;
   font-weight: 700;
   letter-spacing: 0.08em;
 }
 
 @media (max-width: 980px) {
   .controllerFrameSplit {
-    flex-basis: clamp(110px, 15vw, 138px);
-    min-width: clamp(110px, 15vw, 138px);
-    padding: 18px 10px;
+    flex-basis: clamp(128px, 16vw, 164px);
+    min-width: clamp(128px, 16vw, 164px);
+    padding: 20px 12px;
   }
 
   .controllerBodySplit {
-    gap: 22px;
+    gap: 26px;
   }
 
   .controllerSplitMainDpad .directionPadShell {
-    width: clamp(74px, 8vw, 96px);
+    width: clamp(88px, 9vw, 116px);
   }
 
   .controllerSplitMainAction .actionPadShell {
-    --pad-size: clamp(96px, 9vw, 120px);
+    --pad-size: clamp(112px, 10vw, 140px);
   }
 
   .analogStickHousing {
-    width: clamp(74px, 8vw, 96px);
-    border-radius: 22px;
+    width: clamp(82px, 8.4vw, 108px);
+    border-radius: 24px;
   }
 
   .utilityButton {
-    min-width: 46px;
+    min-width: 52px;
+    height: 15px;
   }
 
   .utilityButtonLabel {
-    font-size: 8px;
+    font-size: 8.5px;
   }
 }
 
 @media (max-width: 720px) {
   .controllerFrameSplit {
-    flex-basis: 92px;
-    min-width: 92px;
-    padding: 16px 8px;
+    flex-basis: 108px;
+    min-width: 108px;
+    padding: 18px 10px;
   }
 
   .controllerBodySplit {
-    gap: 16px;
+    gap: 18px;
   }
 
   .controllerSplitMainDpad .directionPadShell {
-    width: 64px;
+    width: 78px;
   }
 
   .controllerSplitMainAction .actionPadShell {
-    --pad-size: 82px;
+    --pad-size: 96px;
   }
 
   .analogStickHousing {
-    width: 64px;
-    padding: 8px;
-    border-radius: 18px;
+    width: 72px;
+    padding: 9px;
+    border-radius: 20px;
   }
 
   .utilityButton {
-    min-width: 38px;
-    height: 12px;
-    padding: 0 8px;
+    min-width: 44px;
+    height: 13px;
+    padding: 0 9px;
   }
 
   .utilityButtonLabel {
-    font-size: 7px;
+    font-size: 7.5px;
     letter-spacing: 0.12em;
   }
 
   .directionHint {
-    font-size: 11px;
+    font-size: 12px;
   }
 
   .actionButtonLabel {
+    font-size: 14px;
+  }
+}
+
+@media (max-height: 540px) and (orientation: landscape) {
+  .controllerFrameSplit {
+    flex-basis: clamp(152px, 38dvh, 196px);
+    min-width: clamp(152px, 38dvh, 196px);
+    padding: clamp(14px, 3.2dvh, 20px) clamp(12px, 2.4dvh, 18px);
+  }
+
+  .controllerBodySplit {
+    gap: clamp(14px, 3dvh, 22px);
+  }
+
+  .controllerSplitMainDpad .directionPadShell {
+    width: clamp(110px, 31dvh, 142px);
+  }
+
+  .controllerSplitMainAction .actionPadShell {
+    --pad-size: clamp(126px, 34dvh, 158px);
+  }
+
+  .analogStickHousing {
+    width: clamp(76px, 22dvh, 94px);
+    padding: clamp(8px, 1.8dvh, 11px);
+    border-radius: 24px;
+  }
+
+  .utilityButtonGroupSplit {
+    gap: 10px;
+  }
+
+  .utilityButton {
+    min-width: 56px;
+    height: 15px;
+    padding: 0 10px;
+  }
+
+  .utilityButtonLabel {
+    font-size: 8px;
+  }
+
+  .directionHint {
     font-size: 13px;
+  }
+
+  .actionButtonLabel {
+    font-size: 15px;
   }
 }
 

@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { DEFAULT_THEME_ICONS } from "../data/themes/icons.js";
-import { gameTitles } from "../data/games.js";
 import { removeTheme } from "../utils/themeEngine.js";
 import BottomNav from "./components/platform-screen/BottomNav.jsx";
 import ConfigPanel from "./components/platform-screen/ConfigPanel.jsx";
@@ -78,15 +77,6 @@ export default function App() {
     if (showPlatformControlButtons) return "full";
     return "home-bar";
   }, [isGameView, showPlatformControlButtons, startInLandscape]);
-
-  const headerTitle = useMemo(() => {
-    if (isGameView) {
-      return gameTitles[route?.gameId] || route?.gameId?.replace(/-/g, " ")?.toUpperCase() || "GAME VIEW";
-    }
-
-    if (activeTab === "config") return "SETTINGS";
-    return "SELECT GAME CARTRIDGE";
-  }, [activeTab, isGameView, route?.gameId]);
 
   const shareUrl = useMemo(() => {
     if (!route?.gameId || !route?.roomId) return "";
@@ -436,7 +426,6 @@ export default function App() {
     >
       {!isGameView && (
         <LobbyHeader
-          title={headerTitle}
           showZoomControls={activeTab !== "config"}
           canZoomIn={canZoomIn}
           canZoomOut={canZoomOut}

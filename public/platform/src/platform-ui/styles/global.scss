@@ -64,6 +64,8 @@
 html,
 body {
   height: 100%;
+  touch-action: pan-x pan-y;
+  overscroll-behavior: none;
 }
 
 body {
@@ -83,6 +85,8 @@ body {
 
 :global(#root) {
   height: 100%;
+  touch-action: pan-x pan-y;
+  overscroll-behavior: none;
   -webkit-touch-callout: none;
   -webkit-user-select: none;
   user-select: none;

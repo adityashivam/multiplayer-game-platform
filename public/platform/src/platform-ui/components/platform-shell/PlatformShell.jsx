@@ -25,12 +25,6 @@ export default function PlatformShell({
           portraitShellCollapsed && styles.platformConsolePortraitExpanded,
         )}
       >
-        <div className={classNames(styles.platformVent, styles.platformVentRight)} aria-hidden="true">
-          <span />
-          <span />
-          <span />
-        </div>
-
         <div className={classNames(styles.platformControllerPane, styles.platformControllerPaneLeft)}>
           <PlatformController
             onDirectional={onDirectional}
@@ -104,12 +98,6 @@ export default function PlatformShell({
               />
             </div>
           </div>
-        </div>
-
-        <div className={classNames(styles.platformVent, styles.platformVentLeft)} aria-hidden="true">
-          <span />
-          <span />
-          <span />
         </div>
       </div>
     </div>

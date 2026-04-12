@@ -3,7 +3,6 @@ import classNames from "../../../utils/classNames.js";
 import styles from "../../PlatformApp.module.scss";
 
 export default function LobbyHeader({
-  title,
   showZoomControls = false,
   canZoomIn = true,
   canZoomOut = true,
@@ -46,11 +45,6 @@ export default function LobbyHeader({
 
   return (
     <header className={styles.header}>
-      <div className={styles.headerBrand}>
-        <span className={classNames("material-symbols-outlined", styles.headerBrandIcon)}>sports_esports</span>
-        <h1 className={styles.title}>{title}</h1>
-      </div>
-
       <div className={styles.headerTools}>
         <label className={styles.searchBar}>
           <span className={classNames("material-symbols-outlined", styles.searchIcon)}>search</span>
