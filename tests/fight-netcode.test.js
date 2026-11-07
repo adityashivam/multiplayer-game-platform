@@ -1,8 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createCommandPredictor } from "../public/platform/frontend-engine/commandPrediction.js";
+import { createPredictedInputSession } from "../public/platform/frontend-engine/predictedInputSession.js";
 import { enqueueInputFrame, consumeInputFrames } from "../server/platform-backend-engine/core/inputProtocol.js";
-import { FIGHT_FIXED_DT_SEC, FIGHT_INPUT_TEMPLATE, stepFightPlayer } from "../public/platform/shared/fightSimulation.js";
+import { FIGHT_FIXED_DT_SEC, FIGHT_INPUT_TEMPLATE, stepFightPlayer } from "../public/games/fight/shared/simulation.js";
 
 for (const roundTripMs of [0, 100, 200, 300]) {
   test(`Fight replays delayed authority without false corrections at ${roundTripMs}ms RTT and a 100ms burst`, () => {
@@ -19,49 +19,48 @@ for (const roundTripMs of [0, 100, 200, 300]) {
       dead: false,
       inputEpoch: 1,
     };
-    const predictor = createCommandPredictor({
+    let currentInputState = { ...FIGHT_INPUT_TEMPLATE };
+    let currentTick = 0;
+    const queuedCommands = [];
+    let previousCommandDeliveryTick = 0;
+    const oneWayTicks = Math.ceil(roundTripMs / 2 / (fixedDtSec * 1000));
+    const inputSession = createPredictedInputSession({
       fixedDtSec,
+      captureInput: () => currentInputState,
+      sendInput: (inputPacket) => {
+        const deliveryTick = Math.max(previousCommandDeliveryTick, currentTick + oneWayTicks + (currentTick >= 40 && currentTick < 46 ? 6 : 0));
+        queuedCommands.push({ deliveryTick, inputPacket });
+        previousCommandDeliveryTick = deliveryTick;
+      },
       simulate: (playerState, inputState, stepSec) => stepFightPlayer(playerState, inputState, stepSec, { active: true }),
       extractPose: (playerState) => ({ x: playerState.x, y: playerState.y }),
     });
-    predictor.reset(serverPlayerState);
-    const oneWayTicks = Math.ceil(roundTripMs / 2 / (fixedDtSec * 1000));
-    const pendingFrames = [];
-    const queuedCommands = [];
+    inputSession.receiveAuthority({
+      state: serverPlayerState, protocol: 2, inputEpoch: 1, context: { active: true },
+    });
     const queuedSnapshots = [];
-    let previousCommandDeliveryTick = 0;
     let previousSnapshotDeliveryTick = 0;
     let protocolStarted = false;
 
     for (let tick = 1; tick <= 220; tick++) {
+      currentTick = tick;
       if (tick <= 180) {
-        const inputState = {
+        currentInputState = {
           ...FIGHT_INPUT_TEMPLATE,
           right: tick < 60,
           left: tick >= 60 && tick < 110,
           jump: tick === 35,
           attack: tick === 70,
         };
-        const inputFrame = { seq: tick, input: inputState };
-        pendingFrames.push(inputFrame);
-        predictor.advance(inputFrame, { active: true });
-        const deliveryTick = Math.max(previousCommandDeliveryTick, tick + oneWayTicks + (tick >= 40 && tick < 46 ? 6 : 0));
-        queuedCommands.push({ deliveryTick, inputFrame });
-        previousCommandDeliveryTick = deliveryTick;
+        inputSession.captureAndPredict({ active: true });
       }
 
       while (queuedCommands.length && queuedCommands[0].deliveryTick <= tick) {
-        const { inputFrame } = queuedCommands.shift();
+        const { inputPacket } = queuedCommands.shift();
         const accepted = enqueueInputFrame({
           player: serverPlayerState,
           inputTemplate: FIGHT_INPUT_TEMPLATE,
-          payload: {
-            type: "inputFrame",
-            protocol: 2,
-            epoch: 1,
-            seq: inputFrame.seq,
-            state: inputFrame.input,
-          },
+          payload: inputPacket,
         });
         assert.equal(accepted, true);
         protocolStarted = true;
@@ -88,26 +87,24 @@ for (const roundTripMs of [0, 100, 200, 300]) {
 
       while (queuedSnapshots.length && queuedSnapshots[0].deliveryTick <= tick) {
         const snapshotPacket = queuedSnapshots.shift();
-        while (pendingFrames.length && pendingFrames[0].seq <= snapshotPacket.ack) {
-          pendingFrames.shift();
-        }
-        const previousPredictedState = { ...predictor.getState() };
-        predictor.reconcile(
-          snapshotPacket.state,
-          pendingFrames,
-          { active: true, simulationTick: snapshotPacket.state.inputSimulationTick },
-          snapshotPacket.ack,
-        );
-        assert.ok(Math.abs(predictor.getState().x - previousPredictedState.x) < 1e-8, `ordinary delay X tick=${tick} ack=${snapshotPacket.ack} sim=${snapshotPacket.state.inputSimulationTick} previous=${previousPredictedState.x} next=${predictor.getState().x}`);
-        assert.ok(Math.abs(predictor.getState().y - previousPredictedState.y) < 1e-8, "ordinary delay must not change correctly predicted jump physics");
+        const previousPredictedState = { ...inputSession.getState() };
+        inputSession.receiveAuthority({
+          state: snapshotPacket.state,
+          protocol: 2,
+          inputEpoch: 1,
+          acknowledgedSequence: snapshotPacket.ack,
+          context: { active: true, simulationTick: snapshotPacket.state.inputSimulationTick },
+        });
+        assert.ok(Math.abs(inputSession.getState().x - previousPredictedState.x) < 1e-8, `ordinary delay X tick=${tick} ack=${snapshotPacket.ack} sim=${snapshotPacket.state.inputSimulationTick} previous=${previousPredictedState.x} next=${inputSession.getState().x}`);
+        assert.ok(Math.abs(inputSession.getState().y - previousPredictedState.y) < 1e-8, "ordinary delay must not change correctly predicted jump physics");
       }
 
-      predictor.getRenderPose(fixedDtSec);
+      inputSession.getRenderPose(fixedDtSec);
     }
 
     assert.equal(serverPlayerState.lastInputSeqAck, 180);
-    assert.equal(pendingFrames.length, 0);
-    assert.equal(predictor.getStats().hardSnaps, 0);
-    assert.equal(predictor.getStats().corrections, 0);
+    assert.equal(inputSession.getStats().pendingCommands, 0);
+    assert.equal(inputSession.getStats().hardSnaps, 0);
+    assert.equal(inputSession.getStats().corrections, 0);
   });
 }

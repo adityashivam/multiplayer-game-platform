@@ -1,4 +1,5 @@
-export { bothPlayersConnected, scheduleStart } from "./state.js";
+export { allPlayersConnected, bothPlayersConnected, scheduleStart } from "./state.js";
+export { createGameRegistry, GAME_PLUGIN_API_VERSION } from "./gameRegistry.js";
 export { getGamesStore } from "./gameStore.js";
 export { tickGames } from "./gameLoop.js";
 export { createSimulationPipeline } from "./simulationPipeline.js";

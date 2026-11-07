@@ -201,13 +201,26 @@ export function createInputTimeline(config = {}) {
     resetSampleClock();
   }
 
-  /** @param {number} acknowledgedSequence Remove commands through this sequence. */
+  /** @param {number} acknowledgedSequence Remove processed commands and retain the server's sequence baseline. */
   function acknowledge(acknowledgedSequence) {
     if (!Number.isFinite(acknowledgedSequence)) {
       return;
     }
     while (pendingFrames.length > 0 && pendingFrames[0].seq <= acknowledgedSequence) {
       pendingFrames.shift();
+    }
+    advanceSequenceBaseline(acknowledgedSequence);
+  }
+
+  /**
+   * Move future command sequences past covered simulation time without removing
+   * unacknowledged inputs. Invalid or older baselines leave the counter intact.
+   * @param {number|undefined} sequenceNumber Last sequence already covered by time.
+   * @returns {void}
+   */
+  function advanceSequenceBaseline(sequenceNumber) {
+    if (Number.isSafeInteger(sequenceNumber) && sequenceNumber >= 0) {
+      nextSequence = Math.max(nextSequence, sequenceNumber);
     }
   }
 
@@ -234,6 +247,7 @@ export function createInputTimeline(config = {}) {
     stop,
     reset,
     acknowledge,
+    advanceSequenceBaseline,
     getPendingFrames,
     getPendingFrameCopies,
     getLastSeq,

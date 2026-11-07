@@ -14,16 +14,58 @@ import {
 import { createWorkerInterpolator } from "/platform/frontend-engine/interpolationWorker.js";
 import { updateConnectionState } from "/platform/frontend-engine/connectionBridge.js";
 import { createPluggablePoseRuntime } from "/platform/frontend-engine/pluggablePoseRuntime.js";
+import { createInputLatch } from "/platform/frontend-engine/inputTimeline.js";
+import { createNetworkedGameSession } from "/platform/frontend-engine/networkedGameSession.js";
+import { INPUT_PROTOCOL, SOCKET_EVENT } from "/platform/shared/networkProtocol.js";
+import {
+  PONG_FIXED_DT_SEC,
+  PONG_INPUT_TEMPLATE,
+  PONG_PADDLE_SETTINGS,
+  stepPongPaddle,
+} from "/games/pong/shared/simulation.js";
+
+/**
+ * @typedef {import("./shared/simulation.js").PongPlayerState & {
+ *   inputEpoch?: number, inputSeqAck?: number, inputSimulationTick?: number,
+ *   score: number, connected: boolean
+ * }} PongSnapshotPlayer
+ */
+/**
+ * @typedef {object} PongSnapshot
+ * @property {{p1: PongSnapshotPlayer, p2: PongSnapshotPlayer}} players
+ * @property {{x: number, y: number}} ball
+ * @property {1|2} [inputProtocol]
+ * @property {boolean} gameOver
+ * @property {boolean} started
+ * @property {number|null} startAt
+ * @property {"p1"|"p2"|null} winner
+ * @property {"p1"|"p2"|null} lastLost
+ */
 
 const GAME_SLUG = "pong";
 const ROOM_READY_EVENT = "kaboom:room-ready";
 const DISPOSE_GAME_EVENT = "kaboom:dispose-game";
 const WIDTH = 960;
-const HEIGHT = 720;
+const HEIGHT = PONG_PADDLE_SETTINGS.HEIGHT;
 const PADDLE_W = 26;
-const PADDLE_H = 160;
+const PADDLE_H = PONG_PADDLE_SETTINGS.PADDLE_HEIGHT;
 const PADDLE_X1 = 70;
 const PADDLE_X2 = WIDTH - 70;
+const DIAGNOSTICS_REFRESH_MS = 120;
+const paddleInputLatch = createInputLatch(PONG_INPUT_TEMPLATE);
+let destroyPongNetworkSession = () => {};
+
+/** Clear held controls when browser focus or room ownership changes. */
+function resetPongControls() {
+  paddleInputLatch.reset();
+}
+
+function resetHiddenPongControls() {
+  if (document.hidden) resetPongControls();
+}
+
+window.addEventListener("blur", resetPongControls);
+document.addEventListener("visibilitychange", resetHiddenPongControls);
 
 function clampRuntimeRange(value, min, max, fallback) {
   const parsed = Number(value);
@@ -132,6 +174,7 @@ async function ensureRoomId() {
 
 let gameId = null;
 let hasJoined = false;
+/** @type {"p1"|"p2"|null} */
 let myPlayerId = null;
 let myRejoinToken = null;
 let readyToPlay = false;
@@ -230,6 +273,10 @@ socket.onEvent("gameJoined", ({ playerId, gameId: joinedGameId, rejoinToken: tok
   console.log("Joined game", gameId, "as", playerId);
 });
 
+socket.onEvent(SOCKET_EVENT.DISCONNECT, () => {
+  readyToPlay = false;
+});
+
 socket.onEvent("rematchRequested", ({ playerId }) => {
   if (playerId === myPlayerId) return;
   updateEndGameModal({
@@ -244,11 +291,6 @@ ensureRoomId().then((id) => {
   tryJoinGame();
 });
 
-function sendInput(type, value) {
-  if (!readyToPlay) return;
-  socket.send("input", { type, value });
-}
-
 function handleDirectionalInput(direction, active) {
   // Map horizontal to vertical since Pong paddles move only up/down
   const mapped =
@@ -258,7 +300,7 @@ function handleDirectionalInput(direction, active) {
       ? "down"
       : null;
   if (!mapped) return;
-  sendInput(mapped, active);
+  paddleInputLatch.set(mapped, active);
 }
 
 function handleActionInput(action) {
@@ -320,6 +362,8 @@ function initControllerNavigation() {
 // ---------- Scene ----------
 scene("pong", () => {
   setGravity(0);
+  destroyPongNetworkSession();
+  resetPongControls();
   interpolator.reset();
   if (activePongRuntime) {
     activePongRuntime.destroy();
@@ -418,27 +462,48 @@ scene("pong", () => {
   toast.hidden = true;
   let toastTimer = null;
   let gameOverFlag = false;
-  const interpRuntimeOpts = {
-    pingMs: 0,
-    pingP95Ms: 0,
-    jitterP95Ms: 0,
-    packetLossPct: 0,
-    nowMs: 0,
-  };
+  const networkSession = createNetworkedGameSession({
+    socket,
+    interpolator,
+    prediction: {
+      fixedDtSec: PONG_FIXED_DT_SEC,
+      captureInput: () => paddleInputLatch.capture(),
+      simulate: stepPongPaddle,
+      extractPose: (paddleState) => ({ y: paddleState.y }),
+    },
+    readAuthority: (serverSnapshot) => {
+      const localPlayer = serverSnapshot.players?.[myPlayerId];
+      return localPlayer ? {
+        state: localPlayer,
+        protocol: serverSnapshot.inputProtocol ?? INPUT_PROTOCOL.LEGACY,
+        inputEpoch: localPlayer.inputEpoch,
+        acknowledgedSequence: localPlayer.inputSeqAck ?? 0,
+        context: { simulationTick: localPlayer.inputSimulationTick },
+      } : null;
+    },
+    canCaptureInput: (serverSnapshot) => readyToPlay && !document.hidden && !serverSnapshot.gameOver,
+    composeRenderPose: (remotePose, localPose) => remotePose ? {
+      ...remotePose,
+      p1y: myPlayerId === "p1" && localPose ? localPose.y : remotePose.p1y,
+      p2y: myPlayerId === "p2" && localPose ? localPose.y : remotePose.p2y,
+    } : null,
+    onReset: () => {
+      resetPongControls();
+      movementRuntime.reset();
+    },
+    onDiagnostics: updateConnectionState,
+    diagnosticsIntervalMs: DIAGNOSTICS_REFRESH_MS,
+  });
 
   const movementRuntime = createPluggablePoseRuntime({
-    fixedDtSec: 1 / 120,
+    fixedDtSec: PONG_FIXED_DT_SEC,
     maxFrameSec: 0.08,
     maxFixedSteps: 10,
     targetRenderFps,
-    samplePose: (ctx) => {
-      interpRuntimeOpts.pingMs = latestConnectionSnapshot?.ping;
-      interpRuntimeOpts.pingP95Ms = latestConnectionSnapshot?.pingP95Ms;
-      interpRuntimeOpts.jitterP95Ms = latestConnectionSnapshot?.jitterP95Ms;
-      interpRuntimeOpts.packetLossPct = latestConnectionSnapshot?.packetLossPct;
-      interpRuntimeOpts.nowMs = ctx.nowMs;
-      return interpolator.getInterpolatedPositions(interpRuntimeOpts);
-    },
+    samplePose: (runtimeContext) => networkSession.samplePose({
+      nowMs: runtimeContext.nowMs,
+      deltaSec: runtimeContext.fixedDtSec,
+    }),
     applyPose: (pose) => {
       paddle1.pos.y = pose.p1y;
       paddle2.pos.y = pose.p2y;
@@ -447,6 +512,8 @@ scene("pong", () => {
     },
   });
   activePongRuntime = movementRuntime;
+  destroyPongNetworkSession = () => networkSession.destroy();
+  networkSession.reset();
 
   function showToast(msg) {
     if (!toast) return;
@@ -504,7 +571,6 @@ scene("pong", () => {
     rematchPending = false;
     hasPlayedRound = false;
     gameOverFlag = false;
-    movementRuntime.reset();
     hideEndGameModal();
   });
 
@@ -513,16 +579,11 @@ scene("pong", () => {
     rematchPending = false;
     hasPlayedRound = false;
     gameOverFlag = false;
-    movementRuntime.reset();
-    interpolator.reset();
     hideEndGameModal();
   });
 
   socket.onEvent("state", (state) => {
     if (!state || !state.players || !state.ball) return;
-
-    // Buffer state for interpolated rendering
-    interpolator.pushState(state);
 
     // Discrete updates use latest state immediately
     const { players, gameOver, winner, started, startAt, lastLost } = state;
@@ -583,6 +644,8 @@ function disposeGameRuntime() {
   disposed = true;
 
   cleanupControllerNavigation?.();
+  destroyPongNetworkSession();
+  resetPongControls();
   registerRematchHandler(null);
   hideEndGameModal();
   activePongRuntime?.destroy?.();
@@ -593,6 +656,7 @@ function disposeGameRuntime() {
   updateConnectionState({ status: "disconnected", ping: null });
 
   socket.offEvent("connect");
+  socket.offEvent(SOCKET_EVENT.DISCONNECT);
   socket.offEvent("roomFull");
   socket.offEvent("gameJoined");
   socket.offEvent("rematchRequested");
@@ -603,6 +667,8 @@ function disposeGameRuntime() {
   socket.destroy?.();
 
   window.removeEventListener(DISPOSE_GAME_EVENT, handleDisposeEvent);
+  window.removeEventListener("blur", resetPongControls);
+  document.removeEventListener("visibilitychange", resetHiddenPongControls);
   if (typeof quit === "function") {
     try {
       quit();

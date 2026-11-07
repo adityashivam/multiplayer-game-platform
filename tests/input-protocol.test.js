@@ -145,3 +145,51 @@ test("continuous simulation coalesces late action edges into one fixed step", ()
   advanceContinuousInput();
   assert.deepEqual(simulatedSteps.at(-1), [false, 1 / 60]);
 });
+
+test("queued simulation waits for the configured 30 Hz command duration", () => {
+  const playerState = {};
+  enqueuePlayerInputFrame(playerState, createInputFrame(1, { left: true }));
+  const simulatedSteps = [];
+  const advanceConfiguredInput = () => consumeInputFrames({
+    player: playerState,
+    dtSec: 1 / 60,
+    fixedDtSec: 1 / 30,
+    simulate: (inputState, dtSec) => simulatedSteps.push([inputState.left, dtSec]),
+  });
+
+  advanceConfiguredInput();
+  assert.equal(playerState.lastInputSeqAck, 0);
+  assert.deepEqual(simulatedSteps, []);
+
+  advanceConfiguredInput();
+  assert.deepEqual(simulatedSteps, [[true, 1 / 30]]);
+  assert.equal(playerState.lastInputSeqAck, 1);
+});
+
+test("continuous simulation uses the configured duration and retries a failed command", () => {
+  const playerState = {};
+  enqueuePlayerInputFrame(playerState, createInputFrame(1));
+
+  assert.throws(() => consumeInputFrames({
+    player: playerState,
+    dtSec: 1 / 60,
+    fixedDtSec: 1 / 30,
+    continuous: true,
+    simulate: (_inputState, dtSec) => {
+      assert.equal(dtSec, 1 / 30);
+      throw new Error("configured simulation failed");
+    },
+  }), /configured simulation failed/);
+  assert.equal(playerState.lastInputSeqAck, 0);
+  assert.equal(playerState.inputSimulationTick, undefined);
+
+  const consumedFrameCount = consumeInputFrames({
+    player: playerState,
+    dtSec: 1 / 60,
+    fixedDtSec: 1 / 30,
+    continuous: true,
+    simulate: (_inputState, dtSec) => assert.equal(dtSec, 1 / 30),
+  });
+  assert.equal(consumedFrameCount, 1);
+  assert.equal(playerState.lastInputSeqAck, 1);
+});

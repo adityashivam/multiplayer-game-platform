@@ -99,14 +99,41 @@ function getNetMeta(payload) {
   return null;
 }
 
+/**
+ * Write an own snapshot data property without invoking inherited setters.
+ * Existing properties retain their descriptors, including native array length.
+ * @param {object} target
+ * @param {string|number} key
+ * @param {unknown} value
+ */
+function defineSnapshotProperty(target, key, value) {
+  if (Object.hasOwn(target, key)) {
+    Object.defineProperty(target, key, { value });
+    return;
+  }
+
+  Object.defineProperty(target, key, {
+    value,
+    enumerable: true,
+    configurable: true,
+    writable: true,
+  });
+}
+
+/**
+ * Create path containers in the supplied root without traversing inherited members.
+ * @param {object} root
+ * @param {string[]} tokens
+ * @returns {object} The own container for the final path token.
+ */
 function ensureObjectPath(root, tokens) {
   let node = root;
   for (let i = 0; i < tokens.length - 1; i += 1) {
     const token = tokens[i];
     const nextToken = tokens[i + 1];
     const key = /^\d+$/.test(token) ? Number(token) : token;
-    if (node[key] == null) {
-      node[key] = /^\d+$/.test(nextToken) ? [] : {};
+    if (!Object.hasOwn(node, key) || node[key] == null) {
+      defineSnapshotProperty(node, key, /^\d+$/.test(nextToken) ? [] : {});
     }
     node = node[key];
   }
@@ -121,7 +148,7 @@ function inflateStateFromSchema(schemaTokens, values) {
     const parent = ensureObjectPath(root, tokens);
     const leafToken = tokens[tokens.length - 1];
     const leafKey = /^\d+$/.test(leafToken) ? Number(leafToken) : leafToken;
-    parent[leafKey] = values[i];
+    defineSnapshotProperty(parent, leafKey, values[i]);
   }
   return root;
 }

@@ -94,3 +94,32 @@ test("protocol 2 commands carry the server epoch and legacy frames retain durati
     state: { left: true },
   });
 });
+
+test("legacy input frames use the configured game cadence and retain arbitrary boolean keys", () => {
+  assert.deepEqual(createInputFrame(1, undefined, 12, { climb: true, dive: false }, 1 / 30), {
+    type: "inputFrame",
+    seq: 12,
+    dtSec: 1 / 30,
+    state: { climb: true, dive: false },
+  });
+});
+
+test("network timing summaries retain arbitrary game player identifiers", () => {
+  const networkSummary = summarizeNetworkTiming({
+    name: "third-client",
+    playerId: "green-team",
+    snapshotArrivalTimesMs: [],
+    snapshotServerTimesMs: [],
+    snapshotSequences: [],
+    roundTripTimesMs: [],
+    serverLoopLagSamplesMs: [],
+    roomCpuSamplesMs: [],
+    droppedStepSamples: [],
+    startedSnapshotCount: 0,
+    sentInputSequence: 0,
+    lastInputAcknowledgement: 0,
+  });
+
+  assert.equal(networkSummary.player, "green-team");
+  assert.equal(networkSummary.observedHz, null);
+});

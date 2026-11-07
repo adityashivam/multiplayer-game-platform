@@ -9,28 +9,25 @@ import {
 import { openShareModal } from "/platform/frontend-engine/shareModalBridge.js";
 import { createWorkerInterpolator } from "/platform/frontend-engine/interpolationWorker.js";
 import { updateConnectionState } from "/platform/frontend-engine/connectionBridge.js";
-import { createCommandPredictor } from "/platform/frontend-engine/commandPrediction.js";
+import { createNetworkedGameSession } from "/platform/frontend-engine/networkedGameSession.js";
 import {
   FIGHT_FIXED_DT_SEC,
   FIGHT_INPUT_TEMPLATE,
   stepFightPlayer,
   resolveFightSeparation,
-} from "/platform/shared/fightSimulation.js";
+} from "/games/fight/shared/simulation.js";
 import {
-  INPUT_LIMITS,
-  INPUT_MESSAGE_TYPE,
   INPUT_PROTOCOL,
-  NETWORK_TIMING,
   SOCKET_EVENT,
 } from "/platform/shared/networkProtocol.js";
-import { createInputTimeline, createInputLatch } from "/platform/frontend-engine/inputTimeline.js";
+import { createInputLatch } from "/platform/frontend-engine/inputTimeline.js";
 import { createPluggablePoseRuntime } from "/platform/frontend-engine/pluggablePoseRuntime.js";
 
-/** @typedef {import("../../platform/shared/fightSimulation.js").FightInputState} FightInputState */
-/** @typedef {import("../../platform/shared/fightSimulation.js").FightPlayerId} FightPlayerId */
+/** @typedef {import("./shared/simulation.js").FightInputState} FightInputState */
+/** @typedef {import("./shared/simulation.js").FightPlayerId} FightPlayerId */
 
 /**
- * @typedef {import("../../platform/shared/fightSimulation.js").FightPlayerState & {
+ * @typedef {import("./shared/simulation.js").FightPlayerState & {
  *   health: number,
  *   inputEpoch?: number,
  *   inputSeqAck?: number,
@@ -103,8 +100,7 @@ const LOCAL_NET_HUD_ENABLED = false;
 let shareModalShown = false;
 let toggleNetworkDiagnostics = () => {};
 let cleanupNetworkDiagnostics = () => {};
-let resetFightNetcodeState = () => {};
-let stopFightInputStream = () => {};
+let destroyFightNetworkSession = () => {};
 let activeFightRuntime = null;
 
 const inputLatch = createInputLatch(FIGHT_INPUT_TEMPLATE, {
@@ -344,7 +340,6 @@ let roomReadyPromise = null;
 /** @type {FightPlayerId | null} */
 let myPlayerId = null;
 let myRejoinToken = null;
-let myInputEpoch = null;
 let readyToPlay = false;
 let lastConnected = { p1: false, p2: false };
 let opponentJoined = false;
@@ -515,13 +510,11 @@ socket.onEvent(SOCKET_EVENT.ROOM_FULL, () => {
   alert("Room is full!");
 });
 
-socket.onEvent(SOCKET_EVENT.GAME_JOINED, ({ playerId, gameId: joinedGameId, rejoinToken: token, inputEpoch }) => {
-  myInputEpoch = Number.isSafeInteger(inputEpoch) ? inputEpoch : null;
+socket.onEvent(SOCKET_EVENT.GAME_JOINED, ({ playerId, gameId: joinedGameId, rejoinToken: token }) => {
   myPlayerId = playerId;
   myRejoinToken = token || null;
   readyToPlay = true;
   gameId = joinedGameId;
-  resetFightNetcodeState();
   if (token && joinedGameId) {
     try { sessionStorage.setItem(`rejoinToken:${GAME_SLUG}:${joinedGameId}`, token); } catch (e) { /* noop */ }
   }
@@ -540,11 +533,9 @@ socket.onEvent(SOCKET_EVENT.REMATCH_REQUESTED, ({ playerId }) => {
 });
 
 socket.onEvent(SOCKET_EVENT.REMATCH_STARTED, () => {
-  myInputEpoch = null;
   rematchPending = false;
   interpolator.reset();
   resetLocalInputState();
-  resetFightNetcodeState();
   hideEndGameModal();
 });
 
@@ -655,6 +646,7 @@ const PLAYER2_Y_OFFSET = 0;
 
 scene("fight", () => {
   setGravity(0); // Server handles physics
+  destroyFightNetworkSession();
   interpolator.reset();
   if (activeFightRuntime) {
     activeFightRuntime.destroy();
@@ -721,24 +713,12 @@ scene("fight", () => {
   let joinToastText = null;
   let joinToastTimer = null;
   let lastNetworkHudPaint = 0;
-  /** @type {FightSnapshot | null} */
-  let latestServerState = null;
-  let latestStateSeq = null;
   /** @type {Partial<import("../../platform/frontend-engine/interpolation.js").InterpolationNetworkStats>} */
   let latestNetStats = {};
-  let lastDiagnosticsAtMs = 0;
   let smoothingConfig = {
     interpDelayMs: FIGHT_INTERPOLATION_DELAY_MS,
     extrapolateMs: FIGHT_EXTRAPOLATE_MS,
   };
-  /** @type {import("../../platform/frontend-engine/interpolation.js").InterpolationRuntimeOptions} */
-  const interpolationRuntimeOptions = {
-    pingMs: 0,
-    pingP95Ms: 0,
-    jitterP95Ms: 0,
-    packetLossPct: 0,
-  };
-
   /**
    * Mutate only the owned prediction state. Separation uses an opponent copy so
    * prediction cannot change the retained authoritative snapshot.
@@ -759,74 +739,49 @@ scene("fight", () => {
     }
   }
 
-  const predictor = createCommandPredictor({
-    fixedDtSec: FIGHT_FIXED_DT_SEC,
-    simulate: simulatePredictedFightPlayer,
-    extractPose: (playerState) => ({ x: playerState.x, y: playerState.y }),
-    maxSmoothingDistance: FIGHT_MAX_SMOOTHING_DISTANCE,
-  });
-
-  /** @returns {FightPredictionContext} */
-  function createFightPredictionContext() {
+  /** @param {FightSnapshot} serverSnapshot @returns {FightPredictionContext} */
+  function createFightPredictionContext(serverSnapshot) {
     return {
-      simulationTick: latestServerState?.players?.[myPlayerId]?.inputSimulationTick,
-      active: Boolean(
-        latestServerState?.started &&
-        !latestServerState?.gameOver &&
-        latestServerState?.connected?.p1 &&
-        latestServerState?.connected?.p2,
-      ),
-      opponent: myPlayerId === "p1" ? latestServerState?.players?.p2 : latestServerState?.players?.p1,
+      simulationTick: serverSnapshot.players?.[myPlayerId]?.inputSimulationTick,
+      active: Boolean(serverSnapshot.started && !serverSnapshot.gameOver &&
+        serverSnapshot.connected?.p1 && serverSnapshot.connected?.p2),
+      opponent: serverSnapshot.players?.[myPlayerId === "p1" ? "p2" : "p1"],
     };
   }
 
-  /** @param {number} nowMs */
-  function sampleInterpolatedFightPositions(nowMs) {
-    interpolationRuntimeOptions.pingMs = latestConnectionSnapshot?.ping ?? 0;
-    interpolationRuntimeOptions.pingP95Ms = latestConnectionSnapshot?.pingP95Ms ?? 0;
-    interpolationRuntimeOptions.jitterP95Ms = latestConnectionSnapshot?.jitterP95Ms ?? 0;
-    interpolationRuntimeOptions.packetLossPct = latestConnectionSnapshot?.packetLossPct ?? 0;
-    interpolationRuntimeOptions.nowMs = nowMs;
-    return interpolator.getInterpolatedPositions(interpolationRuntimeOptions);
-  }
-
-  /** Capture and predict one command only after the current input epoch is ready. */
-  function advanceLocalFightPrediction() {
-    const localServerPlayer = myPlayerId && latestServerState?.players?.[myPlayerId];
-    if (localServerPlayer && !predictor.getState()) {
-      predictor.reset(localServerPlayer);
-    }
-
-    const epochReady = latestServerState?.inputProtocol !== INPUT_PROTOCOL.QUEUED ||
-      Number.isSafeInteger(myInputEpoch);
-    if (
-      localServerPlayer &&
-      readyToPlay &&
-      epochReady &&
-      socket.isConnected() &&
-      !document.hidden &&
-      !latestServerState.gameOver
-    ) {
-      const inputFrame = inputTimeline.sendNow();
-      predictor.advance(inputFrame, createFightPredictionContext());
-    }
-  }
-
-  /** @param {number} nowMs */
-  function refreshFightNetDiagnostics(nowMs) {
-    if (nowMs - lastDiagnosticsAtMs >= FIGHT_DIAGNOSTICS_REFRESH_MS) {
-      lastDiagnosticsAtMs = nowMs;
-      latestNetStats = interpolator.getNetworkStats() || {};
+  const networkSession = createNetworkedGameSession({
+    socket,
+    interpolator,
+    prediction: {
+      fixedDtSec: FIGHT_FIXED_DT_SEC,
+      captureInput: captureLocalInputState,
+      simulate: simulatePredictedFightPlayer,
+      extractPose: (playerState) => ({ x: playerState.x, y: playerState.y }),
+      maxSmoothingDistance: FIGHT_MAX_SMOOTHING_DISTANCE,
+    },
+    readAuthority: (serverSnapshot) => {
+      const localPlayer = serverSnapshot.players?.[myPlayerId];
+      return localPlayer ? {
+        state: localPlayer,
+        protocol: serverSnapshot.inputProtocol ?? INPUT_PROTOCOL.LEGACY,
+        inputEpoch: localPlayer.inputEpoch,
+        acknowledgedSequence: localPlayer.inputSeqAck ?? 0,
+        context: createFightPredictionContext(serverSnapshot),
+      } : null;
+    },
+    canCaptureInput: (serverSnapshot) => readyToPlay && !document.hidden && !serverSnapshot.gameOver,
+    composeRenderPose: (remotePose, localPose) => remotePose ? createFightRenderPose(remotePose, localPose) : null,
+    onReset: resetFightPresentation,
+    onDiagnostics: (sessionStats) => {
+      latestNetStats = sessionStats.interpolation ?? {};
       smoothingConfig = {
         interpDelayMs: latestNetStats.effectiveDelayMs ?? latestNetStats.interpDelayMs ?? FIGHT_INTERPOLATION_DELAY_MS,
         extrapolateMs: latestNetStats.extrapolateMs ?? 0,
       };
-      updateConnectionState({
-        prediction: predictor.getStats(),
-        interpolation: latestNetStats,
-      });
-    }
-  }
+      updateConnectionState(sessionStats);
+    },
+    diagnosticsIntervalMs: FIGHT_DIAGNOSTICS_REFRESH_MS,
+  });
 
   /**
    * Apply prediction to the local player's pose and interpolation to the opponent.
@@ -871,16 +826,10 @@ scene("fight", () => {
         return;
       }
 
-      const interpolatedPositions = sampleInterpolatedFightPositions(runtimeContext.nowMs);
-      if (!interpolatedPositions) {
-        return;
-      }
-
-      advanceLocalFightPrediction();
-      const predictedPose = predictor.getRenderPose(runtimeContext.fixedDtSec);
-      refreshFightNetDiagnostics(runtimeContext.nowMs);
-
-      return createFightRenderPose(interpolatedPositions, predictedPose);
+      return networkSession.samplePose({
+        nowMs: runtimeContext.nowMs,
+        deltaSec: runtimeContext.fixedDtSec,
+      });
     },
     applyPose: (pose) => {
       if (!player1 || !player2) return;
@@ -892,33 +841,6 @@ scene("fight", () => {
   });
   activeFightRuntime = movementRuntime;
 
-  /**
-   * Encode one command using the current server-advertised input protocol.
-   * @param {import("../../platform/frontend-engine/inputTimeline.js").InputCommandFrame<FightInputState>} inputFrame
-   */
-  function sendFightInputFrame(inputFrame) {
-    if (!readyToPlay || !myPlayerId) {
-      return;
-    }
-
-    socket.send(SOCKET_EVENT.INPUT, {
-      type: INPUT_MESSAGE_TYPE.FRAME,
-      seq: inputFrame.seq,
-      dtSec: inputFrame.dtSec,
-      state: inputFrame.input,
-      ...(latestServerState?.inputProtocol === INPUT_PROTOCOL.QUEUED
-        ? { protocol: INPUT_PROTOCOL.QUEUED, epoch: myInputEpoch }
-        : {}),
-    });
-  }
-
-  const inputTimeline = createInputTimeline({
-    hz: NETWORK_TIMING.SIMULATION_HZ,
-    fixedDtSec: FIGHT_FIXED_DT_SEC,
-    maxPendingFrames: INPUT_LIMITS.MAX_PENDING_FRAMES,
-    captureInput: captureLocalInputState,
-    sendFrame: sendFightInputFrame,
-  });
   const netHud = createNetworkHud(gameCanvas);
   const handleKeyToggleNetwork = (event) => {
     const tag = event?.target?.tagName?.toLowerCase();
@@ -951,7 +873,7 @@ scene("fight", () => {
     lastNetworkHudPaint = nowMs;
 
     const pingMs = toFiniteNumber(latestConnectionSnapshot?.ping);
-    const correctionMagnitude = predictor.getStats().correctionDistance;
+    const correctionMagnitude = networkSession.getStats().prediction?.correctionDistance ?? 0;
     const localRole = myPlayerId ? myPlayerId.toUpperCase() : "--";
     const status = (latestConnectionSnapshot?.status || "connecting").toUpperCase();
 
@@ -970,34 +892,21 @@ scene("fight", () => {
     ]);
   }
 
-  /**
-   * Clear prediction and rendering history. Player departures retain the input
-   * sequence until the server advertises a new epoch.
-   * @param {{ preserveSequence?: boolean }} [options]
-   */
-  function resetNetcodeState({ preserveSequence = false } = {}) {
+  /** Reset game presentation after the SDK clears networking ownership. */
+  function resetFightPresentation() {
     movementRuntime.reset();
-    interpolator.reset();
     latestNetStats = {};
     smoothingConfig = {
       interpDelayMs: FIGHT_INTERPOLATION_DELAY_MS,
       extrapolateMs: FIGHT_EXTRAPOLATE_MS,
     };
-    latestServerState = null;
-    latestStateSeq = null;
-    if (!preserveSequence) {
-      inputTimeline.reset();
-    }
     resetLocalInputState();
-    predictor.reset(null);
     lastNetworkHudPaint = 0;
     refreshNetworkHud(performance.now(), true);
   }
 
-  resetFightNetcodeState = resetNetcodeState;
-  stopFightInputStream = () => inputTimeline.stop();
-  resetNetcodeState();
-  // Input is captured by the same fixed simulation clock used for prediction.
+  destroyFightNetworkSession = () => networkSession.destroy();
+  networkSession.reset();
 
   function makePlayer(posX, posY, scaleFactor, id) {
     const p = add([
@@ -1165,34 +1074,8 @@ scene("fight", () => {
     window.__kaboomOpponentJoined = null;
     rematchPending = false;
     gameOverFlag = false;
-    resetNetcodeState({ preserveSequence: true });
     hideEndGameModal();
   });
-
-  /**
-   * Start a fresh command session on epoch changes, then acknowledge and replay.
-   * The authoritative player and timeline input objects are only read.
-   * @param {{ p1: FightSnapshotPlayerState, p2: FightSnapshotPlayerState }} players
-   */
-  function reconcileLocalFightPlayer(players) {
-    if (myPlayerId && players?.[myPlayerId]) {
-      const localPlayerState = players[myPlayerId];
-      if (Number.isSafeInteger(localPlayerState.inputEpoch) && localPlayerState.inputEpoch !== myInputEpoch) {
-        myInputEpoch = localPlayerState.inputEpoch;
-        inputTimeline.reset();
-        predictor.reset(localPlayerState);
-      }
-
-      const acknowledgedSequence = toFiniteNumber(localPlayerState.inputSeqAck) ?? 0;
-      inputTimeline.acknowledge(acknowledgedSequence);
-      predictor.reconcile(
-        localPlayerState,
-        inputTimeline.getPendingFrames(),
-        createFightPredictionContext(),
-        acknowledgedSequence,
-      );
-    }
-  }
 
   // Server state updates
   socket.onEvent(SOCKET_EVENT.STATE, (serverState) => {
@@ -1201,22 +1084,8 @@ scene("fight", () => {
     }
 
     const arrivalMs = performance.now();
-    const networkMetadata = serverState?.net || {};
-    const sequenceNumber = toFiniteNumber(networkMetadata.seq);
-    if (sequenceNumber != null) {
-      if (latestStateSeq != null && sequenceNumber <= latestStateSeq) {
-        return;
-      }
-      latestStateSeq = sequenceNumber;
-    }
-    latestServerState = serverState;
-
-    // Buffer state for interpolated rendering
-    interpolator.pushState(serverState);
-
     // Discrete updates use latest state immediately
     const { players, timer, gameOver, winner, started, startAt, connected } = serverState;
-    reconcileLocalFightPlayer(players);
     if (connected) {
       if (connected.p1 !== lastConnected.p1 || connected.p2 !== lastConnected.p2) {
         if (connected.p1 && !lastConnected.p1 && connected.p2) {
@@ -1327,9 +1196,8 @@ function disposeGameRuntime() {
   cleanupControllerNavigation?.();
   cleanupNetworkDiagnostics?.();
   cleanupNetworkDiagnostics = () => {};
-  resetFightNetcodeState = () => {};
-  stopFightInputStream?.();
-  stopFightInputStream = () => {};
+  destroyFightNetworkSession();
+  destroyFightNetworkSession = () => {};
   registerRematchHandler(null);
   hideEndGameModal();
   resetLocalInputState();

@@ -1,3 +1,32 @@
+const BUNDLED_GAME_TICK_RATE_HZ = 60;
+const BUNDLED_PLAYER_IDS = Object.freeze(["p1", "p2"]);
+
+/**
+ * @typedef {{left: boolean, right: boolean, jump: boolean, attack: boolean, heavyAttack: boolean, aerialAttack: boolean}} FightInputTemplate
+ * @typedef {{up: boolean, down: boolean}} PongInputTemplate
+ */
+
+/** @returns {{playerIds: string[]}} Each game owns its room metadata. */
+function makeTwoPlayerRoomMetadata() {
+  return { playerIds: [...BUNDLED_PLAYER_IDS] };
+}
+
+/**
+ * Only games accepting inputFrame advertise continuous diagnostic input.
+ * Other bundled games expose snapshot and RTT sampling through their namespace.
+ * @param {string} namespace
+ * @param {FightInputTemplate|PongInputTemplate|null} [inputTemplate]
+ * @returns {{namespace: string, tickRateHz: number, inputProtocol: 2|null, inputTemplate: FightInputTemplate|PongInputTemplate|null}}
+ */
+function makeNetworkingMetadata(namespace, inputTemplate = null) {
+  return {
+    namespace,
+    tickRateHz: BUNDLED_GAME_TICK_RATE_HZ,
+    inputProtocol: inputTemplate === null ? null : 2,
+    inputTemplate,
+  };
+}
+
 function makeKaboomRuntime(id) {
   return {
     kind: "module",
@@ -23,6 +52,15 @@ export const fightGameMeta = {
   name: "Kaboom Fight",
   description: "Two-player sword duel powered by Kaboom.js and Socket.IO.",
   namespace: "/fight",
+  room: makeTwoPlayerRoomMetadata(),
+  networking: makeNetworkingMetadata("/fight", {
+    left: false,
+    right: false,
+    jump: false,
+    attack: false,
+    heavyAttack: false,
+    aerialAttack: false,
+  }),
   path: "/games/fight",
   engine: "kaboom",
   runtime: makeKaboomRuntime("fight"),
@@ -36,6 +74,8 @@ export const pongGameMeta = {
   name: "Kaboom Pong",
   description: "Classic two-player pong duel with server-authoritative ball physics.",
   namespace: "/pong",
+  room: makeTwoPlayerRoomMetadata(),
+  networking: makeNetworkingMetadata("/pong", { up: false, down: false }),
   path: "/games/pong",
   engine: "kaboom",
   runtime: makeKaboomRuntime("pong"),
@@ -49,6 +89,8 @@ export const roadRashGameMeta = {
   name: "Road Rash Online",
   description: "Road Rash-inspired 2-player race with kicking, traffic, and real-time multiplayer.",
   namespace: "/roadrash",
+  room: makeTwoPlayerRoomMetadata(),
+  networking: makeNetworkingMetadata("/roadrash"),
   path: "/games/roadrash",
   engine: "kaboom",
   runtime: makeKaboomRuntime("roadrash"),
@@ -62,6 +104,8 @@ export const marioGameMeta = {
   name: "Mario Rival Rush",
   description: "Head-to-head 2-player Mario platform race. Reach the flag first to win.",
   namespace: "/mario",
+  room: makeTwoPlayerRoomMetadata(),
+  networking: makeNetworkingMetadata("/mario"),
   path: "/games/mario",
   engine: "kaboom",
   runtime: makeKaboomRuntime("mario"),
@@ -75,6 +119,8 @@ export const marioTouchGameMeta = {
   name: "Mario Rival Rush Touch",
   description: "Head-to-head Mario race tuned for fullscreen landscape and touch controls.",
   namespace: "/mario-touch",
+  room: makeTwoPlayerRoomMetadata(),
+  networking: makeNetworkingMetadata("/mario-touch"),
   path: "/games/mario-touch",
   engine: "kaboom",
   runtime: makeKaboomRuntime("mario-touch"),
@@ -88,6 +134,8 @@ export const drawGameMeta = {
   name: "Live Draw Duel",
   description: "Draw with touch or mouse and mirror strokes live to your rival.",
   namespace: "/draw",
+  room: makeTwoPlayerRoomMetadata(),
+  networking: makeNetworkingMetadata("/draw"),
   path: "/games/draw",
   engine: "kaboom",
   runtime: makeKaboomRuntime("draw"),

@@ -100,7 +100,7 @@ export const INPUT_LIMITS = Object.freeze({
 
 export const NETWORK_ENDPOINT = Object.freeze({
   HEALTH: "/api/health",
-  FIGHT_NAMESPACE: "/fight",
+  GAME_CATALOG: "/api/games",
   SOCKET_WEBSOCKET: "/socket.io/?EIO=4&transport=websocket",
 });
 

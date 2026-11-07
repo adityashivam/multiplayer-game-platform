@@ -5,7 +5,7 @@ import {
   FIGHT_INPUT_TEMPLATE,
   stepFightPlayer,
   resolveFightSeparation,
-} from "../public/platform/shared/fightSimulation.js";
+} from "../public/games/fight/shared/simulation.js";
 
 function createFightPlayerState() {
   return {

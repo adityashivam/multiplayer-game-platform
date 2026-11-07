@@ -224,9 +224,10 @@ export function enqueueInputFrame({ player, payload, inputTemplate = {} }) {
  * @param {InputSimulation<InputKey>} simulate
  * @param {number} maxSteps
  * @param {ReadonlyArray<InputKey>} edgeKeys
+ * @param {number} fixedDtSec
  * @returns {number} Number of queued frames incorporated into this step.
  */
-function consumeContinuousInputFrames(player, inputBuffer, simulate, maxSteps, edgeKeys) {
+function consumeContinuousInputFrames(player, inputBuffer, simulate, maxSteps, edgeKeys, fixedDtSec) {
   let targetSimulationTick = (player.inputSimulationTick || 0) + 1;
   if (inputBuffer.queue.length && inputBuffer.queue[0].seq > targetSimulationTick) {
     targetSimulationTick = inputBuffer.queue[0].seq;
@@ -252,7 +253,7 @@ function consumeContinuousInputFrames(player, inputBuffer, simulate, maxSteps, e
   }
 
   const lastConsumedFrame = consumedFrameCount ? inputBuffer.queue[consumedFrameCount - 1] : null;
-  simulate({ ...heldInputState, ...actionEdges }, NETWORK_TIMING.FIXED_DT_SEC, lastConsumedFrame);
+  simulate({ ...heldInputState, ...actionEdges }, fixedDtSec, lastConsumedFrame);
 
   if (consumedFrameCount) {
     inputBuffer.queue.splice(0, consumedFrameCount);
@@ -271,23 +272,24 @@ function consumeContinuousInputFrames(player, inputBuffer, simulate, maxSteps, e
  * @param {number} dtSec
  * @param {InputSimulation<InputKey>} simulate
  * @param {number} maxSteps
+ * @param {number} fixedDtSec
  * @returns {number}
  */
-function consumeQueuedInputFrames(player, inputBuffer, dtSec, simulate, maxSteps) {
+function consumeQueuedInputFrames(player, inputBuffer, dtSec, simulate, maxSteps, fixedDtSec) {
   const elapsedSec = Number.isFinite(dtSec) ? Math.max(0, dtSec) : 0;
   inputBuffer.credit = Math.min(INPUT_LIMITS.MAX_CREDIT_SEC, inputBuffer.credit + elapsedSec);
 
   let consumedFrameCount = 0;
   while (
     inputBuffer.queue.length &&
-    inputBuffer.credit + INPUT_CREDIT_EPSILON_SEC >= NETWORK_TIMING.FIXED_DT_SEC &&
+    inputBuffer.credit + INPUT_CREDIT_EPSILON_SEC >= fixedDtSec &&
     consumedFrameCount < Math.min(INPUT_LIMITS.MAX_FRAMES_PER_TICK, Math.max(0, maxSteps))
   ) {
     const inputFrame = inputBuffer.queue[0];
-    simulate(inputFrame.state, NETWORK_TIMING.FIXED_DT_SEC, inputFrame);
+    simulate(inputFrame.state, fixedDtSec, inputFrame);
 
     inputBuffer.queue.shift();
-    inputBuffer.credit = Math.max(0, inputBuffer.credit - NETWORK_TIMING.FIXED_DT_SEC);
+    inputBuffer.credit = Math.max(0, inputBuffer.credit - fixedDtSec);
     player.input = { ...inputFrame.state };
     player.lastInputSeqAck = inputFrame.seq;
     consumedFrameCount += 1;
@@ -306,6 +308,7 @@ function consumeQueuedInputFrames(player, inputBuffer, dtSec, simulate, maxSteps
  * @param {number} [options.maxSteps]
  * @param {boolean} [options.continuous]
  * @param {ReadonlyArray<InputKey>} [options.edgeKeys]
+ * @param {number} [options.fixedDtSec] Configured command duration in seconds.
  * @returns {number} Number of queued commands consumed.
  */
 export function consumeInputFrames({
@@ -315,6 +318,7 @@ export function consumeInputFrames({
   maxSteps = INPUT_LIMITS.MAX_FRAMES_PER_TICK,
   continuous = false,
   edgeKeys = [],
+  fixedDtSec = NETWORK_TIMING.FIXED_DT_SEC,
 }) {
   if (!player || typeof player !== "object" || typeof simulate !== "function") {
     return 0;
@@ -323,9 +327,9 @@ export function consumeInputFrames({
   const inputBuffer = getPlayerInputBuffer(player);
 
   if (continuous) {
-    return consumeContinuousInputFrames(player, inputBuffer, simulate, maxSteps, edgeKeys);
+    return consumeContinuousInputFrames(player, inputBuffer, simulate, maxSteps, edgeKeys, fixedDtSec);
   }
-  return consumeQueuedInputFrames(player, inputBuffer, dtSec, simulate, maxSteps);
+  return consumeQueuedInputFrames(player, inputBuffer, dtSec, simulate, maxSteps, fixedDtSec);
 }
 
 /**

@@ -944,9 +944,13 @@ Remote players are rendered using **Hermite cubic spline interpolation** between
 **Without velocities (linear):** Position jumps between straight-line segments at each snapshot.
 **With velocities (Hermite):** Position follows smooth curves that respect velocity at each snapshot.
 
-### Fight command prediction
+### Configurable game sessions and command prediction
 
-Fight captures one command per 1/60-second simulation step. The server and client both use the pure player rules in `public/platform/shared/fightSimulation.js`. Short jump/attack presses are latched until capture. Rendering runs independently of the simulation rate.
+Fight captures one command per 1/60-second simulation step. The server and client both use the pure player rules in `public/games/fight/shared/simulation.js`. Short jump/attack presses are latched until capture. Rendering runs independently of the simulation rate.
+
+Fight and Pong configure the same platform session API. `createNetworkedGameSession()` owns socket subscriptions, interpolation, input delivery, prediction, acknowledgement/replay, lifecycle resets, and bounded diagnostics. Games supply state mappings and rendering callbacks. Prediction is optional.
+
+Common movement and action mechanics live in parameterized platform controllers. Fight's shared file supplies movement settings, state/input bindings, action definitions and small custom conditions. Pong configures an axis controller. Developers may use these controllers or supply their own pure simulation callback; the networking core remains unchanged.
 
 Protocol-2 frames contain `{ type: "inputFrame", protocol: 2, epoch, seq, state }`. The server controls duration, advances physics every fixed world tick and incorporates queued commands before advancing `inputSeqAck`. Late command states are coalesced with action edges preserved; `inputSimulationTick` prevents replaying time the server already simulated. Queue length and catch-up work are bounded. Dropped world time or 500 ms input starvation triggers an epoch resynchronization. Epochs change on reconnect and rematch so old commands cannot affect a new session. Legacy clients remain supported.
 
@@ -960,14 +964,20 @@ The shared interpolator keeps a monotonic remote playback clock, adapts its dela
 npm test
 npm run build
 npm start
-npm run net:probe -- --url http://localhost:3000 --seconds 30
-npm run net:probe -- --url https://your-service.onrender.com --seconds 30
+npm run net:probe -- --url http://localhost:3000 --game fight --seconds 30
+npm run net:probe -- --url http://localhost:3000 --game pong --seconds 30
+npm run net:probe -- --url http://localhost:3000 --game draw --seconds 10
+npm run net:probe -- --url https://your-service.onrender.com --game fight --seconds 30
 ```
 
-The probe creates one temporary two-player Fight room and closes its clients afterward. It works with the current protocol and legacy deployments. It reports RTT and arriving-snapshot gaps separately from server snapshot timestamps, loop lag, room CPU and dropped simulation steps. It is a single-match diagnostic, not a server capacity/load benchmark.
+The probe selects a registered game from `GET /api/games`, reads its namespace, player slots and networking capabilities, creates one temporary match and closes its clients afterward. Omitting `--game` selects Fight. Fight and Pong exercise their input schemas; Mario, Mario Touch, Road Rash and Draw currently sample snapshots/RTT without sending movement. Single-player games are rejected. The selected server must expose catalog networking metadata; older deployments need updating first. It reports RTT and arriving-snapshot gaps separately from server snapshot timestamps, loop lag, room CPU and dropped simulation steps. It is a single-match diagnostic, not a server capacity/load benchmark.
 
 `GET /api/health` reports the running build/commit, protocol, uptime and event-loop histogram. Render supplies `RENDER_GIT_COMMIT`; local builds report `development` unless `BUILD_ID` or `GIT_COMMIT` is set. The histogram includes its 20 ms sampling interval and must not be interpreted as network RTT.
 
-In the game, press **N** or click **NET** to compare network RTT, server loop lag/CPU, prediction correction, pending inputs and remote buffer underruns. Snapshot sequence gaps do not measure IP packet loss over WebSocket/TCP.
+In Fight, press **N** or click **NET** to compare network RTT, server loop lag/CPU, prediction correction, pending inputs and remote buffer underruns. The platform connection panel also exposes these metrics for integrated games. Snapshot sequence gaps do not measure IP packet loss over WebSocket/TCP.
 
 To test the changes on an existing deployment, deploy the new source and rebuild the frontend. A locally rebuilt client does not update Render. Keep protocol and build identity consistent when comparing results.
+
+### Adding games through the platform SDK
+
+See [the game developer guide](docs/game-sdk.md) for versioned registration, configurable rooms, movement controller parameters, the networking session API and current integration coverage. Game packages depend on the SDK; reusable engine modules do not import bundled games. The dependency direction is verified by the test suite.

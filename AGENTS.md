@@ -7,8 +7,9 @@ These conventions apply throughout this repository. Apply them to new and change
 This is a JavaScript ES module project with a React platform UI, browser game clients, and an Express/Socket.IO authoritative game server. Keep changes in the existing languages and architecture unless a migration is requested.
 
 - `public/platform/frontend-engine/`: reusable client timing, input, prediction, interpolation, and transport code.
-- `public/platform/shared/`: pure simulation rules, shared contracts, and constants used by both browser and server.
+- `public/platform/shared/`: game-independent contracts, configurable simulation controllers, and constants used by browser and server.
 - `public/games/`: game-specific controls, rendering, assets, and synchronization adapters.
+- `public/games/<game>/shared/`: controller configuration and optional custom pure rules used by that game's browser client and authoritative server.
 - `server/platform-backend-engine/`: authoritative room lifecycle, command processing, simulation, and snapshot handling.
 - `server/platform-backend-server/`: HTTP/server entry points and operational endpoints.
 - `scripts/`: development and diagnostic tools.
@@ -43,6 +44,24 @@ This is a JavaScript ES module project with a React platform UI, browser game cl
 - Keep reusable engine contracts genre-independent. Define each game's supported inputs and player state explicitly in its own adapter or shared rules.
 - Avoid unnecessary allocation, blocking work, or high-frequency UI updates in simulation and rendering paths. Optimize using measurements while keeping the code understandable.
 
+## Platform as a service architecture
+
+- Build a reusable platform with loose coupling to games and clear extension points for game developers. The platform must remain usable when any bundled game is removed.
+- Dependency direction is from game packages into the platform SDK. Reusable client/server engines and shared protocol modules must not import concrete games, contain game namespaces, or branch on game identities.
+- The platform owns transport, rooms, simulation scheduling, bounded input queues, snapshot delivery, optional prediction/reconciliation, lifecycle, diagnostics, and reusable simulation mechanics. Game packages select and configure mechanics and own their custom rules, combat outcomes, scoring, assets, controls, and rendering.
+- Connect games through documented, versioned registration and adapter contracts. New games should supply metadata and callbacks without changing engine internals. Keep the trusted built-in package list at the application composition boundary.
+- Make player slots, simulation cadence, input shapes, and supported networking capabilities game-configurable. Avoid assumptions that all games have two players, six Fight controls, pixel coordinates, Kaboom rendering, or identical prediction requirements.
+- Prediction is optional. Support games that need event delivery or authoritative snapshots without forcing them into a movement pipeline. Keep game decisions behind focused callbacks rather than adding game-specific flags to core code.
+- Keep client/server command ownership, acknowledgement, recovery, and reset behavior in the SDK. Adapters should describe game rules and mappings instead of duplicating networking orchestration.
+- Prefer configuration over repeated game code for common mechanics. Use the platform's axis movement, side-view movement, timed action, and separation controllers with parameters and input/state bindings. Keep game shared simulation files primarily configuration and controller composition. Preserve custom callbacks for mechanics the existing controllers do not cover.
+- Use `createNetworkedGameSession` for browser networking orchestration and `createAuthoritativeInputSession` for server input ownership, processing, and recovery. Prefer `simulateRoom` and `getPlayerSnapshotMetadata` over exposing scheduler internals or manually mapping protocol fields in game code. Developers should supply configuration and game callbacks without implementing input queues, acknowledgement/replay, interpolation timing, or reconnect/rematch reset algorithms.
+- Declare a game's inputs, simulation cadence, and controller settings in shared game configuration and reuse them across browser, server, and advertised capabilities. Keep simulation cadence independent of rendering FPS.
+- When a mechanic repeats across games, extract a focused, parameterized platform component. Avoid copying an implementation into each game or growing a universal controller with game-specific flags. Keep extension hooks available for custom mechanics and renderers.
+- Keep developer setup concise and document supported parameters, defaults, state/input mappings, and ownership responsibilities in [the game SDK guide](docs/game-sdk.md). New public SDK behavior needs a usable configuration example.
+- Diagnostics must select game configuration through the same public contracts. A game-specific probe must be labeled as such and kept with that game.
+- Prove reusable contracts with different games, input/state schemas, player capacities, and simulation rates. Use game-defined player identifiers within the documented snapshot-compatible format. Verify lifecycle, latency, and reconnect behavior at the contract boundary, not only through Fight-specific tests.
+- Trusted in-process game plugins are not a sandbox for uploaded third-party code. External code execution and tenant isolation require an explicit hosting/isolation design; do not expose arbitrary module loading as a service API.
+
 ## Verification
 
 Use existing behavior tests to protect refactors. Add meaningful regression tests for changed behavior, not tests that mirror implementation text or renamed constants.
@@ -52,6 +71,6 @@ npm test
 npm run build
 ```
 
-When relevant, verify Fight with two clients, including movement, short action presses, contact, reconnects, rematches, and delayed delivery. Use `npm run net:probe -- --url http://localhost:3000 --seconds 30` to inspect a single match's server and network timing; this is not a capacity benchmark.
+When relevant, verify the affected games with multiple clients, including movement, short action presses, contact, reconnects, rematches, and delayed delivery. Shared SDK changes should be exercised with different game configurations; Fight and Pong are existing integrations. Use `npm run net:probe -- --url http://localhost:3000 --game pong --seconds 30` to inspect a selected match's server and network timing; this is not a capacity benchmark. See [the game SDK guide](docs/game-sdk.md) for configuration examples and current integration coverage.
 
 Report what changed, what was verified, and any remaining limitation. A local rebuild does not update the deployed service.

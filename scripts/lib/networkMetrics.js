@@ -1,7 +1,6 @@
 import { createRequire } from "node:module";
+import { createInputFrame as encodeInputFrame } from "../../public/platform/shared/inputFrames.js";
 import {
-  INPUT_MESSAGE_TYPE,
-  INPUT_PROTOCOL,
   NETWORK_TIMING,
   SNAPSHOT_KIND,
 } from "../../public/platform/shared/networkProtocol.js";
@@ -22,11 +21,8 @@ const TIMING_ASSESSMENT = Object.freeze({
   NO_OBSERVED_GAPS: "No gaps over 50 ms were observed in this sample; this does not establish network quality under other conditions.",
 });
 
-/** @typedef {import("../../public/platform/shared/fightSimulation.js").FightInputState} FightInputState */
 /** @typedef {import("../../public/platform/shared/networkProtocol.js").SocketPacket} SocketPacket */
 /** @typedef {{k: "f", p?: string[], v: unknown[]}|{k: "d", c: [number, unknown][]}} SnapshotChanges */
-/** @typedef {{type: "inputFrame", seq: number, dtSec: number, state: Partial<FightInputState>}} LegacyFightInputFrame */
-/** @typedef {{type: "inputFrame", protocol: 2, epoch: number, seq: number, state: Partial<FightInputState>}} QueuedFightInputFrame */
 /** @typedef {{samples: number, p50: number|null, p95: number|null, p99: number|null, max: number|null}} TimingDistribution */
 /** @typedef {{schemaPaths: string[], values: unknown[]}} SnapshotDecodeState */
 /**
@@ -41,7 +37,7 @@ const TIMING_ASSESSMENT = Object.freeze({
 /**
  * @typedef {object} NetworkSampleBuffer
  * @property {string} name
- * @property {"p1"|"p2"} [playerId]
+ * @property {string} [playerId]
  * @property {number[]} snapshotArrivalTimesMs
  * @property {(number|undefined)[]} snapshotServerTimesMs
  * @property {(number|undefined)[]} snapshotSequences
@@ -57,7 +53,7 @@ const TIMING_ASSESSMENT = Object.freeze({
 /**
  * @typedef {object} NetworkTimingSummary
  * @property {string} client
- * @property {"p1"|"p2"} [player]
+ * @property {string} [player]
  * @property {number} snapshots
  * @property {number|null} observedHz
  * @property {TimingDistribution} rttMs
@@ -76,30 +72,17 @@ const TIMING_ASSESSMENT = Object.freeze({
  */
 
 /**
- * Build a Fight input packet, retaining duration for legacy servers.
+ * Build a game-defined input packet, retaining duration for legacy servers.
+ * @template {Record<string, boolean>} InputState
  * @param {number|undefined} protocolVersion
  * @param {number|undefined} inputEpoch
  * @param {number} sequenceNumber
- * @param {Partial<FightInputState>} inputState Preserved without adding missing keys.
- * @returns {LegacyFightInputFrame|QueuedFightInputFrame} The unchanged wire shape.
+ * @param {InputState} inputState Preserved without adding missing keys.
+ * @param {number} [fixedDtSec=1/60] Selected game's simulation duration.
+ * @returns {import("../../public/platform/shared/inputFrames.js").EncodedInputFrame<InputState>} The existing wire shape.
  */
-export function createInputFrame(protocolVersion, inputEpoch, sequenceNumber, inputState) {
-  if (protocolVersion >= INPUT_PROTOCOL.QUEUED && Number.isSafeInteger(inputEpoch)) {
-    return {
-      type: INPUT_MESSAGE_TYPE.FRAME,
-      protocol: INPUT_PROTOCOL.QUEUED,
-      epoch: inputEpoch,
-      seq: sequenceNumber,
-      state: inputState,
-    };
-  }
-
-  return {
-    type: INPUT_MESSAGE_TYPE.FRAME,
-    seq: sequenceNumber,
-    dtSec: NETWORK_TIMING.FIXED_DT_SEC,
-    state: inputState,
-  };
+export function createInputFrame(protocolVersion, inputEpoch, sequenceNumber, inputState, fixedDtSec = NETWORK_TIMING.FIXED_DT_SEC) {
+  return encodeInputFrame({ protocolVersion, inputEpoch, sequenceNumber, inputState, fixedDtSec });
 }
 
 /**

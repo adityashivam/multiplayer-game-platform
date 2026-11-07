@@ -5,20 +5,10 @@ import express from "express";
 import path from "path";
 import { fileURLToPath } from "url";
 import { registerHealthRoute } from "./healthRoutes.js";
-import { registerFightGame } from "../platform-backend-engine/games/fight.js";
-import { registerPongGame } from "../platform-backend-engine/games/pong.js";
-import { registerRoadRashGame } from "../platform-backend-engine/games/roadrash.js";
-import { registerMarioGame, registerMarioTouchGame } from "../platform-backend-engine/games/mario.js";
-import { registerDrawGame } from "../platform-backend-engine/games/draw.js";
 import {
-  fightGameMeta,
-  pongGameMeta,
-  roadRashGameMeta,
-  marioGameMeta,
-  marioTouchGameMeta,
-  drawGameMeta,
-  webglSampleGameMeta,
-} from "../platform-backend-engine/games/metadata.js";
+  createBuiltInGameRegistry,
+  legacyRoomRouteAliases,
+} from "../platform-backend-engine/games/builtInGames.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -35,15 +25,7 @@ const io = new Server(httpServer, {
   pingTimeout: 10000,
 });
 
-const catalog = [
-  { ...fightGameMeta },
-  { ...pongGameMeta },
-  { ...roadRashGameMeta },
-  { ...marioGameMeta },
-  { ...marioTouchGameMeta },
-  { ...drawGameMeta },
-  { ...webglSampleGameMeta },
-];
+const gameRegistry = createBuiltInGameRegistry();
 
 app.use(
   express.static(path.join(__dirname, "../../public"), {
@@ -60,7 +42,7 @@ registerHealthRoute(app);
 
 app.get("/api/games", (req, res) => {
   res.json({
-    games: catalog.map((game) => ({
+    games: gameRegistry.listGames().map((game) => ({
       id: game.id,
       name: game.name,
       description: game.description,
@@ -72,6 +54,9 @@ app.get("/api/games", (req, res) => {
       platformControlButtons: game.platformControlButtons !== false,
       shareRoom: game.shareRoom !== false,
       networked: game.networked !== false,
+      ...(game.namespace !== undefined ? { namespace: game.namespace } : {}),
+      ...(game.room !== undefined ? { room: game.room } : {}),
+      ...(game.networking !== undefined ? { networking: game.networking } : {}),
       url: `${req.protocol}://${req.get("host")}${game.path}`,
     })),
   });
@@ -79,7 +64,7 @@ app.get("/api/games", (req, res) => {
 
 app.get("/api/games/:gameId/new-room", (req, res) => {
   const { gameId } = req.params;
-  const game = catalog.find((g) => g.id === gameId);
+  const game = gameRegistry.getGame(gameId);
   if (!game) {
     return res.status(404).json({ error: "Unknown game" });
   }
@@ -91,15 +76,17 @@ app.get("/api/games/:gameId/new-room", (req, res) => {
   });
 });
 
-// Redirect legacy URLs to the new fight path
-app.get("/room/:roomId", (req, res) => {
-  res.redirect(`${fightGameMeta.path}/${req.params.roomId}`);
-});
+for (const routeAlias of legacyRoomRouteAliases) {
+  const targetGame = gameRegistry.getGame(routeAlias.gameId);
+  app.get(routeAlias.path, (req, res) => {
+    res.redirect(`${targetGame.path}/${req.params.roomId}`);
+  });
+}
 
 // Serve per-game clients
 app.get("/games/:gameId/:roomId?", (req, res) => {
   const { gameId } = req.params;
-  const game = catalog.find((g) => g.id === gameId);
+  const game = gameRegistry.getGame(gameId);
   if (!game) {
     return res.status(404).send("Game not found");
   }
@@ -107,13 +94,7 @@ app.get("/games/:gameId/:roomId?", (req, res) => {
   res.sendFile(platformIndex);
 });
 
-// Register socket handlers for each game
-registerFightGame(io);
-registerPongGame(io);
-registerRoadRashGame(io);
-registerMarioGame(io);
-registerMarioTouchGame(io);
-registerDrawGame(io);
+gameRegistry.registerGames(io);
 
 const PORT = process.env.PORT || 3000;
 httpServer.listen(PORT, () => {

@@ -1,12 +1,6 @@
 import { fightGameMeta } from "./metadata.js";
 import { emitEvent, registerPluggableGame, scheduleStart } from "../core/index.js";
-import {
-  applySequencedInput,
-  ensurePlayerInputState,
-  enqueueInputFrame,
-  consumeInputFrames,
-  resetInputBuffer,
-} from "../core/inputProtocol.js";
+import { createAuthoritativeInputSession } from "../core/authoritativeInputSession.js";
 import {
   FIGHT_ATTACK_DEFINITIONS,
   FIGHT_FIXED_DT_SEC,
@@ -14,19 +8,17 @@ import {
   FIGHT_MOVEMENT,
   stepFightPlayer,
   resolveFightSeparation,
-} from "../../../public/platform/shared/fightSimulation.js";
+} from "../../../public/games/fight/shared/simulation.js";
 import {
-  INPUT_LIMITS,
-  INPUT_MESSAGE_TYPE,
   INPUT_PROTOCOL,
   NETWORK_TIMING,
   SOCKET_EVENT,
 } from "../../../public/platform/shared/networkProtocol.js";
 
-/** @typedef {import("../../../public/platform/shared/fightSimulation.js").FightInputState} FightInputState */
-/** @typedef {import("../../../public/platform/shared/fightSimulation.js").FightPlayerId} FightPlayerId */
-/** @typedef {import("../../../public/platform/shared/fightSimulation.js").FightPlayerState} FightPlayerState */
-/** @typedef {import("../core/inputProtocol.js").PlayerInputState<keyof FightInputState>} FightPlayerInputSession */
+/** @typedef {import("../../../public/games/fight/shared/simulation.js").FightInputState} FightInputState */
+/** @typedef {import("../../../public/games/fight/shared/simulation.js").FightPlayerId} FightPlayerId */
+/** @typedef {import("../../../public/games/fight/shared/simulation.js").FightPlayerState} FightPlayerState */
+/** @typedef {import("../core/authoritativeInputSession.js").AuthoritativePlayerInputState<keyof FightInputState>} FightPlayerInputSession */
 
 /**
  * Authoritative combat and connection fields extend the shared player simulation.
@@ -36,14 +28,10 @@ import {
  *   inputEpoch: number,
  *   lastInputSeqAck: number,
  *   inputSimulationTick: number,
- *   inputProtocol?: 1 | 2 | null,
  *   lastHitTime: number,
  *   lastAttackHitTime?: number,
  *   connected: boolean,
- *   rejoinToken?: string,
- *   __lastInputReceiptMs?: number | null,
- *   __inputLoopTick?: number,
- *   __inputStepsThisTick?: number
+ *   rejoinToken?: string
  * }} FightServerPlayerState
  */
 
@@ -58,10 +46,6 @@ import {
  * @property {boolean} started
  * @property {number | null} startAt
  * @property {number | null} [abandonedAt]
- * @property {{droppedSteps: number}} [__roomClock]
- * @property {number} [__fightDroppedSteps]
- * @property {number} [__loopTick]
- * @property {number} [__loopMonotonicNow]
  */
 
 /**
@@ -84,6 +68,11 @@ const FIGHT_PLAYER_IDS = ["p1", "p2"];
 const FIGHT_ACTION_EDGE_KEYS = ["jump", "attack", "heavyAttack", "aerialAttack"];
 
 const DEFAULT_INPUT_STATE = FIGHT_INPUT_TEMPLATE;
+const fightInputSession = createAuthoritativeInputSession({
+  inputTemplate: FIGHT_INPUT_TEMPLATE,
+  edgeKeys: FIGHT_ACTION_EDGE_KEYS,
+  fixedDtSec: FIGHT_FIXED_DT_SEC,
+});
 
 /**
  * @param {number} x
@@ -156,9 +145,7 @@ function serializeFightPlayerState(playerState) {
     attackTimer: playerState.attackTimer,
     cooldownTimer: playerState.cooldownTimer,
     hasHitThisSwing: Boolean(playerState.hasHitThisSwing),
-    inputSeqAck: playerState.lastInputSeqAck || 0,
-    inputEpoch: playerState.inputEpoch,
-    inputSimulationTick: playerState.inputSimulationTick,
+    ...fightInputSession.getPlayerSnapshotMetadata(playerState),
     dead: playerState.dead,
   };
 }
@@ -231,81 +218,20 @@ function syncFightStartState(state, nowMs) {
   }
 }
 
-/**
- * Reset command ownership for a new session while retaining its receipt timestamp.
- * Starvation/drop resynchronization clears that timestamp at the call site.
- * @param {FightServerPlayerState} playerState
- */
-function resetFightPlayerInputSession(playerState) {
-  resetInputBuffer(playerState);
-  playerState.inputEpoch += 1;
-  playerState.inputProtocol = null;
-}
-
-/**
- * @param {FightServerPlayerState} playerState
- * @param {number} monotonicNowMs
- * @returns {boolean}
- */
-function hasFightInputStarved(playerState, monotonicNowMs) {
-  return playerState.inputProtocol === INPUT_PROTOCOL.QUEUED &&
-    Number.isFinite(playerState.__lastInputReceiptMs) &&
-    monotonicNowMs - playerState.__lastInputReceiptMs > NETWORK_TIMING.INPUT_STARVATION_MS;
-}
-
-/**
- * Share a bounded command budget across catch-up steps in one room-loop invocation.
- * @param {FightGameState} state
- * @param {FightServerPlayerState} playerState
- * @param {number} dtSec
- * @param {import("../core/inputProtocol.js").InputSimulation<keyof FightInputState>} simulatePlayerInput
- */
-function consumeFightPlayerQueuedInput(state, playerState, dtSec, simulatePlayerInput) {
-  if (playerState.__inputLoopTick !== state.__loopTick) {
-    playerState.__inputLoopTick = state.__loopTick;
-    playerState.__inputStepsThisTick = 0;
-  }
-  playerState.__inputStepsThisTick += consumeInputFrames({
-    player: playerState,
-    dtSec,
-    simulate: simulatePlayerInput,
-    maxSteps: INPUT_LIMITS.MAX_FRAMES_PER_TICK - playerState.__inputStepsThisTick,
-    continuous: true,
-    edgeKeys: FIGHT_ACTION_EDGE_KEYS,
-  });
-}
-
 /** @param {FightSimulationContext} context */
 function runFightPlayerIntentSystem({ state, dt, nowMs }) {
-  const droppedStepCount = state.__roomClock?.droppedSteps || 0;
-  const didDropSteps = droppedStepCount > (state.__fightDroppedSteps || 0);
-  state.__fightDroppedSteps = droppedStepCount;
-
-  for (const playerId of FIGHT_PLAYER_IDS) {
-    const playerState = state.players[playerId];
-    const opponentState = state.players[playerId === "p1" ? "p2" : "p1"];
-    const inputStarved = hasFightInputStarved(playerState, state.__loopMonotonicNow);
-    if (playerState.inputProtocol === INPUT_PROTOCOL.QUEUED && (didDropSteps || inputStarved)) {
-      resetFightPlayerInputSession(playerState);
-      playerState.__lastInputReceiptMs = null;
-    }
-
-    const simulatePlayerInput = (inputState, fixedDtSec) => {
+  fightInputSession.simulateRoom({
+    state,
+    dtSec: dt,
+    simulate: (playerState, inputState, fixedDtSec, playerId) => {
       stepFightPlayer(playerState, inputState, fixedDtSec, { active: isFightActive(state) });
       if (isFightActive(state)) {
+        const opponentState = state.players[playerId === "p1" ? "p2" : "p1"];
         resolveFightSeparation(state.players.p1, state.players.p2);
         resolveAttack(playerState, opponentState, state, playerId, nowMs / 1000);
       }
-    };
-
-    if (playerState.inputProtocol === INPUT_PROTOCOL.QUEUED) {
-      consumeFightPlayerQueuedInput(state, playerState, dt, simulatePlayerInput);
-    } else {
-      // Build bounded credit before a protocol-2 client sends its first frame.
-      consumeInputFrames({ player: playerState, dtSec: dt, simulate: () => {} });
-      simulatePlayerInput(playerState.input, dt);
-    }
-  }
+    },
+  });
 }
 
 /** @param {FightSimulationContext} context */
@@ -403,8 +329,7 @@ function createFightSimulationSystems() {
 function connectFightPlayer(state, playerId) {
   const playerState = state.players[playerId];
   playerState.connected = true;
-  resetFightPlayerInputSession(playerState);
-  ensurePlayerInputState(playerState, DEFAULT_INPUT_STATE);
+  fightInputSession.resetPlayer(playerState);
   state.abandonedAt = null;
   scheduleFightStart(state);
 }
@@ -422,22 +347,7 @@ function receiveFightPlayerInput({ state, playerId, payload }) {
     return;
   }
 
-  if (payload?.type === INPUT_MESSAGE_TYPE.FRAME && payload?.protocol === INPUT_PROTOCOL.QUEUED) {
-    if (enqueueInputFrame({ player: playerState, payload, inputTemplate: DEFAULT_INPUT_STATE })) {
-      playerState.inputProtocol = INPUT_PROTOCOL.QUEUED;
-      playerState.__lastInputReceiptMs = performance.now();
-    }
-    return;
-  }
-  if (playerState.inputProtocol === INPUT_PROTOCOL.QUEUED) {
-    return;
-  }
-
-  applySequencedInput({
-    player: playerState,
-    payload,
-    inputTemplate: DEFAULT_INPUT_STATE,
-  });
+  fightInputSession.receiveInput(playerState, payload);
 }
 
 /**
@@ -447,7 +357,7 @@ function receiveFightPlayerInput({ state, playerId, payload }) {
 function disconnectFightPlayer(state, playerId) {
   const playerState = state.players[playerId];
   playerState.connected = false;
-  resetFightPlayerInputSession(playerState);
+  fightInputSession.resetPlayer(playerState);
 
   const opponentId = playerId === "p1" ? "p2" : "p1";
   const bothDisconnected = !state.players[opponentId].connected;
@@ -507,8 +417,10 @@ function requestFightRematch({ socket, games, nsp }) {
   }
 
   const nextState = createInitialGameState();
-  nextState.players.p1.inputEpoch = state.players.p1.inputEpoch + 1;
-  nextState.players.p2.inputEpoch = state.players.p2.inputEpoch + 1;
+  for (const playerId of FIGHT_PLAYER_IDS) {
+    nextState.players[playerId].inputEpoch = state.players[playerId].inputEpoch;
+    fightInputSession.resetPlayer(nextState.players[playerId]);
+  }
   nextState.players.p1.rejoinToken = state.players.p1.rejoinToken;
   nextState.players.p2.rejoinToken = state.players.p2.rejoinToken;
   nextState.players.p1.connected = state.players.p1.connected;

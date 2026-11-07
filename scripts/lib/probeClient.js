@@ -3,13 +3,14 @@ import { performance } from "node:perf_hooks";
 import { createInputTimeline } from "../../public/platform/frontend-engine/inputTimeline.js";
 import {
   ENGINE_PACKET_TYPE,
+  INPUT_PROTOCOL,
   NETWORK_ENDPOINT,
-  NETWORK_TIMING,
   SOCKET_EVENT,
   SOCKET_PACKET_TYPE,
   URL_PROTOCOL,
 } from "../../public/platform/shared/networkProtocol.js";
 import { applyPackedSnapshot, createInputFrame } from "./networkMetrics.js";
+import { validateProbeGameConfig } from "./probeOptions.js";
 
 const require = createRequire(import.meta.url);
 const WebSocket = require("ws");
@@ -17,7 +18,7 @@ const socketPacketParser = require("socket.io-msgpack-parser");
 
 const PROBE_TIMEOUT_MS = Object.freeze({ ROOM_JOIN: 15000, ROUND_TRIP_EXPIRY: 10000 });
 const ROUND_TRIP_SAMPLE_INTERVAL_MS = 1000;
-const MOVEMENT_DIRECTION_INTERVAL_MS = 2000;
+const INPUT_DIRECTION_INTERVAL_MS = 2000;
 const PACKET_EVENT = Object.freeze({ MESSAGE: "message", ERROR: "error", CLOSE: "close", DECODED: "decoded" });
 const PROBE_FAILURE = Object.freeze({
   JOIN_TIMEOUT: "joining timed out",
@@ -29,13 +30,14 @@ const PROBE_FAILURE = Object.freeze({
 /** @typedef {import("../../public/platform/shared/networkProtocol.js").PackedSnapshotPacket} PackedSnapshotPacket */
 /** @typedef {import("./networkMetrics.js").NetworkSampleBuffer} NetworkSampleBuffer */
 /** @typedef {import("./networkMetrics.js").SnapshotDecodeState} SnapshotDecodeState */
+/** @typedef {import("./probeOptions.js").ProbeGameConfig} ProbeGameConfig */
 
 /**
  * @typedef {object} ProbePlayerOptions
  * @property {string} playerName
  * @property {URL} serverUrl
  * @property {string} roomId
- * @property {number} [protocolVersion]
+ * @property {ProbeGameConfig} gameConfig
  */
 
 /**
@@ -49,13 +51,36 @@ const PROBE_FAILURE = Object.freeze({
  */
 
 /**
+ * Alternate a game's first two controls while preserving its other defaults.
+ * The template is never mutated and no game-specific input keys are introduced.
+ * @template {string} InputKey
+ * @param {Record<InputKey, boolean>} inputTemplate
+ * @param {number} elapsedMs
+ * @returns {Record<InputKey, boolean>} Fresh captured input for one command.
+ */
+export function createProbeInputState(inputTemplate, elapsedMs) {
+  const capturedInput = { ...inputTemplate };
+  const inputKeys = /** @type {InputKey[]} */ (Object.keys(inputTemplate));
+  const alternateDirection = Math.floor(elapsedMs / INPUT_DIRECTION_INTERVAL_MS) % 2 === 0;
+  if (inputKeys.length === 1) {
+    capturedInput[inputKeys[0]] = alternateDirection;
+  } else if (inputKeys.length >= 2) {
+    capturedInput[inputKeys[0]] = !alternateDirection;
+    capturedInput[inputKeys[1]] = alternateDirection;
+  }
+
+  return capturedInput;
+}
+
+/**
  * Create one diagnostic player's transport and sample buffers.
  * The caller owns cleanup, including when joinRoom rejects.
  * @param {ProbePlayerOptions} probeOptions
  * @returns {ProbePlayerClient} A client whose sampling starts after room join.
- * @throws {Error} If constructing the WebSocket fails.
+ * @throws {Error} Invalid capabilities fail before constructing the WebSocket.
  */
-export function createProbePlayerClient({ playerName, serverUrl, roomId, protocolVersion }) {
+export function createProbePlayerClient({ playerName, serverUrl, roomId, gameConfig }) {
+  const probeGameConfig = validateProbeGameConfig(gameConfig);
   const socketUrl = new URL(NETWORK_ENDPOINT.SOCKET_WEBSOCKET, serverUrl);
   socketUrl.protocol = socketUrl.protocol === URL_PROTOCOL.HTTPS
     ? URL_PROTOCOL.SECURE_WEBSOCKET
@@ -84,7 +109,7 @@ export function createProbePlayerClient({ playerName, serverUrl, roomId, protoco
   };
 
   /** @type {number|undefined} */
-  let inputProtocolVersion;
+  let inputProtocolVersion = probeGameConfig.inputProtocol ?? undefined;
   /** @type {number|undefined} */
   let inputEpoch;
   let nextRoundTripRequestId = 0;
@@ -99,7 +124,7 @@ export function createProbePlayerClient({ playerName, serverUrl, roomId, protoco
       return;
     }
 
-    const namespacedPacket = { nsp: NETWORK_ENDPOINT.FIGHT_NAMESPACE, ...socketPacket };
+    const namespacedPacket = { nsp: probeGameConfig.namespace, ...socketPacket };
     probeSocket.send(socketPacketEncoder.encode(namespacedPacket)[0]);
   }
 
@@ -129,6 +154,7 @@ export function createProbePlayerClient({ playerName, serverUrl, roomId, protoco
 
     networkSamples.lastInputAcknowledgement = snapshotFields[`${playerFieldPrefix}.inputSeqAck`]
       ?? networkSamples.lastInputAcknowledgement;
+    inputStream?.acknowledge(networkSamples.lastInputAcknowledgement);
     inputProtocolVersion = snapshotFields.inputProtocol ?? inputProtocolVersion;
     inputEpoch = snapshotFields[`${playerFieldPrefix}.inputEpoch`] ?? inputEpoch;
   }
@@ -144,7 +170,7 @@ export function createProbePlayerClient({ playerName, serverUrl, roomId, protoco
   }
 
   /**
-   * Join the Fight namespace and room, leaving frame handlers active for sampling.
+   * Join the configured namespace and room, leaving handlers active for sampling.
    * @returns {Promise<void>}
    * @throws {Error} Rejects on timeout, transport closure/error, parser failure, or a full room.
    */
@@ -181,6 +207,9 @@ export function createProbePlayerClient({ playerName, serverUrl, roomId, protoco
         }
       });
       socketPacketDecoder.on(PACKET_EVENT.DECODED, (socketPacket) => {
+        if (socketPacket.nsp !== probeGameConfig.namespace) {
+          return;
+        }
         if (socketPacket.type === SOCKET_PACKET_TYPE.CONNECT) {
           emitGameEvent(SOCKET_EVENT.JOIN_GAME, { gameId: roomId });
         }
@@ -198,7 +227,6 @@ export function createProbePlayerClient({ playerName, serverUrl, roomId, protoco
         if (eventName === SOCKET_EVENT.GAME_JOINED) {
           networkSamples.playerId = eventPayload.playerId;
           inputEpoch = eventPayload.inputEpoch ?? inputEpoch;
-          inputProtocolVersion = inputProtocolVersion ?? protocolVersion;
           clearTimeout(joinTimeout);
           resolve();
         }
@@ -221,34 +249,36 @@ export function createProbePlayerClient({ playerName, serverUrl, roomId, protoco
     sendSocketPacket({ type: SOCKET_PACKET_TYPE.EVENT, id: requestId, data: [SOCKET_EVENT.PING] });
   }
 
-  /** @returns {void} Start the existing 60 Hz input and 1 Hz RTT sample cadence. */
+  /** @returns {void} Start configured input, when supported, and 1 Hz RTT samples. */
   function startSampling() {
+    if (roundTripTimer !== null) {
+      return;
+    }
+
     const samplingStartedAtMs = performance.now();
-    inputStream = createInputTimeline({
-      hz: NETWORK_TIMING.SIMULATION_HZ,
-      fixedDtSec: NETWORK_TIMING.FIXED_DT_SEC,
-      captureInput: () => {
-        const moveRight = Math.floor((performance.now() - samplingStartedAtMs) / MOVEMENT_DIRECTION_INTERVAL_MS) % 2 === 0;
-        return {
-          left: !moveRight,
-          right: moveRight,
-          jump: false,
-          attack: false,
-          heavyAttack: false,
-          aerialAttack: false,
-        };
-      },
-      sendFrame: (capturedFrame) => {
-        networkSamples.sentInputSequence = capturedFrame.seq;
-        emitGameEvent(SOCKET_EVENT.INPUT, createInputFrame(
-          inputProtocolVersion,
-          inputEpoch,
-          capturedFrame.seq,
-          capturedFrame.input,
-        ));
-      },
-    });
-    inputStream.start();
+    if (probeGameConfig.inputTemplate !== null) {
+      const fixedDtSec = 1 / probeGameConfig.tickRateHz;
+      inputStream = createInputTimeline({
+        hz: probeGameConfig.tickRateHz,
+        fixedDtSec,
+        captureInput: () => createProbeInputState(probeGameConfig.inputTemplate, performance.now() - samplingStartedAtMs),
+        sendFrame: (capturedFrame) => {
+          if (inputProtocolVersion >= INPUT_PROTOCOL.QUEUED && !Number.isSafeInteger(inputEpoch)) {
+            return;
+          }
+
+          networkSamples.sentInputSequence = capturedFrame.seq;
+          emitGameEvent(SOCKET_EVENT.INPUT, createInputFrame(
+            inputProtocolVersion,
+            inputEpoch,
+            capturedFrame.seq,
+            capturedFrame.input,
+            fixedDtSec,
+          ));
+        },
+      });
+      inputStream.start();
+    }
     sendRoundTripProbe();
     roundTripTimer = setInterval(sendRoundTripProbe, ROUND_TRIP_SAMPLE_INTERVAL_MS);
   }
@@ -261,6 +291,7 @@ export function createProbePlayerClient({ playerName, serverUrl, roomId, protoco
     stopRoundTripSampling: () => {
       if (roundTripTimer !== null) {
         clearInterval(roundTripTimer);
+        roundTripTimer = null;
       }
     },
     closeSocketConnection: () => probeSocket.close(),

@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { registerFightGame } from "../server/platform-backend-engine/games/fight.js";
 import { getGamesStore } from "../server/platform-backend-engine/core/gameStore.js";
 import { tickGames } from "../server/platform-backend-engine/core/gameLoop.js";
-import { FIGHT_INPUT_TEMPLATE } from "../public/platform/shared/fightSimulation.js";
+import { FIGHT_INPUT_TEMPLATE } from "../public/games/fight/shared/simulation.js";
 
 function createFightTestSession() {
   let connectSocket;
