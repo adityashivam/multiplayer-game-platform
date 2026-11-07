@@ -1,4 +1,18 @@
 :root {
+  --platform-font-heading: "Space Grotesk", sans-serif;
+  --platform-font-body: "Manrope", sans-serif;
+  --platform-surface: #18252c;
+  --platform-surface-inset: #111c23;
+  --platform-border: #34464f;
+  --platform-text: #f0f4f2;
+  --platform-text-muted: #9eb2bc;
+  --platform-accent: var(--color-accent, #00daf3);
+  --platform-accent-text: #062126;
+  --platform-focus: #b5f6fc;
+  --platform-warning: #ebc780;
+  --platform-danger: #f0a5a5;
+  --platform-radius: 7px;
+  --platform-panel-radius: 14px;
   --color-primary: #c3f5ff;
   --color-secondary: #ffb4a2;
   --color-background: #131313;
@@ -76,7 +90,7 @@ body {
   background-position: center, center;
   background-repeat: no-repeat, no-repeat;
   color: var(--color-text);
-  font-family: "Manrope", sans-serif;
+  font-family: var(--platform-font-body);
   overflow: hidden;
   -webkit-touch-callout: none;
   -webkit-user-select: none;

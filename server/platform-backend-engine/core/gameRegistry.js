@@ -1,4 +1,5 @@
 import { isSupportedPlayerSlotId } from "../../../public/platform/shared/gameIdentifiers.js";
+import { validateGamePresentation } from "../../../public/platform/shared/gamePresentation.js";
 
 /** The trusted, in-process game package contract supported by this engine. */
 export const GAME_PLUGIN_API_VERSION = 1;
@@ -27,6 +28,7 @@ export const GAME_PLUGIN_API_VERSION = 1;
  * @property {boolean} [networked]
  * @property {{playerIds: string[]}} [room]
  * @property {GameNetworkingMetadata} [networking]
+ * @property {import("../../../public/platform/shared/gamePresentation.js").GamePresentation} [presentation]
  */
 
 /**
@@ -118,6 +120,7 @@ function copyAndValidateGamePlugin(gamePlugin) {
 
   validateRoomMetadata(gameMetadata);
   validateNetworkingMetadata(gameMetadata);
+  validateGamePresentation(gameMetadata.presentation, gameMetadata.id);
 
   try {
     const catalogMetadata = structuredClone(gameMetadata);

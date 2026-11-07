@@ -1,90 +1,62 @@
 import React from "react";
-import classNames from "../../../utils/classNames.js";
-import styles from "../../PlatformApp.module.scss";
+import PlatformDialog from "./PlatformDialog.jsx";
+import dialogStyles from "./PlatformDialog.module.scss";
+import styles from "./ShareModal.module.scss";
 
-export default function ShareModal({ onClose, roomLabel, shareUrl, copyLabel, onCopyShare, icons }) {
-  const copyDisabled = !shareUrl;
+/**
+ * @typedef {object} InviteDialogProps
+ * @property {() => void} onClose
+ * @property {string} roomLabel
+ * @property {string} shareUrl
+ * @property {"Copy"|"Copied!"|"Select & copy"} [copyLabel]
+ * @property {() => void|Promise<void>} onCopyShare Caller owns clipboard failure and feedback state.
+ * @property {{close?: string, invite?: string, copy?: string}} [icons]
+ */
+
+/**
+ * Present a game-independent room link with caller-owned clipboard behavior.
+ * @param {InviteDialogProps} props
+ * @returns {React.ReactElement}
+ */
+export default function ShareModal({ onClose, roomLabel, shareUrl, copyLabel = "Copy", onCopyShare, icons }) {
+  const copyActionLabel = copyLabel === "Copy" ? "Copy invite link" : copyLabel;
 
   return (
-    <div className={styles.shareOverlay} role="dialog" aria-modal="true" aria-label="Invite players">
-      <div className={styles.shareModal}>
-        <button
-          type="button"
-          className={styles.shareClose}
-          onClick={onClose}
-          aria-label="Close invite dialog"
-        >
-          <span className={classNames("material-symbols-outlined", styles.shareCloseIcon)}>
-            {icons?.close || "close"}
-          </span>
-        </button>
-        <div className={styles.shareHeader}>
-          <div className={styles.sharePattern} aria-hidden="true" />
-          <h2 className={styles.shareTitle}>Invite Players</h2>
-          <p className={styles.shareSubtitle}>{roomLabel} Lobby</p>
+    <PlatformDialog
+      label="Invite players"
+      title="Invite players"
+      eyebrow={roomLabel}
+      description="Share your room link with the people you want to play with."
+      icon={icons?.invite || "person_add"}
+      onClose={onClose}
+      closeLabel="Close invite dialog"
+      closeIcon={icons?.close}
+    >
+      <div className={styles.linkField}>
+        <label htmlFor="invite-room-url">Room link</label>
+        <div className={styles.linkInputRow}>
+          <span className="material-symbols-outlined" aria-hidden="true">link</span>
+          <input
+            id="invite-room-url"
+            value={shareUrl}
+            placeholder="Getting your room link…"
+            readOnly
+            spellCheck={false}
+            onFocus={(event) => event.target.select()}
+          />
         </div>
-        <div className={styles.shareBody}>
-          <div className={styles.shareField}>
-            <label className={styles.shareFieldLabel}>Share Room Link</label>
-            <div className={styles.shareInputRow}>
-              <input
-                className={styles.shareLinkInput}
-                value={shareUrl}
-                placeholder="Generating room link..."
-                readOnly
-              />
-              <button
-                type="button"
-                className={styles.shareCopy}
-                onClick={onCopyShare}
-                aria-label="Copy room link"
-                title={copyLabel}
-                disabled={copyDisabled}
-              >
-                <span className="material-symbols-outlined">{icons?.copy || "content_copy"}</span>
-              </button>
-            </div>
-          </div>
-          <div className={styles.shareDivider}>
-            <span className={styles.shareDividerLine} />
-            <span className={styles.shareDividerText}>Or instant share</span>
-            <span className={styles.shareDividerLine} />
-          </div>
-          <button type="button" className={styles.shareActionPrimary}>
-            <div className={styles.shareActionIcon}>
-              <span className="material-symbols-outlined">{icons?.invite || "person_add"}</span>
-            </div>
-            <div className={styles.shareActionText}>
-              <span className={styles.shareActionEyebrow}>Online</span>
-              <span className={styles.shareActionTitle}>Invite Active Friends</span>
-            </div>
-          </button>
-          <button type="button" className={styles.shareActionWhatsApp}>
-            <div className={styles.shareActionIcon}>
-              <span className="material-symbols-outlined">{icons?.chat || "chat"}</span>
-            </div>
-            <div className={styles.shareActionText}>
-              <span className={styles.shareActionEyebrow}>Send via</span>
-              <span className={styles.shareActionTitle}>WhatsApp</span>
-            </div>
-          </button>
-          <div className={styles.shareActionGrid}>
-            <button type="button" className={styles.shareActionGhost}>
-              <span className={classNames("material-symbols-outlined", styles.shareGhostIcon)}>
-                {icons?.sms || "sms"}
-              </span>
-              <span className={styles.shareGhostLabel}>SMS</span>
-            </button>
-            <button type="button" className={styles.shareActionGhost}>
-              <span className={classNames("material-symbols-outlined", styles.shareGhostIcon)}>
-                {icons?.more || "share"}
-              </span>
-              <span className={styles.shareGhostLabel}>More</span>
-            </button>
-          </div>
-        </div>
-        <div className={styles.shareFooter}>Waiting for host to start...</div>
       </div>
-    </div>
+      <div className={dialogStyles.actions}>
+        <button type="button" className={dialogStyles.primaryAction} onClick={onCopyShare} disabled={!shareUrl} aria-label="Copy room link">
+          <span className="material-symbols-outlined" aria-hidden="true">{copyLabel === "Copied!" ? "check" : icons?.copy || "content_copy"}</span>
+          <span aria-live="polite">{copyActionLabel}</span>
+        </button>
+        <button type="button" className={dialogStyles.secondaryAction} onClick={onClose}>Back to game</button>
+      </div>
+      <p className={styles.hint}>
+        <span className="material-symbols-outlined" aria-hidden="true">info</span>
+        Keep this tab open while players join.
+      </p>
+    </PlatformDialog>
   );
 }

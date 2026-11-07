@@ -66,30 +66,10 @@ export default function usePlatformPresentation() {
     }
   }, [exitFullscreen, pseudoFullscreen, requestFullscreen]);
 
-  const lockLandscapeOrientation = useCallback(() => {
-    const orientation = globalThis.screen?.orientation;
-    if (!orientation || typeof orientation.lock !== "function") return;
-    orientation.lock("landscape").catch(() => {});
-  }, []);
-
-  const unlockOrientation = useCallback(() => {
-    const orientation = globalThis.screen?.orientation;
-    if (!orientation || typeof orientation.unlock !== "function") return;
-    orientation.unlock();
-  }, []);
-
-  const presentLandscapeMode = useCallback(() => {
-    Promise.resolve(requestFullscreen()).finally(() => {
-      lockLandscapeOrientation();
-    });
-  }, [lockLandscapeOrientation, requestFullscreen]);
-
   return {
     isFullscreen,
     pseudoFullscreen,
     fullscreenActive: isFullscreen || pseudoFullscreen,
     toggleFullscreen,
-    presentLandscapeMode,
-    unlockOrientation,
   };
 }

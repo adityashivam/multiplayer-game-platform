@@ -13,6 +13,7 @@ export default function PlatformScreen({
     <div
       className={classNames(
         styles.platformScreen,
+        !isGameScreen && styles.platformScreenLibrary,
         isGameScreen && styles.platformScreenGame,
         splitScreen && styles.platformScreenSplit,
       )}

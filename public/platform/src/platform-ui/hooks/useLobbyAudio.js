@@ -141,7 +141,7 @@ export default function useLobbyAudio({ isGameView }) {
       audio.volume = startVolume;
 
       const tick = (now) => {
-        const progress = Math.min((now - startTime) / durationMs, 1);
+        const progress = clamp01((now - startTime) / durationMs);
         const eased = 1 - Math.pow(1 - progress, 3);
         audio.volume = startVolume + (targetGain - startVolume) * eased;
 

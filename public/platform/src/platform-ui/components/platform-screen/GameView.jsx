@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import ConnectionIndicator from "./ConnectionIndicator.jsx";
+import GameToolbar from "./GameToolbar.jsx";
+import NetworkPanel from "./NetworkPanel.jsx";
 import EndGameModal from "./EndGameModal.jsx";
 import ExitConfirmModal from "./ExitConfirmModal.jsx";
 import ShareModal from "./ShareModal.jsx";
@@ -54,6 +55,8 @@ export default function GameView({
   icons,
 }) {
   const [networkPanelOpen, setNetworkPanelOpen] = useState(false);
+  const networkButtonRef = useRef(null);
+  const platformDialogOpen = shareOpen || endGameOpen || exitConfirmOpen;
   const runtimeKind = runtimeSpec?.kind || "module";
   const runtimeMount = runtimeSpec?.mount || "canvas";
   const showModuleCanvas = runtimeKind === "module" && runtimeMount !== "dom";
@@ -95,24 +98,34 @@ export default function GameView({
     if (!showNetworkUi) return undefined;
 
     const handleKeydown = (event) => {
+      if (event.defaultPrevented || platformDialogOpen || event.altKey || event.ctrlKey || event.metaKey) return;
+      if (event.key === "Escape" && networkPanelOpen) {
+        event.preventDefault();
+        event.stopPropagation();
+        setNetworkPanelOpen(false);
+        networkButtonRef.current?.focus({ preventScroll: true });
+        return;
+      }
       const tag = event?.target?.tagName?.toLowerCase();
       if (tag === "input" || tag === "textarea" || tag === "select") return;
       if (event.key?.toLowerCase() !== "n" || event.repeat) return;
       event.preventDefault();
+      event.stopPropagation();
       setNetworkPanelOpen((prev) => !prev);
     };
 
     const handleToggleNetworkPanel = () => {
+      if (platformDialogOpen) return;
       setNetworkPanelOpen((prev) => !prev);
     };
 
-    window.addEventListener("keydown", handleKeydown);
+    window.addEventListener("keydown", handleKeydown, true);
     window.addEventListener(TOGGLE_NETWORK_PANEL_EVENT, handleToggleNetworkPanel);
     return () => {
-      window.removeEventListener("keydown", handleKeydown);
+      window.removeEventListener("keydown", handleKeydown, true);
       window.removeEventListener(TOGGLE_NETWORK_PANEL_EVENT, handleToggleNetworkPanel);
     };
-  }, [showNetworkUi]);
+  }, [showNetworkUi, networkPanelOpen, platformDialogOpen]);
 
   useEffect(() => {
     let rafId = 0;
@@ -175,7 +188,7 @@ export default function GameView({
 
   const networkRows = useMemo(
     () => [
-      { label: "Status", value: (connectionStatus || "connecting").toUpperCase() },
+      { section: "Connection", label: "Status", value: connectionStatus || "connecting" },
       { label: "Ping", value: Number.isFinite(connectionPing) ? `${connectionPing} ms` : "--" },
       {
         label: "Ping p95/p99",
@@ -217,6 +230,7 @@ export default function GameView({
         value: Number.isFinite(connection?.serverTickRate) ? `${connection.serverTickRate} Hz` : "--",
       },
       {
+        section: "Synchronization",
         label: "Prediction correction",
         value: Number.isFinite(connection?.prediction?.correctionDistance)
           ? `${connection.prediction.correctionDistance.toFixed(1)} px` : "--",
@@ -241,6 +255,7 @@ export default function GameView({
         value: Number.isFinite(connection?.outOfOrderCount) ? String(connection.outOfOrderCount) : "--",
       },
       {
+        section: "Browser",
         label: "Render FPS",
         value: Number.isFinite(renderMetrics.fps) ? `${renderMetrics.fps.toFixed(1)} fps` : "--",
       },
@@ -263,6 +278,7 @@ export default function GameView({
           : "--",
       },
       {
+        section: "Server",
         label: "Loop Lag",
         value: Number.isFinite(connection?.server?.eventLoopLagMs)
           ? `${connection.server.eventLoopLagMs.toFixed(2)} ms`
@@ -350,44 +366,24 @@ export default function GameView({
             allow="autoplay; fullscreen; gamepad; clipboard-read; clipboard-write"
           />
         </div>
-        <div className={styles.canvasOverlay} />
-        {showNetworkUi ? (
-          <ConnectionIndicator status={connectionStatus} ping={connectionPing} icons={icons?.connection} />
-        ) : null}
-        {showNetworkUi ? (
-          <button
-            type="button"
-            className={styles.networkButton}
-            onClick={() => setNetworkPanelOpen((prev) => !prev)}
-            aria-pressed={networkPanelOpen}
-          >
-            NET
-          </button>
-        ) : null}
+        <GameToolbar
+          showNetworkUi={showNetworkUi}
+          connection={connection}
+          connectionIcons={icons?.connection}
+          networkPanelOpen={networkPanelOpen}
+          networkButtonRef={networkButtonRef}
+          onToggleNetwork={() => setNetworkPanelOpen((prev) => !prev)}
+          isFullscreen={isFullscreen}
+          onToggleFullscreen={onToggleFullscreen}
+          fullscreenIcon={fullscreenIcon}
+        />
         {showNetworkUi && networkPanelOpen && (
-          <div className={styles.networkPanel} aria-live="polite">
-            {networkRows.map((row) => (
-              <div key={row.label} className={styles.networkRow}>
-                <span>{row.label}</span>
-                <span>{row.value}</span>
-              </div>
-            ))}
-          </div>
+          <NetworkPanel rows={networkRows} onClose={() => {
+            setNetworkPanelOpen(false);
+            networkButtonRef.current?.focus({ preventScroll: true });
+          }} />
         )}
-        <button
-          type="button"
-          className={styles.fullscreenButton}
-          onClick={onToggleFullscreen}
-          aria-pressed={isFullscreen}
-        >
-          <span className="material-symbols-outlined" aria-hidden="true">
-            {fullscreenIcon}
-          </span>
-          <span className={styles.fullscreenLabel}>
-            {isFullscreen ? "Exit" : "Full Screen"}
-          </span>
-        </button>
-        {endGameOpen && (
+        {endGameOpen && !exitConfirmOpen && (
           <EndGameModal
             title={endGameTitle}
             subtitle={endGameSubtitle}
@@ -399,7 +395,7 @@ export default function GameView({
             icons={icons?.endGame}
           />
         )}
-        {shareOpen && (
+        {shareOpen && !endGameOpen && !exitConfirmOpen && (
           <ShareModal
             roomLabel={roomLabel}
             shareUrl={shareUrl}
@@ -412,7 +408,12 @@ export default function GameView({
         {exitConfirmOpen && (
           <ExitConfirmModal onConfirm={onConfirmExit} onCancel={onCancelExit} icons={icons?.exitConfirm} />
         )}
-        {gameLoadError && <div className={styles.emptyState}>{gameLoadError}</div>}
+        {gameLoadError && <div className={styles.gameError} role="alert">
+          <span className="material-symbols-outlined" aria-hidden="true">error_outline</span>
+          <h2>Unable to start this game</h2>
+          <p>{gameLoadError}</p>
+          <button type="button" onClick={onBackHome}>Back to library</button>
+        </div>}
       </div>
     </div>
   );

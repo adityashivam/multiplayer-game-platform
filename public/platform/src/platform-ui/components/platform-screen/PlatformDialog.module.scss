@@ -1,0 +1,289 @@
+.overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px;
+  background: rgba(4, 10, 14, .72);
+  backdrop-filter: blur(5px);
+  color: var(--platform-text);
+  font-family: var(--platform-font-body);
+}
+
+.panel {
+  position: relative;
+  width: min(100%, 440px);
+  max-height: 100%;
+  padding: 28px;
+  overflow-y: auto;
+  border: 1px solid var(--platform-border);
+  border-radius: var(--platform-panel-radius);
+  background: var(--platform-surface);
+  box-shadow: 0 24px 64px rgba(0, 0, 0, .4);
+  animation: dialogFadeIn 160ms ease both;
+  scrollbar-width: thin;
+  scrollbar-color: #425963 transparent;
+}
+
+.closeButton {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--platform-radius);
+  background: transparent;
+  color: var(--platform-text-muted);
+  transition: background 140ms ease, color 140ms ease;
+
+  &:hover {
+    background: #ffffff0a;
+    color: var(--platform-text);
+  }
+
+  > span {
+    font-size: 21px;
+  }
+}
+
+.header,
+.headingText {
+  min-width: 0;
+}
+
+.headingRow {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  padding-right: 30px;
+}
+
+.headingIcon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 44px;
+  height: 44px;
+  border: 1px solid #00daf324;
+  border-radius: 10px;
+  background: #00daf30c;
+  color: var(--platform-accent);
+
+  > span {
+    font-size: 25px;
+  }
+}
+
+.headingText h2 {
+  margin: 0;
+  color: var(--platform-text);
+  font-family: var(--platform-font-heading);
+  font-size: 28px;
+  font-weight: 600;
+  line-height: 1.15;
+  letter-spacing: -.04em;
+  overflow-wrap: anywhere;
+}
+
+.eyebrow {
+  margin: 0 0 5px;
+  overflow: hidden;
+  color: var(--platform-text-muted);
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.4;
+  letter-spacing: .06em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.description {
+  margin: 17px 0 0;
+  color: var(--platform-text-muted);
+  font-size: 12px;
+  line-height: 1.75;
+  overflow-wrap: anywhere;
+}
+
+.actions {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  margin-top: 18px;
+}
+
+.primaryAction,
+.secondaryAction {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 14px;
+  border: 0;
+  border-radius: var(--platform-radius);
+  font-family: var(--platform-font-body);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.5;
+  transition: background 140ms ease, color 140ms ease;
+
+  > :global(.material-symbols-outlined) {
+    flex-shrink: 0;
+    font-size: 19px;
+  }
+
+  &:disabled {
+    opacity: .45;
+    cursor: not-allowed;
+  }
+}
+
+.primaryAction {
+  background: var(--platform-accent);
+  color: var(--platform-accent-text);
+
+  &:hover:not(:disabled) {
+    background: #7eebf7;
+  }
+}
+
+.secondaryAction {
+  min-height: 36px;
+  padding: 8px 12px;
+  background: transparent;
+  color: var(--platform-text-muted);
+  font-size: 11px;
+  font-weight: 600;
+
+  &:hover:not(:disabled) {
+    background: #ffffff07;
+    color: var(--platform-text);
+  }
+}
+
+.footer {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid #ffffff0b;
+  color: var(--platform-text-muted);
+  font-size: 11px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+.panel button:focus-visible {
+  outline: 2px solid var(--platform-focus);
+  outline-offset: 3px;
+}
+
+@keyframes dialogFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@media (max-width: 520px) {
+  .panel {
+    padding: 22px 20px;
+    border-radius: 12px;
+  }
+
+  .closeButton {
+    top: 10px;
+    right: 10px;
+    width: 40px;
+    height: 40px;
+  }
+
+  .headingRow {
+    gap: 11px;
+  }
+
+  .headingText h2 {
+    font-size: 25px;
+  }
+
+  .headingIcon {
+    flex-basis: 40px;
+    height: 40px;
+  }
+
+  .description {
+    margin-top: 15px;
+  }
+}
+
+@media (max-height: 660px) and (orientation: portrait), (max-height: 540px) and (orientation: landscape) {
+  .panel {
+    padding: 18px;
+  }
+
+  .closeButton {
+    top: 8px;
+    right: 8px;
+  }
+
+  .headingRow {
+    gap: 10px;
+  }
+
+  .headingText h2 {
+    font-size: 23px;
+  }
+
+  .eyebrow {
+    margin-bottom: 4px;
+    font-size: 9px;
+  }
+
+  .headingIcon {
+    flex-basis: 36px;
+    height: 36px;
+  }
+
+  .headingIcon > span {
+    font-size: 22px;
+  }
+
+  .description {
+    margin-top: 12px;
+    font-size: 11px;
+    line-height: 1.6;
+  }
+
+  .actions {
+    margin-top: 14px;
+    gap: 4px;
+  }
+
+  .primaryAction {
+    min-height: 40px;
+    padding-block: 8px;
+  }
+
+  .secondaryAction {
+    min-height: 32px;
+    padding-block: 6px;
+  }
+
+  .footer {
+    margin-top: 12px;
+    padding-top: 12px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .panel {
+    animation: none;
+  }
+
+  .panel button {
+    transition: none;
+  }
+}

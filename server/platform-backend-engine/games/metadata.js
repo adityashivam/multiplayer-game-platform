@@ -1,3 +1,11 @@
+import { fightPresentation } from "../../../public/games/fight/catalog.js";
+import { pongPresentation } from "../../../public/games/pong/catalog.js";
+import { roadRashPresentation } from "../../../public/games/roadrash/catalog.js";
+import { marioPresentation } from "../../../public/games/mario/catalog.js";
+import { marioTouchPresentation } from "../../../public/games/mario-touch/catalog.js";
+import { drawPresentation } from "../../../public/games/draw/catalog.js";
+import { webglSamplePresentation } from "../../../public/games/webgl-sample/catalog.js";
+
 const BUNDLED_GAME_TICK_RATE_HZ = 60;
 const BUNDLED_PLAYER_IDS = Object.freeze(["p1", "p2"]);
 
@@ -49,8 +57,9 @@ function makeWebglRuntime(id) {
 
 export const fightGameMeta = {
   id: "fight",
+  presentation: fightPresentation,
   name: "Kaboom Fight",
-  description: "Two-player sword duel powered by Kaboom.js and Socket.IO.",
+  description: "Read your rival. Time your strike. Settle it in a two-player sword duel.",
   namespace: "/fight",
   room: makeTwoPlayerRoomMetadata(),
   networking: makeNetworkingMetadata("/fight", {
@@ -71,8 +80,9 @@ export const fightGameMeta = {
 
 export const pongGameMeta = {
   id: "pong",
+  presentation: pongPresentation,
   name: "Kaboom Pong",
-  description: "Classic two-player pong duel with server-authoritative ball physics.",
+  description: "One ball. Two paddles. Keep the rally alive and find your winning angle.",
   namespace: "/pong",
   room: makeTwoPlayerRoomMetadata(),
   networking: makeNetworkingMetadata("/pong", { up: false, down: false }),
@@ -86,6 +96,7 @@ export const pongGameMeta = {
 
 export const roadRashGameMeta = {
   id: "roadrash",
+  presentation: roadRashPresentation,
   name: "Road Rash Online",
   description: "Road Rash-inspired 2-player race with kicking, traffic, and real-time multiplayer.",
   namespace: "/roadrash",
@@ -101,6 +112,7 @@ export const roadRashGameMeta = {
 
 export const marioGameMeta = {
   id: "mario",
+  presentation: marioPresentation,
   name: "Mario Rival Rush",
   description: "Head-to-head 2-player Mario platform race. Reach the flag first to win.",
   namespace: "/mario",
@@ -116,6 +128,7 @@ export const marioGameMeta = {
 
 export const marioTouchGameMeta = {
   id: "mario-touch",
+  presentation: marioTouchPresentation,
   name: "Mario Rival Rush Touch",
   description: "Head-to-head Mario race tuned for fullscreen landscape and touch controls.",
   namespace: "/mario-touch",
@@ -131,6 +144,7 @@ export const marioTouchGameMeta = {
 
 export const drawGameMeta = {
   id: "draw",
+  presentation: drawPresentation,
   name: "Live Draw Duel",
   description: "Draw with touch or mouse and mirror strokes live to your rival.",
   namespace: "/draw",
@@ -146,8 +160,9 @@ export const drawGameMeta = {
 
 export const webglSampleGameMeta = {
   id: "webgl-sample",
+  presentation: webglSamplePresentation,
   name: "WebGL Drift",
-  description: "Single-player WebGL dodge runner built on the standard browser canvas/WebGL runtime path.",
+  description: "Find your line, dodge the traffic, and see how long you can last.",
   path: "/games/webgl-sample/play",
   engine: "webgl",
   runtime: makeWebglRuntime("webgl-sample"),

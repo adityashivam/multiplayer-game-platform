@@ -1,6 +1,6 @@
 import React from "react";
 import classNames from "../../../utils/classNames.js";
-import styles from "../../PlatformApp.module.scss";
+import styles from "./GameLibrary.module.scss";
 
 const tabs = [
   { id: "solo", label: "Solo" },

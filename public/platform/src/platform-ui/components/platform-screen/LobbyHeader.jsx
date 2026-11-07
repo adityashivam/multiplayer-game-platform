@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import classNames from "../../../utils/classNames.js";
-import styles from "../../PlatformApp.module.scss";
+import styles from "./GameLibrary.module.scss";
+import { MAX_CATALOG_SEARCH_LENGTH } from "../../../../shared/gameCatalog.js";
 
 export default function LobbyHeader({
   showZoomControls = false,
@@ -45,15 +46,23 @@ export default function LobbyHeader({
 
   return (
     <header className={styles.header}>
+      <div className={styles.libraryBrand}>
+        <svg viewBox="0 0 28 28" fill="none" aria-hidden="true">
+          <path d="M3 3h9v9H3zM16 3h9v9h-9zM3 16h9v9H3z" fill="currentColor" />
+          <path d="m17 16 9 5-9 5z" fill="currentColor" />
+        </svg>
+        <span>KABOOM<small>GAME LIBRARY</small></span>
+      </div>
       <div className={styles.headerTools}>
         <label className={styles.searchBar}>
           <span className={classNames("material-symbols-outlined", styles.searchIcon)}>search</span>
           <input
             type="text"
-            placeholder="FIND GAME OR TAG..."
+            placeholder="Find a game..."
             className={styles.searchInput}
-            aria-label="Find expedition"
+            aria-label="Search games"
             value={searchQuery}
+            maxLength={MAX_CATALOG_SEARCH_LENGTH}
             onChange={(event) => onSearchChange?.(event.target.value)}
           />
         </label>
@@ -116,15 +125,6 @@ export default function LobbyHeader({
               })}
             </div>
           ) : null}
-        </div>
-
-        <div className={styles.viewToggle} aria-label="Layout mode">
-          <button type="button" className={classNames(styles.viewToggleButton, styles.viewToggleButtonActive)}>
-            <span className="material-symbols-outlined">grid_view</span>
-          </button>
-          <button type="button" className={styles.viewToggleButton}>
-            <span className="material-symbols-outlined">format_list_bulleted</span>
-          </button>
         </div>
 
         {showZoomControls ? (

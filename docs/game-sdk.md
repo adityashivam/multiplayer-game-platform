@@ -55,6 +55,40 @@ Room state provides a `players` object with one state per slot. Registration use
 
 Player slot IDs use ASCII letters, digits, underscores and hyphens. Numeric-only IDs and `__proto__`, `constructor` and `prototype` are rejected because the current snapshot schema treats keys as dotted paths. IDs such as `crew-01`, `01pilot` and `_engineer` work. Keep user-facing display names in separate fields; snapshot object field names must also avoid embedded dots and prototype traversal keys.
 
+## Supply game library artwork
+
+The library and selected-game showcase read optional `meta.presentation` from the public catalog. Define it in the game package (the bundled games use `public/games/<id>/catalog.js`) and reuse that object in server registration and any browser fallback catalog. Adding a cover requires no platform UI changes.
+
+```js
+presentation: {
+  coverUrl: "/games/paddle-demo/assets/cover.svg",
+  accentColor: "#63e6dc",
+  controls: ["keyboard", "touch"],
+},
+```
+
+All three fields are optional. `coverUrl` accepts a root-relative path or HTTPS URL; a landscape image around 2:1 works well. Keep artwork's subject toward the right so the showcase title remains readable. Supply an illustration or actual gameplay image without embedded interface chrome. Missing or failed artwork uses the platform fallback. `accentColor` is a six-digit hex color. `controls` lists supported inputs from `keyboard`, `touch`, and `pointer` (mouse/pen); omit controls the game does not support. Invalid supplied fields are rejected before registration.
+
+The platform derives capacity from `meta.room.playerIds`, with older player-count tags supported as a fallback. These labels describe supported capacity, not current online players. Titles, descriptions, and genre tags also come from ordinary game metadata. The library does not fabricate playtime, completion progress, or last-played activity.
+
+## Browse large catalogs
+
+The browser library requests bounded pages with `GET /api/games?page=1&pageSize=24&q=&genre=all&sort=name-asc`. The default page size is 24 and the maximum is 60. Supported sort values are `name-asc` and `name-desc`. Search matches titles, descriptions, and tags across the entire registered catalog. Genre options are global facets, not just tags from the visible page.
+
+Paged responses contain `{ games, total, page, pageSize, totalPages, genres }`. Pages beyond the current result set clamp to its last page. Invalid query parameters return HTTP 400. The browser debounces search and aborts obsolete requests; it mounts only the current page's cards. Desktop browsing uses a grid on the left and a full-height artwork panel on the right. Portrait browsing uses a full-width grid; selecting a game opens its details and Play action in a native dialog. Page jumps and previous/next controls keep the catalog navigable without an endless horizontal list.
+
+Foreground artwork is contained within its frame so the entire image remains visible. Selected-game panels add a blurred decorative copy behind the complete image to fill different aspect ratios; titles and actions use their own layout space instead of covering the artwork.
+
+`GET /api/games/:gameId` returns `{ game }` or HTTP 404, independently of pagination. Use this endpoint for direct/shared links instead of fetching every game to resolve one runtime. Runtime metadata stays stable while a game is active. The unparameterized `GET /api/games` remains available for legacy diagnostic clients; it returns the full catalog and should not be used by a large browser library.
+
+The current catalog index is built from trusted registered game metadata at server startup. It supports catalog browsing; it does not add dynamic uploads, a tenant database, or game-hosting capacity. A persistent catalog can later implement the same page/detail contract.
+
+## Preserve the console shell
+
+Library and game views share the same outer console dimensions, bezel, and controller positions. Game launch and shared links keep the user's current fullscreen/orientation state; the platform's Full Screen button is the explicit presentation control. `startInLandscape` is a game preference, not permission to resize the shell or automatically enter fullscreen.
+
+Render within the supplied game host. Size or rotate a game's own drawing surface using its host's measured bounds and observe host resizes when needed. Do not use browser viewport dimensions to expand a renderer beyond the screen, mutate the outer shell, or request fullscreen/orientation from game initialization and input handlers. Route transitions may fade screen content without translating or scaling the console.
+
 ## Configure mechanics instead of rewriting them
 
 For bounded movement along an axis, configure a step function:

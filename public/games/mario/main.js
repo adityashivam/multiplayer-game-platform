@@ -25,7 +25,6 @@ const TOUCH_ROTATE_HINT_ID = "mario-touch-rotate-hint";
 const TOUCH_STYLE_ID = "mario-touch-style";
 const WORLD_RENDER_OFFSET_Y = TOUCH_VARIANT_ENABLED ? 108 : 0;
 const HUD_TOP_SAFE_PX = TOUCH_VARIANT_ENABLED ? 14 : 0;
-const LANDSCAPE_ENFORCE_COOLDOWN_MS = 1200;
 const ROOM_READY_EVENT = "kaboom:room-ready";
 const OPPONENT_JOIN_EVENT = "kaboom:opponent-joined";
 const DISPOSE_GAME_EVENT = "kaboom:dispose-game";
@@ -176,8 +175,6 @@ let assetsFailed = false;
 let audioUnlocked = false;
 let bgmPlaying = false;
 let victorySoundPlayed = false;
-let landscapeEnforceInFlight = false;
-let lastLandscapeEnforceAttemptMs = 0;
 
 const interpolationRuntimeOptions = {
   pingMs: 0,
@@ -672,51 +669,13 @@ function onStartAction() {
   });
 }
 
-function tryLockLandscapeOrientation() {
-  if (!TOUCH_VARIANT_ENABLED) return;
-  const orientation = globalThis.screen?.orientation;
-  if (!orientation || typeof orientation.lock !== "function") return;
-  orientation.lock("landscape").catch(() => {});
-}
-
 function isTouchLikeDevice() {
   const coarsePointer = globalThis.matchMedia?.("(pointer: coarse)")?.matches;
   if (typeof coarsePointer === "boolean") return coarsePointer;
   return (globalThis.navigator?.maxTouchPoints || 0) > 0;
 }
 
-function isTallViewport() {
-  return globalThis.innerHeight > globalThis.innerWidth;
-}
-
-function shouldForceLandscapeMode() {
-  return TOUCH_VARIANT_ENABLED && isTouchLikeDevice() && isTallViewport();
-}
-
-function tryEnterFullscreen() {
-  const target = document.documentElement;
-  if (!target?.requestFullscreen || document.fullscreenElement) return Promise.resolve();
-  return target.requestFullscreen().catch(() => {});
-}
-
-function enforceLandscapeMode() {
-  if (!shouldForceLandscapeMode()) return;
-  const now = Date.now();
-  if (landscapeEnforceInFlight || now - lastLandscapeEnforceAttemptMs < LANDSCAPE_ENFORCE_COOLDOWN_MS) {
-    return;
-  }
-  landscapeEnforceInFlight = true;
-  lastLandscapeEnforceAttemptMs = now;
-  Promise.resolve()
-    .then(() => tryEnterFullscreen())
-    .then(() => tryLockLandscapeOrientation())
-    .finally(() => {
-      landscapeEnforceInFlight = false;
-    });
-}
-
 function unlockAudio() {
-  enforceLandscapeMode();
   if (audioUnlocked) return;
   audioUnlocked = true;
 
@@ -895,7 +854,6 @@ function createTouchButton(label, className) {
 function bindTouchHold(button, onDown, onUp) {
   const start = (event) => {
     event.preventDefault();
-    enforceLandscapeMode();
     unlockAudio();
     button.classList.add("touch-btn-active");
     onDown();
@@ -973,15 +931,18 @@ function initTouchOverlayControls() {
   };
 }
 
-function initTouchLandscapeViewport() {
+/**
+ * Fit the touch renderer inside its platform-owned host, without changing browser presentation.
+ * @returns {() => void} Disconnects host resize tracking and restores the renderer's inline style.
+ */
+function initTouchSurfaceLayout() {
   if (!TOUCH_VARIANT_ENABLED) return () => {};
 
   const gameView = document.getElementById("game-view");
-  const canvasFrame = canvas.parentElement;
-  if (!gameView || !canvasFrame) return () => {};
+  const gameSurface = canvas.parentElement;
+  if (!gameView || !gameSurface) return () => {};
 
-  const originalGameViewStyle = gameView.getAttribute("style");
-  const originalCanvasFrameStyle = canvasFrame.getAttribute("style");
+  const originalGameSurfaceStyle = gameSurface.getAttribute("style");
   const previousHint = document.getElementById(TOUCH_ROTATE_HINT_ID);
   previousHint?.remove();
 
@@ -1006,75 +967,58 @@ function initTouchLandscapeViewport() {
   gameView.appendChild(rotateHint);
 
   const applyLayout = () => {
-    const viewportW = window.innerWidth;
-    const viewportH = window.innerHeight;
-    const portrait = viewportH > viewportW;
-    const forceLandscape = shouldForceLandscapeMode();
+    const surfaceWidth = gameView.clientWidth;
+    const surfaceHeight = gameView.clientHeight;
+    if (surfaceWidth <= 0 || surfaceHeight <= 0) return;
 
-    gameView.style.position = "relative";
-    gameView.style.width = "100%";
-    gameView.style.height = "100%";
-    gameView.style.minHeight = "0";
-    gameView.style.overflow = "hidden";
+    const portrait = surfaceHeight > surfaceWidth;
+    const rotateSurface = portrait && isTouchLikeDevice();
 
-    if (portrait && forceLandscape) {
-      const targetWidth = viewportH;
-      const targetHeight = viewportW;
-      canvasFrame.style.position = "absolute";
-      canvasFrame.style.left = "50%";
-      canvasFrame.style.top = "50%";
-      canvasFrame.style.width = `${targetWidth}px`;
-      canvasFrame.style.height = `${targetHeight}px`;
-      canvasFrame.style.transform = "translate(-50%, -50%) rotate(90deg)";
-      canvasFrame.style.transformOrigin = "center center";
+    if (rotateSurface) {
+      const targetWidth = surfaceHeight;
+      const targetHeight = surfaceWidth;
+      gameSurface.style.position = "absolute";
+      gameSurface.style.left = "50%";
+      gameSurface.style.top = "50%";
+      gameSurface.style.width = `${targetWidth}px`;
+      gameSurface.style.height = `${targetHeight}px`;
+      gameSurface.style.transform = "translate(-50%, -50%) rotate(90deg)";
+      gameSurface.style.transformOrigin = "center center";
       rotateHint.style.opacity = "0";
     } else if (portrait) {
-      const targetWidth = viewportW;
+      const targetWidth = surfaceWidth;
       const targetHeight = Math.floor((targetWidth * 9) / 16);
-      canvasFrame.style.position = "absolute";
-      canvasFrame.style.left = "50%";
-      canvasFrame.style.top = "50%";
-      canvasFrame.style.width = `${targetWidth}px`;
-      canvasFrame.style.height = `${targetHeight}px`;
-      canvasFrame.style.transform = "translate(-50%, -50%)";
-      canvasFrame.style.transformOrigin = "center center";
+      gameSurface.style.position = "absolute";
+      gameSurface.style.left = "50%";
+      gameSurface.style.top = "50%";
+      gameSurface.style.width = `${targetWidth}px`;
+      gameSurface.style.height = `${targetHeight}px`;
+      gameSurface.style.transform = "translate(-50%, -50%)";
+      gameSurface.style.transformOrigin = "center center";
       rotateHint.style.opacity = "1";
     } else {
-      canvasFrame.style.position = "relative";
-      canvasFrame.style.left = "0";
-      canvasFrame.style.top = "0";
-      canvasFrame.style.width = "100%";
-      canvasFrame.style.height = "100%";
-      canvasFrame.style.transform = "none";
-      canvasFrame.style.transformOrigin = "center center";
+      gameSurface.style.position = "relative";
+      gameSurface.style.left = "0";
+      gameSurface.style.top = "0";
+      gameSurface.style.width = "100%";
+      gameSurface.style.height = "100%";
+      gameSurface.style.transform = "none";
+      gameSurface.style.transformOrigin = "center center";
       rotateHint.style.opacity = "0";
     }
   };
 
-  const onViewportChange = () => {
-    applyLayout();
-    enforceLandscapeMode();
-  };
-
-  window.addEventListener("resize", onViewportChange);
-  window.addEventListener("orientationchange", onViewportChange);
+  const surfaceObserver = new ResizeObserver(applyLayout);
+  surfaceObserver.observe(gameView);
   applyLayout();
-  enforceLandscapeMode();
 
   return () => {
-    window.removeEventListener("resize", onViewportChange);
-    window.removeEventListener("orientationchange", onViewportChange);
+    surfaceObserver.disconnect();
 
-    if (originalGameViewStyle == null) {
-      gameView.removeAttribute("style");
+    if (originalGameSurfaceStyle == null) {
+      gameSurface.removeAttribute("style");
     } else {
-      gameView.setAttribute("style", originalGameViewStyle);
-    }
-
-    if (originalCanvasFrameStyle == null) {
-      canvasFrame.removeAttribute("style");
-    } else {
-      canvasFrame.setAttribute("style", originalCanvasFrameStyle);
+      gameSurface.setAttribute("style", originalGameSurfaceStyle);
     }
     rotateHint.remove();
   };
@@ -1692,7 +1636,7 @@ socket.onEvent("state", (state) => {
 
 const cleanupControllerNavigation = initControllerNavigation();
 const cleanupKeyboardNavigation = initKeyboardNavigation();
-const cleanupTouchViewport = initTouchLandscapeViewport();
+const cleanupTouchSurfaceLayout = initTouchSurfaceLayout();
 const cleanupTouchOverlay = initTouchOverlayControls();
 
 function disposeGameRuntime() {
@@ -1702,11 +1646,8 @@ function disposeGameRuntime() {
   releaseAllInputs();
   cleanupControllerNavigation?.();
   cleanupKeyboardNavigation?.();
-  cleanupTouchViewport?.();
+  cleanupTouchSurfaceLayout?.();
   cleanupTouchOverlay?.();
-  if (TOUCH_VARIANT_ENABLED && typeof globalThis.screen?.orientation?.unlock === "function") {
-    globalThis.screen.orientation.unlock();
-  }
   registerRematchHandler(null);
   hideEndGameModal();
   window.__kaboomOpponentJoined = null;

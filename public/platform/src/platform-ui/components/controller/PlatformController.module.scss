@@ -642,3 +642,18 @@
     font-size: 14px;
   }
 }
+
+@media (max-height: 600px) and (max-width: 900px) and (orientation: portrait) {
+  .controllerBodySplit {
+    gap: 8px;
+    padding: 2px 0;
+  }
+
+  .controllerSplitMainDpad .directionPadShell {
+    width: 110px;
+  }
+
+  .controllerSplitMainAction .actionPadShell {
+    --pad-size: 110px;
+  }
+}

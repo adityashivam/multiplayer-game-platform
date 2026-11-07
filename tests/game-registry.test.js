@@ -29,6 +29,41 @@ function createRegistry(plugins) {
   return engine.createGameRegistry(plugins);
 }
 
+test("registry preserves optional game-owned library presentation", () => {
+  const plugin = createSyntheticPlugin();
+  plugin.meta.presentation = {
+    coverUrl: "/games/relay/assets/cover.svg",
+    accentColor: "#123ABC",
+    controls: ["keyboard", "touch"],
+  };
+  const registry = createRegistry([plugin]);
+  plugin.meta.presentation.controls.push("pointer");
+
+  assert.deepEqual(registry.listGames()[0].presentation, {
+    coverUrl: "/games/relay/assets/cover.svg",
+    accentColor: "#123ABC",
+    controls: ["keyboard", "touch"],
+  });
+});
+
+for (const presentation of [
+  null,
+  [],
+  { coverUrl: "javascript:alert(1)" },
+  { coverUrl: "//example.com/cover.svg" },
+  { accentColor: "red; color: transparent" },
+  { controls: ["imaginary-controller"] },
+  { controls: "keyboard" },
+  { controls: [["keyboard"]] },
+]) {
+  test(`registry rejects invalid library presentation ${JSON.stringify(presentation)}`, () => {
+    const plugin = createSyntheticPlugin();
+    plugin.meta.presentation = presentation;
+
+    assert.throws(() => createRegistry([plugin]), /presentation/);
+  });
+}
+
 test("registry exposes synthetic game capabilities without retaining mutable catalog ownership", () => {
   const plugin = createSyntheticPlugin();
   const registry = createRegistry([plugin, {

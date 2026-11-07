@@ -5,6 +5,7 @@ import express from "express";
 import path from "path";
 import { fileURLToPath } from "url";
 import { registerHealthRoute } from "./healthRoutes.js";
+import { registerGameCatalogRoutes } from "./gameCatalogRoutes.js";
 import {
   createBuiltInGameRegistry,
   legacyRoomRouteAliases,
@@ -40,27 +41,7 @@ app.get("/", (req, res) => {
 
 registerHealthRoute(app);
 
-app.get("/api/games", (req, res) => {
-  res.json({
-    games: gameRegistry.listGames().map((game) => ({
-      id: game.id,
-      name: game.name,
-      description: game.description,
-      path: game.path,
-      engine: game.engine || "kaboom",
-      runtime: game.runtime || null,
-      tags: game.tags || [],
-      startInLandscape: game.startInLandscape === true,
-      platformControlButtons: game.platformControlButtons !== false,
-      shareRoom: game.shareRoom !== false,
-      networked: game.networked !== false,
-      ...(game.namespace !== undefined ? { namespace: game.namespace } : {}),
-      ...(game.room !== undefined ? { room: game.room } : {}),
-      ...(game.networking !== undefined ? { networking: game.networking } : {}),
-      url: `${req.protocol}://${req.get("host")}${game.path}`,
-    })),
-  });
-});
+registerGameCatalogRoutes(app, gameRegistry);
 
 app.get("/api/games/:gameId/new-room", (req, res) => {
   const { gameId } = req.params;

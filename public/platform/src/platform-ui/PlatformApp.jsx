@@ -9,26 +9,16 @@ import LobbyList from "./components/platform-screen/LobbyList.jsx";
 import PlatformShell from "./components/platform-shell/PlatformShell.jsx";
 import { TOGGLE_NETWORK_PANEL_EVENT } from "./constants/events.js";
 import useGameCatalog from "./hooks/useGameCatalog.js";
+import useCatalogGame from "./hooks/useCatalogGame.js";
 import useLobbyAudio from "./hooks/useLobbyAudio.js";
 import usePlatformGameLoader from "./hooks/usePlatformGameLoader.js";
 import usePlatformGameUiState from "./hooks/usePlatformGameUiState.js";
 import usePlatformPresentation from "./hooks/usePlatformPresentation.js";
 import usePlatformRoute from "./hooks/usePlatformRoute.js";
 import { getGameRuntimeSpec } from "./services/gameRuntime.js";
-import styles from "./PlatformApp.module.scss";
+import { readCatalogColumnCount, readNextCatalogIndex } from "./services/catalogNavigation.js";
 
 const CARD_ZOOM_STEPS = [0.85, 1, 1.075, 1.15];
-const NON_FILTER_TAG_PATTERN = /^(?:\d+\s*players?|fast|demo|preview)$/i;
-
-function normalizeFilterTag(tag) {
-  const normalized = tag.trim().toLowerCase().replace(/[-\s]+/g, " ");
-  return normalized === "real time" ? "realtime" : normalized;
-}
-
-function formatFilterLabel(tag) {
-  if (tag === "realtime") return "Real-time";
-  return tag.replace(/\b\w/g, (char) => char.toUpperCase());
-}
 
 export default function App() {
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -38,18 +28,19 @@ export default function App() {
   const [routeTransitioning, setRouteTransitioning] = useState(false);
   const [activeTab, setActiveTab] = useState("multi");
   const [cardZoomIndex, setCardZoomIndex] = useState(1);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [activeFilter, setActiveFilter] = useState("all");
+  const [catalogQuery, setCatalogQuery] = useState({ page: 1, q: "", genre: "all", sort: "name-asc" });
 
   const cardRefs = useRef([]);
   const prevSelectedRef = useRef(0);
+  const focusSelectedCardRef = useRef(false);
 
   const setShareModal = useCallback((nextOpen) => {
     setShareOpen((prev) => (typeof nextOpen === "boolean" ? nextOpen : !prev));
   }, []);
 
   const { route, navigateTo, isGameView, routeViewKey } = usePlatformRoute();
-  const { games, loadingGames, resolveGameById, resolveGameByPath } = useGameCatalog();
+  const { games: visibleGames, catalogPage, filterOptions, loadingGames, catalogUnavailable } = useGameCatalog(catalogQuery);
+  const { activeGame, gameLookupError } = useCatalogGame(route?.gameId, visibleGames);
   const {
     muted,
     setMuted,
@@ -59,20 +50,17 @@ export default function App() {
     playNavSound,
     triggerHaptic,
   } = useLobbyAudio({ isGameView });
-  const { fullscreenActive, toggleFullscreen, presentLandscapeMode, unlockOrientation } =
-    usePlatformPresentation();
+  const { fullscreenActive, toggleFullscreen } = usePlatformPresentation();
   const { connectionState, endGameState, endGameBridgeRef } = usePlatformGameUiState(setShareModal);
-  const activeGame = useMemo(() => resolveGameById(route?.gameId), [resolveGameById, route?.gameId]);
   const { disposeGameSession, gameLoadError } = usePlatformGameLoader({
-    // Wait for the catalog so shared links don't start both fallback and fetched runtimes.
-    game: loadingGames ? null : activeGame,
+    game: activeGame,
     setShareModal,
   });
   const activeGameRuntime = useMemo(() => getGameRuntimeSpec(activeGame), [activeGame]);
   const startInLandscape = Boolean(activeGame?.startInLandscape);
   const showPlatformControlButtons = !isGameView || activeGame?.platformControlButtons !== false;
-  const showShareInvite = !isGameView || activeGame?.shareRoom !== false;
-  const showNetworkUi = !isGameView || activeGame?.networked !== false;
+  const showShareInvite = !isGameView || Boolean(activeGame && activeGame.shareRoom !== false);
+  const showNetworkUi = !isGameView || Boolean(activeGame && activeGame.networked !== false);
   const controllerMode = useMemo(() => {
     if (isGameView && startInLandscape && showPlatformControlButtons) return "split";
     if (showPlatformControlButtons) return "full";
@@ -89,53 +77,15 @@ export default function App() {
   const cardScale = CARD_ZOOM_STEPS[cardZoomIndex] || 1;
   const canZoomOut = cardZoomIndex > 0;
   const canZoomIn = cardZoomIndex < CARD_ZOOM_STEPS.length - 1;
-  const filterOptions = useMemo(() => {
-    const uniqueTags = new Set();
+  const emptyLobbyMessage = catalogQuery.q.trim() || catalogQuery.genre !== "all"
+    ? "Try a different search or genre."
+    : "No games available right now.";
 
-    games.forEach((game) => {
-      (game.tags || []).forEach((tag) => {
-        if (!tag || NON_FILTER_TAG_PATTERN.test(tag)) return;
-        uniqueTags.add(normalizeFilterTag(tag));
-      });
-    });
-
-    return [
-      { value: "all", label: "All Genres" },
-      ...Array.from(uniqueTags)
-        .sort((left, right) => left.localeCompare(right))
-        .map((tag) => ({
-          value: tag,
-          label: formatFilterLabel(tag),
-        })),
-    ];
-  }, [games]);
-  const visibleGames = useMemo(() => {
-    const normalizedQuery = searchQuery.trim().toLowerCase();
-
-    return games.filter((game) => {
-      const matchesFilter =
-        activeFilter === "all" ||
-        (game.tags || []).some((tag) => normalizeFilterTag(tag) === activeFilter);
-
-      if (!matchesFilter) return false;
-      if (!normalizedQuery) return true;
-
-      const haystack = [
-        game.name,
-        game.description,
-        ...(Array.isArray(game.tags) ? game.tags : []),
-      ]
-        .filter(Boolean)
-        .join(" ")
-        .toLowerCase();
-
-      return haystack.includes(normalizedQuery);
-    });
-  }, [activeFilter, games, searchQuery]);
-  const emptyLobbyMessage =
-    searchQuery.trim() || activeFilter !== "all"
-      ? "No games match the current search or filter."
-      : "No games available right now.";
+  const updateCatalogQuery = useCallback((changes) => {
+    focusSelectedCardRef.current = false;
+    setSelectedIndex(0);
+    setCatalogQuery((current) => ({ ...current, ...changes, page: changes.page ?? 1 }));
+  }, []);
 
   useEffect(() => {
     document.documentElement.classList.add("dark");
@@ -153,15 +103,6 @@ export default function App() {
   useEffect(() => {
     cardRefs.current.length = visibleGames.length;
   }, [visibleGames.length]);
-
-  useEffect(() => {
-    setSelectedIndex(0);
-  }, [activeFilter, searchQuery]);
-
-  useEffect(() => {
-    if (filterOptions.some((option) => option.value === activeFilter)) return;
-    setActiveFilter("all");
-  }, [activeFilter, filterOptions]);
 
   useEffect(() => {
     setRouteTransitioning(true);
@@ -212,15 +153,6 @@ export default function App() {
     };
   }, [setShareModal]);
 
-  useEffect(() => {
-    if (!isGameView || !startInLandscape) return () => {};
-
-    presentLandscapeMode();
-    return () => {
-      unlockOrientation();
-    };
-  }, [isGameView, presentLandscapeMode, startInLandscape, unlockOrientation]);
-
   const ensureLobbyMusicPlayback = useCallback(() => {
     if (!isGameView && !muted && musicVolume > 0) {
       void startLobbyMusic(false);
@@ -231,16 +163,10 @@ export default function App() {
     (path) => {
       if (!path) return;
 
-      const nextGame = resolveGameByPath(path);
       triggerHaptic();
-
-      if (nextGame?.startInLandscape) {
-        presentLandscapeMode();
-      }
-
       navigateTo(path);
     },
-    [navigateTo, presentLandscapeMode, resolveGameByPath, triggerHaptic],
+    [navigateTo, triggerHaptic],
   );
 
   const returnToLobby = useCallback(() => {
@@ -254,14 +180,14 @@ export default function App() {
   const handleDirectionalInput = useCallback(
     (direction) => {
       ensureLobbyMusicPlayback();
-      if (isGameView || !visibleGames.length) return;
+      if (isGameView || loadingGames || !visibleGames.length) return;
+
+      const gridColumns = readCatalogColumnCount(cardRefs.current[0]?.closest("[data-game-grid]"));
 
       setSelectedIndex((current) => {
-        const nextIndex =
-          direction === "up" || direction === "left"
-            ? Math.max(0, current - 1)
-            : Math.min(visibleGames.length - 1, current + 1);
+        const nextIndex = readNextCatalogIndex(current, direction, gridColumns, visibleGames.length);
 
+        focusSelectedCardRef.current = nextIndex !== current;
         if (nextIndex !== current) {
           triggerHaptic();
         }
@@ -269,16 +195,25 @@ export default function App() {
         return nextIndex;
       });
     },
-    [ensureLobbyMusicPlayback, isGameView, triggerHaptic, visibleGames.length],
+    [ensureLobbyMusicPlayback, isGameView, loadingGames, triggerHaptic, visibleGames.length],
   );
 
+  const selectLibraryGame = useCallback((index, shouldFocus = false) => {
+    if (loadingGames) return;
+    focusSelectedCardRef.current = shouldFocus && index !== selectedIndex;
+    if (shouldFocus && index === selectedIndex) {
+      cardRefs.current[index]?.focus({ preventScroll: true });
+    }
+    setSelectedIndex(index);
+  }, [loadingGames, selectedIndex]);
+
   const activateSelectedGame = useCallback(() => {
-    if (!visibleGames.length) return;
+    if (loadingGames || !visibleGames.length) return;
     const game = visibleGames[selectedIndex];
     if (game?.path) {
       openGamePath(game.path);
     }
-  }, [openGamePath, selectedIndex, visibleGames]);
+  }, [loadingGames, openGamePath, selectedIndex, visibleGames]);
 
   const handleActionInput = useCallback(
     (action) => {
@@ -315,7 +250,7 @@ export default function App() {
   );
 
   useEffect(() => {
-    if (isGameView) return;
+    if (isGameView || loadingGames) return;
 
     const card = cardRefs.current[selectedIndex];
     if (!card) return;
@@ -325,51 +260,25 @@ export default function App() {
       prevSelectedRef.current = selectedIndex;
     }
 
+    if (!focusSelectedCardRef.current) return;
+    focusSelectedCardRef.current = false;
     card.focus({ preventScroll: true });
 
-    const scrollParent = card.closest(`.${styles.lobbyList}`);
-    if (!scrollParent) return;
+    const cardGrid = card.closest("[data-game-grid]");
+    if (!cardGrid) return;
 
-    const parentRect = scrollParent.getBoundingClientRect();
+    const gridRect = cardGrid.getBoundingClientRect();
     const cardRect = card.getBoundingClientRect();
-    const scrollPaddingTop = parseFloat(getComputedStyle(scrollParent).scrollPaddingTop) || 0;
-    const scrollPaddingBottom = parseFloat(getComputedStyle(scrollParent).scrollPaddingBottom) || 0;
+    const scrollPadding = 3;
+    const scrollDelta = cardRect.top < gridRect.top + scrollPadding
+      ? cardRect.top - gridRect.top - scrollPadding
+      : Math.max(0, cardRect.bottom - gridRect.bottom + scrollPadding);
 
-    let delta = 0;
-    if (cardRect.top < parentRect.top + scrollPaddingTop) {
-      delta = cardRect.top - parentRect.top - scrollPaddingTop;
-    } else if (cardRect.bottom > parentRect.bottom - scrollPaddingBottom) {
-      delta = cardRect.bottom - parentRect.bottom + scrollPaddingBottom;
+    if (Math.abs(scrollDelta) > 1) {
+      const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      cardGrid.scrollBy({ top: scrollDelta, behavior: reducedMotion ? "auto" : "smooth" });
     }
-
-    if (Math.abs(delta) < 1) return;
-
-    let animationFrameId = 0;
-    const startScroll = scrollParent.scrollTop;
-    const targetScroll = startScroll + delta;
-    const duration = Math.min(260, 120 + Math.abs(delta) * 0.35);
-    const startTime = performance.now();
-
-    const easeOutCubic = (timeValue) => 1 - Math.pow(1 - timeValue, 3);
-
-    const animate = (now) => {
-      const elapsed = now - startTime;
-      const progress = Math.min(elapsed / duration, 1);
-      const eased = easeOutCubic(progress);
-      scrollParent.scrollTop = startScroll + (targetScroll - startScroll) * eased;
-
-      if (progress < 1) {
-        animationFrameId = requestAnimationFrame(animate);
-      }
-    };
-
-    animationFrameId = requestAnimationFrame(animate);
-    return () => {
-      if (animationFrameId) {
-        cancelAnimationFrame(animationFrameId);
-      }
-    };
-  }, [isGameView, playNavSound, selectedIndex]);
+  }, [activeTab, cardScale, isGameView, loadingGames, playNavSound, selectedIndex, visibleGames]);
 
   const handleCopyShare = useCallback(async () => {
     if (!shareUrl) return;
@@ -430,11 +339,11 @@ export default function App() {
           showZoomControls={activeTab !== "config"}
           canZoomIn={canZoomIn}
           canZoomOut={canZoomOut}
-          searchQuery={searchQuery}
-          onSearchChange={setSearchQuery}
+          searchQuery={catalogQuery.q}
+          onSearchChange={(q) => updateCatalogQuery({ q })}
           filterOptions={filterOptions}
-          activeFilter={activeFilter}
-          onFilterChange={setActiveFilter}
+          activeFilter={catalogQuery.genre}
+          onFilterChange={(genre) => updateCatalogQuery({ genre })}
           onZoomIn={handleZoomIn}
           onZoomOut={handleZoomOut}
         />
@@ -444,12 +353,16 @@ export default function App() {
         <LobbyList
           loading={loadingGames}
           games={visibleGames}
+          catalogPage={catalogPage}
+          catalogUnavailable={catalogUnavailable}
+          sort={catalogQuery.sort}
+          onSortChange={(sort) => updateCatalogQuery({ sort })}
+          onPageChange={(page) => updateCatalogQuery({ page })}
           emptyMessage={emptyLobbyMessage}
           selectedIndex={selectedIndex}
-          onSelectIndex={setSelectedIndex}
+          onSelectIndex={selectLibraryGame}
           onActivate={openGamePath}
           cardScale={cardScale}
-          cardZoomIndex={cardZoomIndex}
           registerCardRef={(index, node) => {
             cardRefs.current[index] = node;
           }}
@@ -475,7 +388,7 @@ export default function App() {
           shareUrl={shareUrl}
           copyLabel={copyLabel}
           onCopyShare={handleCopyShare}
-          gameLoadError={gameLoadError}
+          gameLoadError={gameLoadError || gameLookupError}
           endGameOpen={endGameState.open}
           endGameTitle={endGameState.title}
           endGameSubtitle={endGameState.subtitle}

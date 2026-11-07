@@ -1,0 +1,93 @@
+.linkField {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  margin-top: 22px;
+
+  > label {
+    color: var(--platform-text-muted);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+  }
+}
+
+.linkInputRow {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+  height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--platform-border);
+  border-radius: var(--platform-radius);
+  background: var(--platform-surface-inset);
+
+  > span {
+    flex-shrink: 0;
+    color: var(--platform-text-muted);
+    font-size: 19px;
+  }
+
+  input {
+    flex: 1;
+    width: 100%;
+    min-width: 0;
+    height: 100%;
+    padding: 0;
+    border: 0;
+    outline: none;
+    background: transparent;
+    color: var(--platform-text);
+    font-family: inherit;
+    font-size: 11px;
+
+    &::placeholder {
+      color: var(--platform-text-muted);
+    }
+  }
+
+  &:focus-within {
+    border-color: var(--platform-accent);
+  }
+}
+
+.hint {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 16px 0 0;
+  padding-top: 16px;
+  border-top: 1px solid #ffffff0b;
+  color: var(--platform-text-muted);
+  font-size: 10px;
+  line-height: 1.6;
+
+  > span {
+    flex-shrink: 0;
+    font-size: 15px;
+  }
+}
+
+@media (max-width: 520px) {
+  .linkField {
+    margin-top: 19px;
+  }
+}
+
+@media (max-height: 660px) and (orientation: portrait), (max-height: 540px) and (orientation: landscape) {
+  .linkField {
+    margin-top: 15px;
+    gap: 6px;
+  }
+
+  .linkInputRow {
+    height: 40px;
+  }
+
+  .hint {
+    display: none;
+  }
+}

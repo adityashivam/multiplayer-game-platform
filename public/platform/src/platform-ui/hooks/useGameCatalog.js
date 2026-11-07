@@ -1,82 +1,55 @@
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { fallbackGames } from "../../data/games.js";
+import { createGameCatalog } from "../../../shared/gameCatalog.js";
+import { requestGameCatalogPage } from "../services/gameCatalogClient.js";
 
-const TEMP_DUMMY_GAMES_ENABLED = true;
-const TEMP_DUMMY_GAME_COUNT = 50;
+const CATALOG_SEARCH_DELAY_MS = 180;
+const fallbackCatalog = createGameCatalog(fallbackGames);
+const emptyCatalogPage = createGameCatalog([]).query();
 
-const TEMP_DUMMY_GAMES = Array.from({ length: TEMP_DUMMY_GAME_COUNT }, (_, index) => {
-  const num = String(index + 1).padStart(2, "0");
-  return {
-    id: `dummy-${num}`,
-    name: `Dummy Game ${num}`,
-    description: "Temporary preview card for testing long-list scrolling behavior.",
-    path: "",
-    tags: ["Preview", "2 players", "Demo"],
-  };
-});
-
-function withTemporaryDummyGames(games) {
-  if (!TEMP_DUMMY_GAMES_ENABLED) return games;
-  const source = Array.isArray(games) ? games : [];
-  const ids = new Set(source.map((game) => game.id));
-  const extras = TEMP_DUMMY_GAMES.filter((game) => !ids.has(game.id));
-  return [...source, ...extras];
-}
-
-export default function useGameCatalog() {
-  const [games, setGames] = useState([]);
+/** Load bounded catalog pages, cancel obsolete queries, and debounce only search typing. */
+export default function useGameCatalog({ page, q, genre, sort }) {
+  const [catalogPage, setCatalogPage] = useState(emptyCatalogPage);
   const [loadingGames, setLoadingGames] = useState(true);
+  const [catalogUnavailable, setCatalogUnavailable] = useState(false);
+  const [debouncedSearch, setDebouncedSearch] = useState(q);
 
   useEffect(() => {
-    let cancelled = false;
+    const timerId = window.setTimeout(() => setDebouncedSearch(q), CATALOG_SEARCH_DELAY_MS);
+    return () => window.clearTimeout(timerId);
+  }, [q]);
 
-    async function loadGames() {
-      try {
-        const response = await fetch("/api/games");
-        if (!response.ok) throw new Error("Bad response");
+  useEffect(() => {
+    setLoadingGames(true);
+    if (debouncedSearch !== q) return undefined;
 
-        const payload = await response.json();
-        if (!cancelled && Array.isArray(payload.games) && payload.games.length) {
-          setGames(withTemporaryDummyGames(payload.games));
-          setLoadingGames(false);
-          return;
-        }
-      } catch (error) {
-        console.warn("Falling back to default games list", error);
-      }
+    const abortController = new AbortController();
+    const catalogQuery = { page, q: debouncedSearch, genre, sort };
+    requestGameCatalogPage(catalogQuery, { signal: abortController.signal }).then((nextPage) => {
+      if (abortController.signal.aborted) return;
+      setCatalogPage(nextPage);
+      setCatalogUnavailable(false);
+      setLoadingGames(false);
+    }).catch(() => {
+      if (abortController.signal.aborted) return;
+      setCatalogPage(fallbackCatalog.query(catalogQuery));
+      setCatalogUnavailable(true);
+      setLoadingGames(false);
+    });
 
-      if (!cancelled) {
-        setGames(withTemporaryDummyGames(fallbackGames));
-        setLoadingGames(false);
-      }
-    }
+    return () => abortController.abort();
+  }, [page, q, genre, sort, debouncedSearch]);
 
-    loadGames();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  const resolveGameById = useCallback(
-    (gameId) => {
-      if (!gameId) return null;
-      return games.find((game) => game.id === gameId) || fallbackGames.find((game) => game.id === gameId) || null;
-    },
-    [games],
-  );
-
-  const resolveGameByPath = useCallback(
-    (path) => {
-      if (!path) return null;
-      return games.find((game) => game.path === path) || fallbackGames.find((game) => game.path === path) || null;
-    },
-    [games],
-  );
+  const filterOptions = useMemo(() => [
+    { value: "all", label: "All Genres" },
+    ...catalogPage.genres,
+  ], [catalogPage.genres]);
 
   return {
-    games,
-    loadingGames,
-    resolveGameById,
-    resolveGameByPath,
+    games: catalogPage.games,
+    catalogPage,
+    filterOptions,
+    loadingGames: loadingGames || debouncedSearch !== q,
+    catalogUnavailable,
   };
 }

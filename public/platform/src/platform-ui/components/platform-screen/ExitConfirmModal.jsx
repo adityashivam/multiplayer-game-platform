@@ -1,43 +1,36 @@
-import React from "react";
-import classNames from "../../../utils/classNames.js";
-import styles from "../../PlatformApp.module.scss";
+import React, { useRef } from "react";
+import PlatformDialog from "./PlatformDialog.jsx";
+import styles from "./PlatformDialog.module.scss";
 
+/**
+ * Confirm leaving a game, focusing the safe action before accepting keyboard input.
+ * @param {{onConfirm: () => void, onCancel: () => void, icons?: {goHome?: string, stay?: string}}} props
+ * @returns {React.ReactElement}
+ */
 export default function ExitConfirmModal({ onConfirm, onCancel, icons }) {
-  return (
-    <div className={styles.shareOverlay} role="dialog" aria-modal="true" aria-label="Exit game confirmation">
-      <div className={classNames(styles.shareModal, styles.endGameModal)}>
-        <div className={styles.shareHeader}>
-          <div className={styles.sharePattern} aria-hidden="true" />
-          <h2 className={styles.shareTitle}>Exit to Home?</h2>
-          <p className={styles.shareSubtitle}>Leave this game and return to the home lobby.</p>
-        </div>
-        <div className={classNames(styles.shareBody, styles.endGameBody)}>
-          <button
-            type="button"
-            className={classNames(styles.shareActionPrimary, styles.endGameAction)}
-            onClick={onConfirm}
-          >
-            <div className={styles.shareActionIcon}>
-              <span className="material-symbols-outlined">{icons?.goHome || "home"}</span>
-            </div>
-            <div className={styles.shareActionText}>
-              <span className={styles.shareActionEyebrow}>Confirm</span>
-              <span className={styles.shareActionTitle}>Go to Home</span>
-            </div>
-          </button>
+  const stayButtonRef = useRef(null);
 
-          <button
-            type="button"
-            className={classNames(styles.shareActionGhost, styles.endGameAction)}
-            onClick={onCancel}
-          >
-            <span className={classNames("material-symbols-outlined", styles.shareGhostIcon)}>
-              {icons?.stay || "sports_esports"}
-            </span>
-            <span className={styles.shareGhostLabel}>Stay in Game</span>
-          </button>
-        </div>
+  return (
+    <PlatformDialog
+      label="Exit game confirmation"
+      title="Leave this game?"
+      eyebrow="Return to library"
+      description="Leave this game and return to your game library."
+      icon={icons?.goHome || "home"}
+      onClose={onCancel}
+      closeLabel="Close exit confirmation"
+      initialFocusRef={stayButtonRef}
+    >
+      <div className={styles.actions}>
+        <button type="button" className={styles.primaryAction} onClick={onConfirm}>
+          <span className="material-symbols-outlined" aria-hidden="true">{icons?.goHome || "home"}</span>
+          Go to Home
+        </button>
+        <button type="button" className={styles.secondaryAction} onClick={onCancel} ref={stayButtonRef}>
+          <span className="material-symbols-outlined" aria-hidden="true">{icons?.stay || "sports_esports"}</span>
+          Stay in Game
+        </button>
       </div>
-    </div>
+    </PlatformDialog>
   );
 }
