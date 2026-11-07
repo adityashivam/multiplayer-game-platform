@@ -288,17 +288,20 @@ export function createHorizontalSeparationController({ state, minX, maxX, minDis
   const { x, y, vx } = state;
 
   return function resolveHorizontalSeparation(firstPlayer, secondPlayer) {
+    firstPlayer[x] = Math.max(minX, Math.min(maxX, firstPlayer[x]));
+    secondPlayer[x] = Math.max(minX, Math.min(maxX, secondPlayer[x]));
     const horizontalDistance = firstPlayer[x] - secondPlayer[x];
     if (Math.abs(horizontalDistance) < minDistance && Math.abs(firstPlayer[y] - secondPlayer[y]) < verticalLimit) {
-      const pushDistance = (minDistance - Math.abs(horizontalDistance)) / 2;
-      const pushDirection = horizontalDistance === 0 ? 1 : Math.sign(horizontalDistance);
-      firstPlayer[x] += pushDistance * pushDirection;
-      secondPlayer[x] -= pushDistance * pushDirection;
+      // Preserve the midpoint where possible. At a wall, transfer all blocked
+      // displacement to the free body rather than clamping away half the push.
+      const contactDistance = Math.min(minDistance, maxX - minX);
+      const leftPosition = Math.max(minX, Math.min(maxX - contactDistance,
+        (firstPlayer[x] + secondPlayer[x] - contactDistance) / 2));
+      const firstIsRight = horizontalDistance >= 0;
+      firstPlayer[x] = firstIsRight ? leftPosition + contactDistance : leftPosition;
+      secondPlayer[x] = firstIsRight ? leftPosition : leftPosition + contactDistance;
       firstPlayer[vx] = 0;
       secondPlayer[vx] = 0;
     }
-
-    firstPlayer[x] = Math.max(minX, Math.min(maxX, firstPlayer[x]));
-    secondPlayer[x] = Math.max(minX, Math.min(maxX, secondPlayer[x]));
   };
 }

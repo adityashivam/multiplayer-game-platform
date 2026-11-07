@@ -38,25 +38,26 @@ function createGameJoinedPayload(playerId, gameId, rejoinToken, inputEpoch) {
  * Socket ownership prevents a stale game connected flag from allowing a takeover.
  * @param {import("socket.io").Namespace} nsp
  * @param {string} gameId
- * @returns {Set<string>}
+ * @returns {Map<string, import("socket.io").Socket>}
  */
-function collectOccupiedPlayerIds(nsp, gameId) {
-  const occupiedPlayerIds = new Set();
+function collectPlayerSocketOwners(nsp, gameId) {
+  const playerSocketOwners = new Map();
   const roomSocketIds = nsp.adapter.rooms.get(gameId);
-  if (!roomSocketIds) return occupiedPlayerIds;
+  if (!roomSocketIds) return playerSocketOwners;
 
   for (const socketId of roomSocketIds) {
     const roomSocket = nsp.sockets.get(socketId);
     if (roomSocket?.data?.gameId === gameId && roomSocket.data.playerId) {
-      occupiedPlayerIds.add(roomSocket.data.playerId);
+      playerSocketOwners.set(roomSocket.data.playerId, roomSocket);
     }
   }
-  return occupiedPlayerIds;
+  return playerSocketOwners;
 }
 
 /**
  * Allocate a game-defined slot, releasing the socket's previous room lifecycle first.
  * A missing/incorrect reconnect token follows ordinary vacant-slot allocation.
+ * A token for an occupied slot preserves that identity and requests bounded retry.
  * @template {import("./state.js").RoomState} GameState
  * @param {JoinRoomOptions<GameState>} options
  * @returns {{playerId: string, state: GameState, rejoined: boolean, alreadyJoined: boolean}|null}
@@ -77,7 +78,7 @@ export function joinGameRoom({
 
   const previousGameId = socket.data.gameId;
   if (previousGameId && previousGameId !== gameId) {
-    handlePlayerDisconnect({ socket, games, onPlayerDisconnect });
+    handlePlayerDisconnect({ socket, nsp, games, onPlayerDisconnect });
     socket.leave(previousGameId);
     socket.data.gameId = null;
     socket.data.playerId = null;
@@ -99,11 +100,17 @@ export function joinGameRoom({
     return { playerId: previousPlayerId, state, rejoined: true, alreadyJoined: true };
   }
 
-  const occupiedPlayerIds = collectOccupiedPlayerIds(nsp, gameId);
-  const isVacantSlot = (playerId) => !state.players[playerId].connected && !occupiedPlayerIds.has(playerId);
-  const rejoinSlot = typeof rejoinToken === "string" && rejoinToken.length > 0
-    ? roomPlayerIds.find((playerId) => isVacantSlot(playerId) && state.players[playerId].rejoinToken === rejoinToken)
+  const playerSocketOwners = collectPlayerSocketOwners(nsp, gameId);
+  const isVacantSlot = (playerId) => !state.players[playerId].connected && !playerSocketOwners.has(playerId);
+  const tokenPlayerId = typeof rejoinToken === "string" && rejoinToken.length > 0
+    ? roomPlayerIds.find((playerId) => state.players[playerId].rejoinToken === rejoinToken)
     : undefined;
+  if (tokenPlayerId !== undefined && !isVacantSlot(tokenPlayerId)) {
+    emitEvent({ socket, type: SOCKET_EVENT.ROOM_FULL, payload: { gameId, rejoinPending: true } });
+    return null;
+  }
+
+  const rejoinSlot = tokenPlayerId;
   const playerId = rejoinSlot ?? roomPlayerIds.find(isVacantSlot);
 
   if (playerId === undefined) {
@@ -125,20 +132,24 @@ export function joinGameRoom({
 }
 
 /**
- * Release platform ownership before invoking game cleanup; safe on repeated disconnects.
+ * Release platform ownership before invoking game cleanup; safe on repeated
+ * disconnects and on stale transports whose slot already has another owner.
  * @template {import("./state.js").RoomState} GameState
  * @param {object} options
  * @param {import("socket.io").Socket} options.socket
+ * @param {import("socket.io").Namespace} [options.nsp] Defaults to the socket's namespace.
  * @param {Map<string, GameState>} options.games
  * @param {(state: GameState, playerId: string) => void} [options.onPlayerDisconnect]
  * @returns {void}
  */
-export function handlePlayerDisconnect({ socket, games, onPlayerDisconnect }) {
+export function handlePlayerDisconnect({ socket, nsp = socket.nsp, games, onPlayerDisconnect }) {
   const { gameId, playerId } = socket.data;
   if (!gameId || !playerId) return;
 
   const state = games.get(gameId);
-  if (state?.players && Object.hasOwn(state.players, playerId)) {
+  const currentSocketOwner = nsp && collectPlayerSocketOwners(nsp, gameId).get(playerId);
+  const belongsToAnotherSocket = currentSocketOwner && currentSocketOwner !== socket;
+  if (!belongsToAnotherSocket && state?.players && Object.hasOwn(state.players, playerId)) {
     state.players[playerId].connected = false;
     if (onPlayerDisconnect) {
       onPlayerDisconnect(state, playerId);

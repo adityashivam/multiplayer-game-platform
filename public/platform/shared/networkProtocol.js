@@ -42,6 +42,18 @@
 /** @typedef {FullSnapshotPacket|DeltaSnapshotPacket} PackedSnapshotPacket */
 
 /**
+ * @typedef {object} JoinGameRequest
+ * @property {string} gameId Room identifier within the game namespace.
+ * @property {string} [rejoinToken] Bearer token issued for this room's player slot.
+ */
+
+/**
+ * @typedef {object} RoomFullPayload
+ * @property {string} gameId
+ * @property {true} [rejoinPending] The supplied token identifies a slot still held by its previous transport.
+ */
+
+/**
  * The Socket.IO envelope is fixed; event payloads are supplied by each game.
  * @typedef {object} SocketPacket
  * @property {0|1|2|3|4} type

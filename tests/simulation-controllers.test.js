@@ -239,7 +239,34 @@ test("horizontal separation binds custom poses, splits overlap and clamps arena 
   secondPlayer.center = 14;
   separatePlayers(firstPlayer, secondPlayer);
   assert.equal(firstPlayer.center, 10);
-  assert.equal(secondPlayer.center, 28);
+  assert.equal(secondPlayer.center, 40);
+});
+
+test("horizontal separation transfers blocked wall displacement to the other body", () => {
+  const separatePlayers = createHorizontalSeparationController({
+    state: { x: "center", y: "height", vx: "speed" },
+    minX: 10, maxX: 90, minDistance: 30, verticalLimit: 10,
+  });
+  const cases = [
+    { positions: [10, 14], expected: [10, 40] },
+    { positions: [86, 90], expected: [60, 90] },
+    { positions: [14, 10], expected: [40, 10] },
+    { positions: [90, 86], expected: [90, 60] },
+    { positions: [10, 10], expected: [40, 10] },
+    { positions: [90, 90], expected: [90, 60] },
+    { positions: [-100, 10], expected: [40, 10] },
+  ];
+
+  for (const { positions, expected } of cases) {
+    const firstPlayer = { center: positions[0], height: 20, speed: 5 };
+    const secondPlayer = { center: positions[1], height: 20, speed: -5 };
+    separatePlayers(firstPlayer, secondPlayer);
+    assert.deepEqual([firstPlayer.center, secondPlayer.center], expected);
+    assert.equal(firstPlayer.speed, 0);
+    assert.equal(secondPlayer.speed, 0);
+    separatePlayers(firstPlayer, secondPlayer);
+    assert.deepEqual([firstPlayer.center, secondPlayer.center], expected, "contact must settle in one step");
+  }
 });
 
 test("contact requires strict horizontal/vertical overlap while bounds always apply", () => {

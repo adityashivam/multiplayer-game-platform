@@ -2,7 +2,10 @@ import { fightGameMeta } from "./metadata.js";
 import { emitEvent, registerPluggableGame, scheduleStart } from "../core/index.js";
 import { createAuthoritativeInputSession } from "../core/authoritativeInputSession.js";
 import {
-  FIGHT_ATTACK_DEFINITIONS,
+  FIGHT_COMBAT,
+  FIGHT_ACTION_EDGE_KEYS,
+  createFightPlayerState as createSharedFightPlayer,
+  resolveFightExchange,
   FIGHT_FIXED_DT_SEC,
   FIGHT_INPUT_TEMPLATE,
   FIGHT_MOVEMENT,
@@ -28,8 +31,6 @@ import {
  *   inputEpoch: number,
  *   lastInputSeqAck: number,
  *   inputSimulationTick: number,
- *   lastHitTime: number,
- *   lastAttackHitTime?: number,
  *   connected: boolean,
  *   rejoinToken?: string
  * }} FightServerPlayerState
@@ -39,6 +40,8 @@ import {
  * @typedef {object} FightGameState
  * @property {{p1: FightServerPlayerState, p2: FightServerPlayerState}} players
  * @property {number} timer
+ * @property {Array<{id: number, kind: string, attackerId: FightPlayerId, defenderId: FightPlayerId, attackType: string, damage: number, x: number, y: number}>} combatEvents
+ * @property {number} nextCombatEventId
  * @property {boolean} gameOver
  * @property {FightPlayerId | "tie" | null} winner
  * @property {{p1: boolean, p2: boolean}} rematchRequests
@@ -55,17 +58,19 @@ import {
  * @property {number} nowMs Wall time for combat and match timing.
  */
 
-const GAME_DURATION_SEC = 300;
+const GAME_DURATION_SEC = FIGHT_COMBAT.ROUND_DURATION_SEC;
 const COUNTDOWN_MS = 3000;
 const ROOM_CLEANUP_DELAY_MS = 30000;
-const MAX_HEALTH = 500;
-const REGEN_DELAY_SEC = 0.5;
-const HEALTH_REGEN_PER_SEC = 25;
+const COMBAT_EVENT_LIMIT = 16;
+// Fixed event slots preserve the packed snapshot schema as the history fills.
+// ID zero denotes an unused slot and is ignored by presentation consumers.
+const EMPTY_COMBAT_EVENT = Object.freeze({
+  id: 0, kind: "hit", attackerId: "p1", defenderId: "p2", attackType: "light", damage: 0, x: 0, y: 0,
+});
+const FIGHT_PLAYER_SNAPSHOT_KEYS = Object.freeze(Object.keys(createSharedFightPlayer(0, 1)));
 
 /** @type {ReadonlyArray<FightPlayerId>} */
 const FIGHT_PLAYER_IDS = ["p1", "p2"];
-/** @type {ReadonlyArray<keyof FightInputState>} */
-const FIGHT_ACTION_EDGE_KEYS = ["jump", "attack", "heavyAttack", "aerialAttack"];
 
 const DEFAULT_INPUT_STATE = FIGHT_INPUT_TEMPLATE;
 const fightInputSession = createAuthoritativeInputSession({
@@ -81,21 +86,10 @@ const fightInputSession = createAuthoritativeInputSession({
  */
 function createFightPlayerState(x, dir) {
   return {
-    x,
-    y: FIGHT_MOVEMENT.GROUND_Y - 42,
-    vx: 0,
-    vy: 0,
-    dir,
-    health: MAX_HEALTH,
-    attacking: false,
-    attackType: null,
-    attackTimer: 0,
-    cooldownTimer: 0,
+    ...createSharedFightPlayer(x, dir),
     lastInputSeqAck: 0,
     inputEpoch: 0,
     inputSimulationTick: 0,
-    lastHitTime: 0,
-    dead: false,
     connected: false,
     input: { ...DEFAULT_INPUT_STATE },
   };
@@ -112,6 +106,8 @@ function createInitialGameState() {
     gameOver: false,
     winner: null,
     rematchRequests: { p1: false, p2: false },
+    combatEvents: [],
+    nextCombatEventId: 1,
     lastUpdate: Date.now(),
     started: false,
     startAt: null,
@@ -119,45 +115,29 @@ function createInitialGameState() {
 }
 
 /** @param {FightGameState} state */
-function initializeFightAttackTimestamps(state) {
-  state.players.p1.lastAttackHitTime = 0;
-  state.players.p2.lastAttackHitTime = 0;
-}
-
-/** @param {FightGameState} state */
 function scheduleFightStart(state) {
-  scheduleStart(state, COUNTDOWN_MS, (gameState) => {
-    gameState.timer = GAME_DURATION_SEC;
-  });
+  scheduleStart(state, COUNTDOWN_MS);
 }
 
 /** @param {FightServerPlayerState} playerState */
 function serializeFightPlayerState(playerState) {
-  return {
-    x: playerState.x,
-    y: playerState.y,
-    vx: playerState.vx,
-    vy: playerState.vy,
-    dir: playerState.dir,
-    health: playerState.health,
-    attacking: playerState.attacking,
-    attackType: playerState.attackType,
-    attackTimer: playerState.attackTimer,
-    cooldownTimer: playerState.cooldownTimer,
-    hasHitThisSwing: Boolean(playerState.hasHitThisSwing),
-    ...fightInputSession.getPlayerSnapshotMetadata(playerState),
-    dead: playerState.dead,
-  };
+  const combatSnapshot = {};
+  for (const field of FIGHT_PLAYER_SNAPSHOT_KEYS) combatSnapshot[field] = playerState[field];
+  return { ...combatSnapshot, ...fightInputSession.getPlayerSnapshotMetadata(playerState) };
 }
 
 /** @param {FightGameState} state */
-function serializeFightState(state) {
+export function serializeFightState(state) {
+  const combatEvents = Array.from({ length: COMBAT_EVENT_LIMIT }, (_, index) => state.combatEvents[index] || EMPTY_COMBAT_EVENT);
   return {
     players: {
       p1: serializeFightPlayerState(state.players.p1),
       p2: serializeFightPlayerState(state.players.p2),
     },
     inputProtocol: INPUT_PROTOCOL.QUEUED,
+    combatEvents,
+    maxHealth: FIGHT_COMBAT.MAX_HEALTH,
+    durationSec: GAME_DURATION_SEC,
     timer: Math.ceil(state.timer),
     gameOver: state.gameOver,
     winner: state.winner,
@@ -168,38 +148,6 @@ function serializeFightState(state) {
       p2: state.players.p2.connected,
     },
   };
-}
-
-/**
- * Resolve a swing's authoritative damage at most once, mutating both players.
- * @param {FightServerPlayerState} attacker
- * @param {FightServerPlayerState} defender
- * @param {FightGameState} state
- * @param {FightPlayerId} attackerId
- * @param {number} nowSec
- */
-function resolveAttack(attacker, defender, state, attackerId, nowSec) {
-  if (!attacker.attacking || attacker.hasHitThisSwing || attacker.dead || defender.dead) {
-    return;
-  }
-  const attackDefinition = FIGHT_ATTACK_DEFINITIONS[attacker.attackType];
-  if (!attackDefinition) {
-    return;
-  }
-
-  const horizontalDistance = Math.abs(attacker.x - defender.x);
-  if (horizontalDistance >= attackDefinition.range) {
-    return;
-  }
-
-  attacker.hasHitThisSwing = true;
-  defender.health = Math.max(0, defender.health - attackDefinition.damage);
-  defender.lastHitTime = nowSec;
-  if (defender.health === 0) {
-    defender.dead = true;
-    state.gameOver = true;
-    state.winner = attackerId;
-  }
 }
 
 /** @param {FightGameState} state */
@@ -219,47 +167,43 @@ function syncFightStartState(state, nowMs) {
 }
 
 /** @param {FightSimulationContext} context */
-function runFightPlayerIntentSystem({ state, dt, nowMs }) {
+function runFightPlayerIntentSystem({ state, dt }) {
+  const facingPositions = {
+    p1: { x: state.players.p1.x, y: state.players.p1.y },
+    p2: { x: state.players.p2.x, y: state.players.p2.y },
+  };
   fightInputSession.simulateRoom({
     state,
     dtSec: dt,
     simulate: (playerState, inputState, fixedDtSec, playerId) => {
-      stepFightPlayer(playerState, inputState, fixedDtSec, { active: isFightActive(state) });
-      if (isFightActive(state)) {
-        const opponentState = state.players[playerId === "p1" ? "p2" : "p1"];
-        resolveFightSeparation(state.players.p1, state.players.p2);
-        resolveAttack(playerState, opponentState, state, playerId, nowMs / 1000);
-      }
+      const opponent = facingPositions[playerId === "p1" ? "p2" : "p1"];
+      stepFightPlayer(playerState, inputState, fixedDtSec, { active: isFightActive(state), opponent });
     },
   });
 }
 
 /** @param {FightSimulationContext} context */
-function runFightCombatSystem({ state, nowMs }) {
+function runFightCombatSystem({ state }) {
   if (!isFightActive(state)) {
     return;
   }
 
-  const nowSec = nowMs / 1000;
   const { p1, p2 } = state.players;
-  resolveAttack(p1, p2, state, "p1", nowSec);
-  resolveAttack(p2, p1, state, "p2", nowSec);
-}
-
-/** @param {FightSimulationContext} context */
-function runFightRegenSystem({ state, dt, nowMs }) {
-  if (!isFightActive(state)) {
-    return;
+  resolveFightSeparation(p1, p2);
+  const impacts = resolveFightExchange(p1, p2);
+  for (const attackerId of FIGHT_PLAYER_IDS) {
+    const impact = impacts[attackerId];
+    if (!impact) continue;
+    const defenderId = attackerId === "p1" ? "p2" : "p1";
+    const defender = state.players[defenderId];
+    state.combatEvents.push({
+      id: state.nextCombatEventId++, ...impact, attackerId, defenderId, x: defender.x, y: defender.y,
+    });
   }
-
-  const nowSec = nowMs / 1000;
-  for (const playerState of [state.players.p1, state.players.p2]) {
-    if (!playerState.dead && playerState.health < MAX_HEALTH) {
-      const timeSinceHitSec = nowSec - (playerState.lastHitTime || 0);
-      if (timeSinceHitSec >= REGEN_DELAY_SEC) {
-        playerState.health = Math.min(MAX_HEALTH, playerState.health + HEALTH_REGEN_PER_SEC * dt);
-      }
-    }
+  if (state.combatEvents.length > COMBAT_EVENT_LIMIT) state.combatEvents.splice(0, state.combatEvents.length - COMBAT_EVENT_LIMIT);
+  if (p1.dead || p2.dead) {
+    state.gameOver = true;
+    state.winner = p1.dead && p2.dead ? "tie" : p1.dead ? "p2" : "p1";
   }
 }
 
@@ -312,10 +256,6 @@ function createFightSimulationSystems() {
       system: { name: "combat", update: runFightCombatSystem },
     },
     {
-      priority: 30,
-      system: { name: "regeneration", update: runFightRegenSystem },
-    },
-    {
       priority: 40,
       system: { name: "timer", update: runFightTimerSystem },
     },
@@ -361,21 +301,10 @@ function disconnectFightPlayer(state, playerId) {
 
   const opponentId = playerId === "p1" ? "p2" : "p1";
   const bothDisconnected = !state.players[opponentId].connected;
-  if (bothDisconnected) {
-    state.started = false;
-    state.startAt = null;
-    state.timer = GAME_DURATION_SEC;
-    state.gameOver = false;
-    state.winner = null;
-    state.rematchRequests = { p1: false, p2: false };
-    state.abandonedAt = Date.now();
-  } else {
-    // Pause the game while waiting for reconnect.
-    state.started = false;
-    state.startAt = null;
-    state.rematchRequests = { p1: false, p2: false };
-    state.abandonedAt = null;
-  }
+  state.started = false;
+  state.startAt = null;
+  state.rematchRequests = { p1: false, p2: false };
+  state.abandonedAt = bothDisconnected ? Date.now() : null;
 }
 
 /**
@@ -425,7 +354,6 @@ function requestFightRematch({ socket, games, nsp }) {
   nextState.players.p2.rejoinToken = state.players.p2.rejoinToken;
   nextState.players.p1.connected = state.players.p1.connected;
   nextState.players.p2.connected = state.players.p2.connected;
-  initializeFightAttackTimestamps(nextState);
   games.set(gameId, nextState);
   emitEvent({ nsp, gameId, type: SOCKET_EVENT.REMATCH_STARTED, target: "game" });
 }
@@ -442,7 +370,6 @@ export function registerFightGame(io) {
     createState: createInitialGameState,
     systems: createFightSimulationSystems(),
     shouldStep: ({ state }) => !state.gameOver,
-    onStateCreated: initializeFightAttackTimestamps,
     onPlayerConnected: connectFightPlayer,
     handleInput: receiveFightPlayerInput,
     handleDisconnect: disconnectFightPlayer,

@@ -12,7 +12,11 @@ import { updateConnectionState } from "/platform/frontend-engine/connectionBridg
 import { createNetworkedGameSession } from "/platform/frontend-engine/networkedGameSession.js";
 import {
   FIGHT_FIXED_DT_SEC,
+  FIGHT_ACTION_EDGE_KEYS,
+  FIGHT_ATTACK_DEFINITIONS,
+  FIGHT_COMBAT,
   FIGHT_INPUT_TEMPLATE,
+  FIGHT_MOVEMENT,
   stepFightPlayer,
   resolveFightSeparation,
 } from "/games/fight/shared/simulation.js";
@@ -22,6 +26,18 @@ import {
 } from "/platform/shared/networkProtocol.js";
 import { createInputLatch } from "/platform/frontend-engine/inputTimeline.js";
 import { createPluggablePoseRuntime } from "/platform/frontend-engine/pluggablePoseRuntime.js";
+import {
+  createFightAnimationTrack,
+  createFightInputController,
+  readFightKeyboardInput,
+} from "/games/fight/presentation.js";
+import { createFightCombatPresentation } from "/games/fight/combatPresentation.js";
+import {
+  readFightSpriteFrame,
+  readFightSpritePlacement,
+} from "/games/fight/spritePresentation.js";
+import { FIGHT_MOVE_CLIPS, FIGHT_MOVE_SHEETS } from "/games/fight/spriteAtlasManifest.js";
+import { createFightRenderContact } from "/games/fight/renderContact.js";
 
 /** @typedef {import("./shared/simulation.js").FightInputState} FightInputState */
 /** @typedef {import("./shared/simulation.js").FightPlayerId} FightPlayerId */
@@ -45,6 +61,7 @@ import { createPluggablePoseRuntime } from "/platform/frontend-engine/pluggableP
  * @property {boolean} started
  * @property {number | null} startAt
  * @property {{ p1: boolean, p2: boolean }} connected
+ * @property {import("./combatPresentation.js").FightCombatEvent[]} [combatEvents]
  * @property {import("../../platform/shared/networkProtocol.js").SnapshotNetworkMetadata} [net]
  */
 
@@ -67,7 +84,7 @@ kaboom({
   scale: 0.7,
   debug: false,
   global: true,
-  maxFPS: 60,
+  maxFPS: 120,
   pixelDensity: 1,
   canvas: canvas || undefined,
 });
@@ -102,9 +119,15 @@ let toggleNetworkDiagnostics = () => {};
 let cleanupNetworkDiagnostics = () => {};
 let destroyFightNetworkSession = () => {};
 let activeFightRuntime = null;
+/** @type {ReturnType<typeof createFightCombatPresentation> | null} */
+let fightCombatPresentation = null;
+let roomJoinError = "";
 
 const inputLatch = createInputLatch(FIGHT_INPUT_TEMPLATE, {
-  edgeKeys: ["jump", "attack", "heavyAttack", "aerialAttack"],
+  edgeKeys: [...FIGHT_ACTION_EDGE_KEYS],
+});
+const fightInputController = createFightInputController(setLocalInputFlag, {
+  edgeKeys: FIGHT_ACTION_EDGE_KEYS,
 });
 
 /**
@@ -138,12 +161,19 @@ function toFiniteNumber(value) {
 }
 
 function resetLocalInputState() {
+  fightInputController.reset();
   inputLatch.reset();
 }
 
 /** @returns {FightInputState} Captures held controls and consumes pending action edges. */
 function captureLocalInputState() {
+  if (areFightControlsBlocked()) resetLocalInputState();
   return inputLatch.capture();
+}
+
+/** @returns {boolean} Platform dialogs keep ownership of input while open. */
+function areFightControlsBlocked() {
+  return Boolean(document.hidden || document.querySelector('[aria-modal="true"], dialog[open]'));
 }
 
 function createNetworkHud(canvasEl) {
@@ -391,58 +421,33 @@ function setLocalInputFlag(inputKey, active) {
   inputLatch.set(inputKey, active);
 }
 
+/** @param {"left" | "right" | "up" | "down"} direction @param {boolean} active */
 function handleDirectionalInput(direction, active) {
-  switch (direction) {
-    case "left":
-    case "right":
-      setLocalInputFlag(direction, active);
-      break;
-    case "up":
-      setLocalInputFlag("jump", active);
-      break;
-    case "down":
-      // D-pad down = light attack
-      setLocalInputFlag("attack", active);
-      break;
-    default:
-      break;
+  if (active && areFightControlsBlocked()) return;
+  const inputKey = direction === "up" ? "jump" : direction === "down" ? "crouch" : direction;
+  fightInputController.setHeld(inputKey, `touch:${direction}`, active, performance.now());
+  if (active) {
+    fightCombatPresentation?.unlockAudio();
+    fightCombatPresentation?.setInputMethod("touch");
   }
 }
 
-function handleActionInput(action) {
-  switch (action) {
-    case "a": {
-      // A = light attack
-      setLocalInputFlag("attack", true);
-      setTimeout(() => setLocalInputFlag("attack", false), 150);
-      break;
-    }
-    case "x": {
-      // X = heavy attack (slower, more damage)
-      setLocalInputFlag("heavyAttack", true);
-      setTimeout(() => setLocalInputFlag("heavyAttack", false), 300);
-      break;
-    }
-    case "y": {
-      // Y = aerial attack
-      setLocalInputFlag("aerialAttack", true);
-      setTimeout(() => setLocalInputFlag("aerialAttack", false), 200);
-      break;
-    }
-    case "start":
-      if (roomUrl) {
-        openShareModal();
-      } else {
-        getOrCreateRoomId().finally(() => {
-          openShareModal();
-        });
-      }
-      break;
-    case "b":
-      toggleNetworkDiagnostics();
-      break;
-    default:
-      break;
+/** @param {import("./presentation.js").FightFaceAction} action @param {boolean} active */
+function handleFightFaceInput(action, active) {
+  if (active && areFightControlsBlocked()) return;
+  fightInputController.setAction(action, `touch:${action}`, active, performance.now());
+  if (active) {
+    fightCombatPresentation?.unlockAudio();
+    fightCombatPresentation?.setInputMethod("touch");
+  }
+}
+
+function openFightInvite() {
+  resetLocalInputState();
+  if (roomUrl) {
+    openShareModal();
+  } else {
+    getOrCreateRoomId().finally(() => openShareModal());
   }
 }
 
@@ -450,6 +455,11 @@ function initControllerNavigation() {
   const cleanups = [];
   window.addEventListener("blur", resetLocalInputState);
   cleanups.push(() => window.removeEventListener("blur", resetLocalInputState));
+  const releaseHiddenFightControls = () => {
+    if (document.hidden) resetLocalInputState();
+  };
+  document.addEventListener("visibilitychange", releaseHiddenFightControls);
+  cleanups.push(() => document.removeEventListener("visibilitychange", releaseHiddenFightControls));
 
   cleanups.push(dpad.left.onHold(
     () => handleDirectionalInput("left", true),
@@ -468,12 +478,38 @@ function initControllerNavigation() {
     () => handleDirectionalInput("down", false),
   ));
 
-  cleanups.push(actions.a.onPress(() => handleActionInput("a")));
-  cleanups.push(actions.b.onPress(() => handleActionInput("b")));
-  cleanups.push(actions.x.onPress(() => handleActionInput("x")));
-  cleanups.push(actions.y.onPress(() => handleActionInput("y")));
+  for (const action of ["a", "b", "x", "y"]) {
+    cleanups.push(actions[action].onHold(
+      () => handleFightFaceInput(action, true),
+      () => handleFightFaceInput(action, false),
+    ));
+  }
 
-  cleanups.push(menu.start.onPress(() => handleActionInput("start")));
+  cleanups.push(menu.start.onPress(openFightInvite));
+
+  /** @param {KeyboardEvent} event @param {boolean} active */
+  const updateFightKeyboardInput = (event, active) => {
+    const inputKey = readFightKeyboardInput(event.code);
+    if (!inputKey) return;
+    if (active && (event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey || areFightControlsBlocked())) return;
+    const targetElement = event.target instanceof Element ? event.target : null;
+    if (active && targetElement?.closest('input, textarea, select, [contenteditable="true"], [role="dialog"]')) return;
+
+    event.preventDefault();
+    fightInputController.setHeld(inputKey, `keyboard:${event.code}`, active, performance.now());
+    if (active && !event.repeat) {
+      fightCombatPresentation?.unlockAudio();
+      fightCombatPresentation?.setInputMethod("keyboard");
+    }
+  };
+  const pressFightKey = (event) => updateFightKeyboardInput(event, true);
+  const releaseFightKey = (event) => updateFightKeyboardInput(event, false);
+  window.addEventListener("keydown", pressFightKey);
+  window.addEventListener("keyup", releaseFightKey);
+  cleanups.push(() => {
+    window.removeEventListener("keydown", pressFightKey);
+    window.removeEventListener("keyup", releaseFightKey);
+  });
 
   return () => {
     cleanups.forEach((cleanup) => {
@@ -507,10 +543,14 @@ socket.onEvent(SOCKET_EVENT.CONNECT, () => {
 });
 
 socket.onEvent(SOCKET_EVENT.ROOM_FULL, () => {
-  alert("Room is full!");
+  hasJoined = false;
+  readyToPlay = false;
+  roomJoinError = "This room is full. Open Home to choose another match.";
+  resetLocalInputState();
 });
 
 socket.onEvent(SOCKET_EVENT.GAME_JOINED, ({ playerId, gameId: joinedGameId, rejoinToken: token }) => {
+  roomJoinError = "";
   myPlayerId = playerId;
   myRejoinToken = token || null;
   readyToPlay = true;
@@ -585,60 +625,17 @@ loadSprite("shop", `${ASSET_BASE}/shop_anim.png`, {
 loadSprite("fence", `${ASSET_BASE}/fence_1.png`);
 loadSprite("sign", `${ASSET_BASE}/sign.png`);
 
-loadSprite("idle-player1", `${ASSET_BASE}/idle-player1.png`, {
-  sliceX: 8,
-  sliceY: 1,
-  anims: { idle: { from: 0, to: 7, speed: 12, loop: true } },
-});
-loadSprite("jump-player1", `${ASSET_BASE}/jump-player1.png`, {
-  sliceX: 2,
-  sliceY: 1,
-  anims: { jump: { from: 0, to: 1, speed: 2, loop: true } },
-});
-loadSprite("attack-player1", `${ASSET_BASE}/attack-player1.png`, {
-  sliceX: 6,
-  sliceY: 1,
-  anims: { attack: { from: 1, to: 5, speed: 18 } },
-});
-loadSprite("run-player1", `${ASSET_BASE}/run-player1.png`, {
-  sliceX: 8,
-  sliceY: 1,
-  anims: { run: { from: 0, to: 7, speed: 18 } },
-});
-loadSprite("death-player1", `${ASSET_BASE}/death-player1.png`, {
-  sliceX: 6,
-  sliceY: 1,
-  anims: { death: { from: 0, to: 5, speed: 10 } },
-});
-
-loadSprite("idle-player2", `${ASSET_BASE}/idle-player2.png`, {
-  sliceX: 4,
-  sliceY: 1,
-  anims: { idle: { from: 0, to: 3, speed: 8, loop: true } },
-});
-loadSprite("jump-player2", `${ASSET_BASE}/jump-player2.png`, {
-  sliceX: 2,
-  sliceY: 1,
-  anims: { jump: { from: 0, to: 1, speed: 2, loop: true } },
-});
-loadSprite("attack-player2", `${ASSET_BASE}/attack-player2.png`, {
-  sliceX: 4,
-  sliceY: 1,
-  anims: { attack: { from: 0, to: 3, speed: 18 } },
-});
-loadSprite("run-player2", `${ASSET_BASE}/run-player2.png`, {
-  sliceX: 8,
-  sliceY: 1,
-  anims: { run: { from: 0, to: 7, speed: 18 } },
-});
-loadSprite("death-player2", `${ASSET_BASE}/death-player2.png`, {
-  sliceX: 7,
-  sliceY: 1,
-  anims: { death: { from: 0, to: 6, speed: 10 } },
-});
+for (const fighterSheets of Object.values(FIGHT_MOVE_SHEETS)) {
+  for (const moveSheet of Object.values(fighterSheets)) {
+    loadSprite(moveSheet.spriteName, `${ASSET_BASE}/${moveSheet.fileName}`, {
+      sliceX: moveSheet.columns,
+      sliceY: moveSheet.rows,
+    });
+  }
+}
 
 // ---------- Game constants ----------
-const GROUND_Y = 704;
+const GROUND_Y = FIGHT_MOVEMENT.GROUND_Y;
 const PLAYER1_Y_OFFSET = 20;
 const PLAYER2_Y_OFFSET = 0;
 
@@ -652,6 +649,12 @@ scene("fight", () => {
     activeFightRuntime.destroy();
     activeFightRuntime = null;
   }
+  fightCombatPresentation?.destroy();
+  fightCombatPresentation = createFightCombatPresentation({
+    canvas: gameCanvas,
+    combat: FIGHT_COMBAT,
+    attackDefinitions: FIGHT_ATTACK_DEFINITIONS,
+  });
   socket.offEvent(SOCKET_EVENT.STATE);
   socket.offEvent(SOCKET_EVENT.PLAYER_JOINED);
   socket.offEvent(SOCKET_EVENT.PLAYER_LEFT);
@@ -701,11 +704,8 @@ scene("fight", () => {
   // Player objects for rendering
   let player1 = null;
   let player2 = null;
-  let player1HealthBar = null;
-  let player2HealthBar = null;
-  let counter = null;
   let gameOverFlag = false;
-  let countInterval = null;
+  let presentationActive = false;
   let startOverlay = null;
   let startMessage = null;
   let countdownText = null;
@@ -713,6 +713,33 @@ scene("fight", () => {
   let joinToastText = null;
   let joinToastTimer = null;
   let lastNetworkHudPaint = 0;
+  let lastRenderedAtMs = null;
+  let displayedRoundTimer = FIGHT_COMBAT.ROUND_DURATION_SEC;
+  /** @type {{p1: FightSnapshotPlayerState, p2: FightSnapshotPlayerState} | null} */
+  let authoritativePlayers = null;
+  /** @type {FightSnapshotPlayerState | null} */
+  let predictedLocalPlayerState = null;
+  const fightRenderContact = createFightRenderContact();
+  const animationTracks = {
+    p1: createFightAnimationTrack({
+      attackDefinitions: FIGHT_ATTACK_DEFINITIONS,
+      groundY: FIGHT_MOVEMENT.GROUND_Y,
+      frameCounts: { idle: 8, run: 8, death: 8 },
+      moveClips: FIGHT_MOVE_CLIPS.p1,
+      combat: FIGHT_COMBAT,
+      jumpSpeed: FIGHT_MOVEMENT.JUMP_SPEED,
+      gravity: FIGHT_MOVEMENT.GRAVITY,
+    }),
+    p2: createFightAnimationTrack({
+      attackDefinitions: FIGHT_ATTACK_DEFINITIONS,
+      groundY: FIGHT_MOVEMENT.GROUND_Y,
+      frameCounts: { idle: 8, run: 8, death: 8 },
+      moveClips: FIGHT_MOVE_CLIPS.p2,
+      combat: FIGHT_COMBAT,
+      jumpSpeed: FIGHT_MOVEMENT.JUMP_SPEED,
+      gravity: FIGHT_MOVEMENT.GRAVITY,
+    }),
+  };
   /** @type {Partial<import("../../platform/frontend-engine/interpolation.js").InterpolationNetworkStats>} */
   let latestNetStats = {};
   let smoothingConfig = {
@@ -737,6 +764,7 @@ scene("fight", () => {
         resolveFightSeparation(opponentState, playerState);
       }
     }
+    predictedLocalPlayerState = { ...playerState };
   }
 
   /** @param {FightSnapshot} serverSnapshot @returns {FightPredictionContext} */
@@ -761,6 +789,7 @@ scene("fight", () => {
     },
     readAuthority: (serverSnapshot) => {
       const localPlayer = serverSnapshot.players?.[myPlayerId];
+      predictedLocalPlayerState = localPlayer ? { ...localPlayer } : null;
       return localPlayer ? {
         state: localPlayer,
         protocol: serverSnapshot.inputProtocol ?? INPUT_PROTOCOL.LEGACY,
@@ -793,26 +822,26 @@ scene("fight", () => {
     if (myPlayerId === "p1") {
       return {
         p1x: predictedPose ? predictedPose.x : interpolatedPositions.p1x,
-        p1y: (predictedPose ? predictedPose.y : interpolatedPositions.p1y) + PLAYER1_Y_OFFSET,
+        p1y: predictedPose ? predictedPose.y : interpolatedPositions.p1y,
         p2x: interpolatedPositions.p2x,
-        p2y: interpolatedPositions.p2y + PLAYER2_Y_OFFSET,
+        p2y: interpolatedPositions.p2y,
       };
     }
 
     if (myPlayerId === "p2") {
       return {
         p1x: interpolatedPositions.p1x,
-        p1y: interpolatedPositions.p1y + PLAYER1_Y_OFFSET,
+        p1y: interpolatedPositions.p1y,
         p2x: predictedPose ? predictedPose.x : interpolatedPositions.p2x,
-        p2y: (predictedPose ? predictedPose.y : interpolatedPositions.p2y) + PLAYER2_Y_OFFSET,
+        p2y: predictedPose ? predictedPose.y : interpolatedPositions.p2y,
       };
     }
 
     return {
       p1x: interpolatedPositions.p1x,
-      p1y: interpolatedPositions.p1y + PLAYER1_Y_OFFSET,
+      p1y: interpolatedPositions.p1y,
       p2x: interpolatedPositions.p2x,
-      p2y: interpolatedPositions.p2y + PLAYER2_Y_OFFSET,
+      p2y: interpolatedPositions.p2y,
     };
   }
 
@@ -831,12 +860,19 @@ scene("fight", () => {
         deltaSec: runtimeContext.fixedDtSec,
       });
     },
-    applyPose: (pose) => {
+    applyPose: (pose, runtimeContext) => {
       if (!player1 || !player2) return;
-      player1.pos.x = pose.p1x;
-      player1.pos.y = pose.p1y;
-      player2.pos.x = pose.p2x;
-      player2.pos.y = pose.p2y;
+      const contactPose = fightRenderContact.sample(pose, {
+        localPlayerId: myPlayerId, players: authoritativePlayers,
+        deltaSec: runtimeContext.frameDtSec,
+        nowMs: runtimeContext.nowMs,
+        inputEpoch: myPlayerId ? authoritativePlayers?.[myPlayerId]?.inputEpoch : undefined,
+        localSimulationPosition: predictedLocalPlayerState,
+      });
+      player1.pos.x = contactPose.p1x;
+      player1.pos.y = contactPose.p1y + PLAYER1_Y_OFFSET;
+      player2.pos.x = contactPose.p2x;
+      player2.pos.y = contactPose.p2y + PLAYER2_Y_OFFSET;
     },
   });
   activeFightRuntime = movementRuntime;
@@ -888,99 +924,63 @@ scene("fight", () => {
       `Prediction Err: ${correctionMagnitude.toFixed(1)} px`,
       `Out-of-order: ${latestNetStats.outOfOrderCount || 0}`,
       `Player Slot: ${localRole}`,
-      `Toggle: NET / B / N`,
+      `Toggle: NET / N`,
     ]);
   }
 
   /** Reset game presentation after the SDK clears networking ownership. */
   function resetFightPresentation() {
     movementRuntime.reset();
+    fightRenderContact.reset();
+    camPos(640, 360);
     latestNetStats = {};
     smoothingConfig = {
       interpDelayMs: FIGHT_INTERPOLATION_DELAY_MS,
       extrapolateMs: FIGHT_EXTRAPOLATE_MS,
     };
     resetLocalInputState();
+    predictedLocalPlayerState = null;
+    authoritativePlayers = null;
+    presentationActive = false;
+    lastRenderedAtMs = null;
+    animationTracks.p1.reset();
+    animationTracks.p2.reset();
+    fightCombatPresentation?.reset();
     lastNetworkHudPaint = 0;
     refreshNetworkHud(performance.now(), true);
   }
 
-  destroyFightNetworkSession = () => networkSession.destroy();
+  const resetContactAfterVisibilityChange = () => fightRenderContact.reset();
+  document.addEventListener("visibilitychange", resetContactAfterVisibilityChange);
+  destroyFightNetworkSession = () => {
+    document.removeEventListener("visibilitychange", resetContactAfterVisibilityChange);
+    networkSession.destroy();
+  };
   networkSession.reset();
 
-  function makePlayer(posX, posY, scaleFactor, id) {
-    const p = add([
+  /** @param {number} posX @param {number} posY @param {FightPlayerId} playerId */
+  function makePlayer(posX, posY, playerId) {
+    const idleSpriteFrame = readFightSpriteFrame(playerId, "idle", 0);
+    const playerActor = add([
       pos(posX, posY),
-      scale(scaleFactor),
-      // Bottom anchor so the server's y matches the fighter's feet
-      area({ shape: new Rect(vec2(-8, -42), 16, 42) }),
-      anchor("bot"),
+      area({ shape: new Rect(vec2(-32, -168), 64, 168) }),
       {
-        sprites: {
-          run: "run-" + id,
-          idle: "idle-" + id,
-          jump: "jump-" + id,
-          attack: "attack-" + id,
-          death: "death-" + id,
-        },
+        fightPlayerId: playerId,
       },
     ]);
-    p.use(sprite(p.sprites.idle));
-    p.play("idle");
-    return p;
+    playerActor.visual = playerActor.add([
+      pos(0, 0),
+      scale(4),
+      anchor("bot"),
+      sprite(idleSpriteFrame.spriteName),
+      { fightSpriteName: idleSpriteFrame.spriteName },
+    ]);
+    return playerActor;
   }
 
-  player1 = makePlayer(200, GROUND_Y + PLAYER1_Y_OFFSET, 4, "player1");
-  player2 = makePlayer(1000, GROUND_Y + PLAYER2_Y_OFFSET, 4, "player2");
-  player2.flipX = true;
-
-  // Health bars
-  const player1HealthContainer = add([
-    rect(500, 70),
-    area(),
-    outline(5),
-    pos(90, 20),
-    color(200, 0, 0),
-  ]);
-
-  player1HealthBar = player1HealthContainer.add([
-    rect(498, 65),
-    color(0, 180, 0),
-    pos(498, 70 - 2.5),
-    rotate(180),
-  ]);
-
-  const player2HealthContainer = add([
-    rect(500, 70),
-    area(),
-    outline(5),
-    pos(690, 20),
-    color(200, 0, 0),
-  ]);
-
-  player2HealthBar = player2HealthContainer.add([
-    rect(498, 65),
-    color(0, 180, 0),
-    pos(2.5, 2.5),
-  ]);
-
-  // Timer
-  counter = add([
-    rect(100, 100),
-    pos(center().x, center().y - 300),
-    color(10, 10, 10),
-    area(),
-    anchor("center"),
-  ]);
-
-  const count = counter.add([
-    text("300"),
-    area(),
-    anchor("center"),
-    {
-      timeLeft: 300,
-    },
-  ]);
+  player1 = makePlayer(200, GROUND_Y + PLAYER1_Y_OFFSET, "p1");
+  player2 = makePlayer(1000, GROUND_Y + PLAYER2_Y_OFFSET, "p2");
+  player2.visual.flipX = true;
 
   // Start / countdown overlay
   startOverlay = add([
@@ -993,23 +993,23 @@ scene("fight", () => {
     z(1500),
   ]);
   startMessage = startOverlay.add([
-    text("Waiting for other player..."),
+    text("Waiting for other player...", { size: 26 }),
     anchor("center"),
     pos(0, -20),
   ]);
-  countdownText = startOverlay.add([text(""), anchor("center"), pos(0, 30)]);
+  countdownText = startOverlay.add([text("", { size: 24 }), anchor("center"), pos(0, 30)]);
 
   // Join notification toast
   joinToast = add([
-    rect(320, 60),
+    rect(420, 60),
     color(20, 20, 20),
     opacity(0.8),
-    pos(center().x, 90),
+    pos(center().x, 220),
     anchor("center"),
     fixed(),
     z(1600),
   ]);
-  joinToastText = joinToast.add([text(""), anchor("center")]);
+  joinToastText = joinToast.add([text("", { size: 22 }), anchor("center")]);
   joinToast.hidden = true;
 
   function showJoinToast(message) {
@@ -1070,6 +1070,7 @@ scene("fight", () => {
 
   socket.onEvent(SOCKET_EVENT.PLAYER_LEFT, ({ playerId }) => {
     showJoinToast(`Player ${playerId === "p1" ? "1" : "2"} left the game`);
+    presentationActive = false;
     opponentJoined = false;
     window.__kaboomOpponentJoined = null;
     rematchPending = false;
@@ -1079,7 +1080,7 @@ scene("fight", () => {
 
   // Server state updates
   socket.onEvent(SOCKET_EVENT.STATE, (serverState) => {
-    if (!player1 || !player2 || !player1HealthBar || !player2HealthBar) {
+    if (!player1 || !player2) {
       return;
     }
 
@@ -1103,26 +1104,15 @@ scene("fight", () => {
     }
     updateStartUI(started, startAt, connected, gameOver);
 
-    const player1State = players.p1;
-    const player2State = players.p2;
-
-    // Facing direction (discrete)
-    player1.flipX = player1State.dir === -1;
-    player2.flipX = player2State.dir === -1;
-
-    // Health bars (discrete)
-    player1HealthBar.width = player1State.health;
-    player2HealthBar.width = player2State.health;
-
-    // Timer (discrete)
-    count.text = String(Math.ceil(timer));
+    authoritativePlayers = players;
+    presentationActive = Boolean(started && !gameOver && connected?.p1 && connected?.p2);
+    displayedRoundTimer = timer;
+    fightCombatPresentation?.recordCombatEvents(serverState.combatEvents, arrivalMs);
 
     // Game over (discrete)
     if (gameOver && !gameOverFlag) {
       gameOverFlag = true;
       rematchPending = false;
-      if (countInterval) clearInterval(countInterval);
-
       showEndGameModal({
         title: "Match Over",
         subtitle: getResultLabel(winner),
@@ -1134,54 +1124,66 @@ scene("fight", () => {
       gameOverFlag = false;
     }
 
-    // Animations (discrete)
-    updatePlayerAnimation(player1, player1State, "player1");
-    updatePlayerAnimation(player2, player2State, "player2");
-
     refreshNetworkHud(arrivalMs);
   });
 
-  // Per-frame interpolated position updates
+  // Position interpolation and authored animation both run at render cadence.
   onUpdate(() => {
-    movementRuntime.step({ nowMs: performance.now() });
+    const nowMs = performance.now();
+    movementRuntime.step({ nowMs });
+    if (roomJoinError) {
+      fightCombatPresentation?.renderRoomJoinError(roomJoinError);
+      return;
+    }
+    if (!authoritativePlayers) return;
+
+    const deltaSec = lastRenderedAtMs === null ? 0 : Math.min(0.08, Math.max(0, (nowMs - lastRenderedAtMs) / 1000));
+    lastRenderedAtMs = nowMs;
+    const localState = predictedLocalPlayerState;
+    const presentationPlayers = {
+      p1: myPlayerId === "p1" && localState ? localState : authoritativePlayers.p1,
+      p2: myPlayerId === "p2" && localState ? localState : authoritativePlayers.p2,
+    };
+    const animations = {
+      p1: animationTracks.p1.sample(presentationPlayers.p1, nowMs, { active: presentationActive }),
+      p2: animationTracks.p2.sample(presentationPlayers.p2, nowMs, { active: presentationActive }),
+    };
+    applyPlayerAnimation(player1, presentationPlayers.p1, animations.p1);
+    applyPlayerAnimation(player2, presentationPlayers.p2, animations.p2);
+    fightCombatPresentation?.render({
+      players: authoritativePlayers,
+      presentationPlayers,
+      animations,
+      poses: { p1: { x: player1.pos.x, y: player1.pos.y }, p2: { x: player2.pos.x, y: player2.pos.y } },
+      localPlayerId: myPlayerId,
+      timer: displayedRoundTimer,
+      nowMs,
+      deltaSec,
+    });
+    const cameraOffset = fightCombatPresentation?.getCameraOffset(nowMs) ?? { x: 0, y: 0 };
+    camPos(640 + cameraOffset.x, 360 + cameraOffset.y);
   });
 
-  // Track per-player attack animation state to vary speed by type
-  const attackAnimState = { player1: null, player2: null };
-
-  function updatePlayerAnimation(player, state, playerId) {
-    if (!player || !state) return;
-
-    const { attacking, attackType, dead, vx } = state;
-
-    if (dead) {
-      if (player.curAnim() !== "death") {
-        player.use(sprite(player.sprites.death));
-        player.play("death");
-      }
-    } else if (attacking) {
-      // Vary animation speed by attack type for a different feel
-      const prevType = attackAnimState[playerId];
-      if (player.curAnim() !== "attack" || prevType !== attackType) {
-        attackAnimState[playerId] = attackType;
-        player.use(sprite(player.sprites.attack));
-        const speed = attackType === "heavy" ? 10 : attackType === "aerial" ? 22 : 18;
-        player.play("attack", { speed });
-      }
-    } else {
-      attackAnimState[playerId] = null;
-      if (Math.abs(vx) > 5) {
-        if (player.curAnim() !== "run") {
-          player.use(sprite(player.sprites.run));
-          player.play("run");
-        }
-      } else {
-        if (player.curAnim() !== "idle") {
-          player.use(sprite(player.sprites.idle));
-          player.play("idle");
-        }
-      }
+  /**
+   * Advance real atlas frames without changing the actor's interpolated pose.
+   * @param {object} playerActor
+   * @param {FightSnapshotPlayerState} playerState
+   * @param {import("./presentation.js").FightAnimationSample} animation
+   */
+  function applyPlayerAnimation(playerActor, playerState, animation) {
+    const playerSprite = playerActor.visual;
+    const spriteFrame = readFightSpriteFrame(playerActor.fightPlayerId, animation.clipId, animation.frame);
+    if (playerSprite.fightSpriteName !== spriteFrame.spriteName) {
+      playerSprite.use(sprite(spriteFrame.spriteName));
+      playerSprite.fightSpriteName = spriteFrame.spriteName;
     }
+    const spritePlacement = readFightSpritePlacement(playerActor.fightPlayerId, animation.clipId, animation.frame);
+    playerSprite.scale.x = spritePlacement.scaleX;
+    playerSprite.scale.y = spritePlacement.scaleY;
+    playerSprite.pos.x = spritePlacement.offsetX * playerState.dir;
+    playerSprite.pos.y = spritePlacement.offsetY;
+    playerSprite.frame = spriteFrame.frame;
+    playerSprite.flipX = playerState.dir === -1;
   }
 });
 
@@ -1203,6 +1205,8 @@ function disposeGameRuntime() {
   resetLocalInputState();
   activeFightRuntime?.destroy?.();
   activeFightRuntime = null;
+  fightCombatPresentation?.destroy();
+  fightCombatPresentation = null;
   interpolator.destroy?.();
   unsubscribeConnection?.();
   updateConnectionState({ status: "disconnected", ping: null });

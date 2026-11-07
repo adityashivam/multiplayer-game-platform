@@ -113,6 +113,7 @@ test("Fight and Pong expose distinct queued input contracts through the catalog"
   assert.equal(fightProbe.inputProtocol, 2);
   assert.deepEqual(fightProbe.inputTemplate, {
     left: false, right: false, jump: false, attack: false, heavyAttack: false, aerialAttack: false,
+    block: false, dash: false, specialAttack: false, crouch: false,
   });
   assert.equal(pongProbe.namespace, "/pong");
   assert.equal(pongProbe.inputProtocol, 2);

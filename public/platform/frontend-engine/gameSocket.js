@@ -1,4 +1,5 @@
 import msgpackParser from "/platform/frontend-engine/msgpackParser.js";
+import { createRoomJoinRecovery } from "./roomJoinRecovery.js";
 import {
   NETWORK_TIMING,
   SNAPSHOT_KIND,
@@ -156,6 +157,7 @@ function inflateStateFromSchema(schemaTokens, values) {
 /**
  * Reuse one connection per normalized game namespace. State subscribers share
  * decoding and metrics while each handler receives an accepted snapshot once.
+ * Token rejoins blocked by their previous transport retry within a bounded window.
  * @param {string} namespace
  * @throws {Error} When the namespace or Socket.IO browser client is unavailable.
  */
@@ -201,6 +203,15 @@ export function getGameSocket(namespace) {
   const lossSamples = [];
 
   const eventWrappers = new Map();
+  const suppressedRoomFullPackets = new WeakSet();
+  const roomJoinRecovery = createRoomJoinRecovery({
+    sendJoinRequest: (joinRequest) => raw.emit(SOCKET_EVENT.JOIN_GAME, joinRequest),
+    isConnected: () => raw.connected,
+    onRoomFull: (roomFullPayload) => {
+      const roomFullSubscribers = [...(eventWrappers.get(SOCKET_EVENT.ROOM_FULL)?.keys() ?? [])];
+      for (const subscriber of roomFullSubscribers) subscriber(roomFullPayload);
+    },
+  });
   const decodedStateCache = new WeakMap();
   /** @type {WeakMap<object, Set<SocketEventHandler>>} */
   let stateDeliveries = new WeakMap();
@@ -479,8 +490,17 @@ export function getGameSocket(namespace) {
   };
 
   const handleDisconnectState = () => {
+    roomJoinRecovery.reset();
     setConnectionState("disconnected");
   };
+
+  const handleRoomFullRecovery = (roomFullPayload) => {
+    if (roomJoinRecovery.receiveRoomFull(roomFullPayload)) {
+      suppressedRoomFullPackets.add(roomFullPayload);
+    }
+  };
+
+  const handleGameJoinedRecovery = () => roomJoinRecovery.reset();
 
   const handleReconnectAttempt = () => {
     setConnectionState("reconnecting");
@@ -491,6 +511,8 @@ export function getGameSocket(namespace) {
   };
 
   raw.on(SOCKET_EVENT.CONNECT, handleConnectState);
+  raw.on(SOCKET_EVENT.ROOM_FULL, handleRoomFullRecovery);
+  raw.on(SOCKET_EVENT.GAME_JOINED, handleGameJoinedRecovery);
   // A rematch starts a fresh snapshot sequence and delta baseline on this socket.
   raw.on(SOCKET_EVENT.REMATCH_STARTED, resetSnapshotSession);
   raw.on(SOCKET_EVENT.DISCONNECT, handleDisconnectState);
@@ -634,6 +656,7 @@ export function getGameSocket(namespace) {
       const isStateEvent = event === SOCKET_EVENT.STATE;
       const wrapped = (...args) => {
         const payload = args[0];
+        if (event === SOCKET_EVENT.ROOM_FULL && suppressedRoomFullPackets.has(payload)) return;
         const shouldDecode =
           isStateEvent ||
           (payload && typeof payload === "object" && !Array.isArray(payload) && payload.__packed === SNAPSHOT_PROTOCOL.PACKED);
@@ -674,6 +697,7 @@ export function getGameSocket(namespace) {
       raw.off(event);
     },
     send(event, payload) {
+      if (event === SOCKET_EVENT.JOIN_GAME) roomJoinRecovery.recordJoinRequest(payload);
       raw.emit(event, payload);
     },
     isConnected() {
@@ -695,6 +719,7 @@ export function getGameSocket(namespace) {
       return () => connectionListeners.delete(callback);
     },
     destroy() {
+      roomJoinRecovery.reset();
       stopPingProbe();
       if (notifyTimer) {
         clearTimeout(notifyTimer);
@@ -704,6 +729,8 @@ export function getGameSocket(namespace) {
       connectionListeners.clear();
 
       removeListener(raw, SOCKET_EVENT.CONNECT, handleConnectState);
+      removeListener(raw, SOCKET_EVENT.ROOM_FULL, handleRoomFullRecovery);
+      removeListener(raw, SOCKET_EVENT.GAME_JOINED, handleGameJoinedRecovery);
       removeListener(raw, SOCKET_EVENT.REMATCH_STARTED, resetSnapshotSession);
       removeListener(raw, SOCKET_EVENT.DISCONNECT, handleDisconnectState);
       removeListener(raw, SOCKET_EVENT.CONNECT, handleConnectProbe);

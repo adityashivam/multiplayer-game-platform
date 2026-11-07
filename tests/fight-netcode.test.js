@@ -2,10 +2,11 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createPredictedInputSession } from "../public/platform/frontend-engine/predictedInputSession.js";
 import { enqueueInputFrame, consumeInputFrames } from "../server/platform-backend-engine/core/inputProtocol.js";
-import { FIGHT_FIXED_DT_SEC, FIGHT_INPUT_TEMPLATE, stepFightPlayer } from "../public/games/fight/shared/simulation.js";
+import { FIGHT_FIXED_DT_SEC, FIGHT_INPUT_TEMPLATE, FIGHT_ACTION_EDGE_KEYS, stepFightPlayer } from "../public/games/fight/shared/simulation.js";
 
 for (const roundTripMs of [0, 100, 200, 300]) {
-  test(`Fight replays delayed authority without false corrections at ${roundTripMs}ms RTT and a 100ms burst`, () => {
+ for (const lateAction of [false, true]) {
+  test(`Fight ${lateAction ? "settles a late attack" : "replays without false corrections"} at ${roundTripMs}ms RTT and a 100ms burst`, () => {
     const fixedDtSec = FIGHT_FIXED_DT_SEC;
     const serverPlayerState = {
       x: 200,
@@ -51,6 +52,11 @@ for (const roundTripMs of [0, 100, 200, 300]) {
           left: tick >= 60 && tick < 110,
           jump: tick === 35,
           attack: tick === 70,
+          dash: tick === 15 || tick === 135,
+          block: tick >= 115 && tick < 130,
+          crouch: tick >= 150 && tick < 170,
+          heavyAttack: tick === 152,
+          aerialAttack: tick === (lateAction ? 45 : 120),
         };
         inputSession.captureAndPredict({ active: true });
       }
@@ -71,7 +77,7 @@ for (const roundTripMs of [0, 100, 200, 300]) {
           player: serverPlayerState,
           dtSec: fixedDtSec,
           continuous: true,
-          edgeKeys: ["jump", "attack", "heavyAttack", "aerialAttack"],
+          edgeKeys: FIGHT_ACTION_EDGE_KEYS,
           simulate: (inputState, stepSec) => stepFightPlayer(serverPlayerState, inputState, stepSec, { active: true }),
         });
       }
@@ -95,8 +101,12 @@ for (const roundTripMs of [0, 100, 200, 300]) {
           acknowledgedSequence: snapshotPacket.ack,
           context: { active: true, simulationTick: snapshotPacket.state.inputSimulationTick },
         });
-        assert.ok(Math.abs(inputSession.getState().x - previousPredictedState.x) < 1e-8, `ordinary delay X tick=${tick} ack=${snapshotPacket.ack} sim=${snapshotPacket.state.inputSimulationTick} previous=${previousPredictedState.x} next=${inputSession.getState().x}`);
-        assert.ok(Math.abs(inputSession.getState().y - previousPredictedState.y) < 1e-8, "ordinary delay must not change correctly predicted jump physics");
+        if (!lateAction) {
+          assert.ok(Math.abs(inputSession.getState().x - previousPredictedState.x) < 1e-8, `ordinary delay X tick=${tick} ack=${snapshotPacket.ack} sim=${snapshotPacket.state.inputSimulationTick} previous=${previousPredictedState.x} next=${inputSession.getState().x}`);
+          assert.ok(Math.abs(inputSession.getState().y - previousPredictedState.y) < 1e-8, "ordinary delay must not change correctly predicted jump physics");
+        } else {
+          assert.ok(inputSession.getStats().correctionDistance < 250, "a genuinely late action must remain within smooth recovery bounds");
+        }
       }
 
       inputSession.getRenderPose(fixedDtSec);
@@ -105,6 +115,8 @@ for (const roundTripMs of [0, 100, 200, 300]) {
     assert.equal(serverPlayerState.lastInputSeqAck, 180);
     assert.equal(inputSession.getStats().pendingCommands, 0);
     assert.equal(inputSession.getStats().hardSnaps, 0);
-    assert.equal(inputSession.getStats().corrections, 0);
+    if (!lateAction) assert.equal(inputSession.getStats().corrections, 0);
+    assert.ok(Math.abs(inputSession.getState().x - serverPlayerState.x) < 1e-8, "prediction settles on authority after commands drain");
   });
+}
 }

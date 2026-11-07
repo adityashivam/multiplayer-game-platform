@@ -31,6 +31,7 @@ function createRoomSession(playerIds = ["pilot", "navigator", "engineer"], confi
     const socketEvents = [];
     const socket = {
       id: socketId,
+      nsp: namespace,
       data: {},
       events: socketEvents,
       join(roomId) {
@@ -187,7 +188,31 @@ test("repeated joins preserve ownership and input epoch instead of consuming ano
   assert.equal(session.games.get("crew").players.navigator.connected, false);
 });
 
-test("a live socket retains its slot even if a game callback left its connected flag stale", () => {
+test("duplicate joins still acknowledge the same owner after every room slot is filled", () => {
+  const session = createRoomSession(["left", "right"]);
+  const firstSocket = session.createSocket("first");
+  session.join(firstSocket);
+  const joinedPayload = { ...lastJoinedPayload(firstSocket) };
+  session.join(session.createSocket("second"));
+  session.join(firstSocket);
+
+  assert.deepEqual(lastJoinedPayload(firstSocket), joinedPayload);
+  assert.equal(firstSocket.events.some((socketEvent) => socketEvent.eventName === "roomFull"), false);
+  assert.equal(session.namespace.adapter.rooms.get("crew").size, 2);
+});
+
+test("a token saved before a server restart can join a fresh room and receives new ownership", () => {
+  const session = createRoomSession(["left", "right"]);
+  const socket = session.createSocket("new-transport");
+  session.join(socket, "restarted-room-fixture", "token-from-previous-server");
+
+  assert.equal(lastJoinedPayload(socket).playerId, "left");
+  assert.notEqual(lastJoinedPayload(socket).rejoinToken, "token-from-previous-server");
+  assert.equal(lastJoinedPayload(socket).inputEpoch, 1);
+  assert.equal(socket.events.some((socketEvent) => socketEvent.eventName === "roomFull"), false);
+});
+
+test("a busy rejoin token waits for its owner instead of allocating a different slot", () => {
   const session = createRoomSession();
   const firstSocket = session.createSocket("first");
   session.join(firstSocket);
@@ -196,8 +221,74 @@ test("a live socket retains its slot even if a game callback left its connected 
 
   const secondSocket = session.createSocket("second");
   session.join(secondSocket, "crew", pilotToken);
-  assert.equal(lastJoinedPayload(secondSocket).playerId, "navigator");
+  assert.equal(lastJoinedPayload(secondSocket), undefined);
+  assert.deepEqual(secondSocket.events.at(-1), {
+    eventName: "roomFull",
+    payload: { gameId: "crew", rejoinPending: true },
+  });
   assert.equal(firstSocket.data.playerId, "pilot");
+  assert.equal(session.games.get("crew").players.navigator.connected, false);
+});
+
+test("a reconnect arriving before the old transport disconnects can resume the same full-room slot", () => {
+  const session = createRoomSession(["left", "right"]);
+  const firstSocket = session.createSocket("first");
+  const secondSocket = session.createSocket("second");
+  session.join(firstSocket);
+  session.join(secondSocket);
+  const firstToken = lastJoinedPayload(firstSocket).rejoinToken;
+
+  const replacementSocket = session.createSocket("replacement");
+  session.join(replacementSocket, "crew", firstToken);
+  assert.deepEqual(replacementSocket.events.at(-1), {
+    eventName: "roomFull",
+    payload: { gameId: "crew", rejoinPending: true },
+  });
+  assert.equal(session.games.get("crew").players.left.connected, true);
+  assert.equal(firstSocket.data.playerId, "left");
+
+  session.disconnect(firstSocket);
+  session.join(replacementSocket, "crew", firstToken);
+  assert.equal(lastJoinedPayload(replacementSocket).playerId, "left");
+  assert.equal(lastJoinedPayload(replacementSocket).rejoinToken, firstToken);
+  assert.equal(lastJoinedPayload(replacementSocket).inputEpoch, 3);
+});
+
+test("full rooms reject newcomers and invalid tokens without offering reconnect retries", () => {
+  const session = createRoomSession(["left", "right"]);
+  session.join(session.createSocket("first"));
+  session.join(session.createSocket("second"));
+
+  for (const rejoinToken of [undefined, "incorrect-token"]) {
+    const visitorSocket = session.createSocket(`visitor-${rejoinToken}`);
+    session.join(visitorSocket, "crew", rejoinToken);
+    assert.deepEqual(visitorSocket.events, [{ eventName: "roomFull", payload: undefined }]);
+    assert.equal(visitorSocket.data.playerId, undefined);
+  }
+});
+
+test("a stale disconnect cannot reset a player slot rebound to a different socket", () => {
+  const session = createRoomSession(["left", "right"]);
+  const firstSocket = session.createSocket("first");
+  session.join(firstSocket);
+  const firstToken = lastJoinedPayload(firstSocket).rejoinToken;
+  firstSocket.leave("crew");
+  session.namespace.sockets.delete(firstSocket.id);
+  session.games.get("crew").players.left.connected = false;
+
+  const replacementSocket = session.createSocket("replacement");
+  session.join(replacementSocket, "crew", firstToken);
+  const inputEpoch = lastJoinedPayload(replacementSocket).inputEpoch;
+  const eventCount = session.roomEvents.length;
+  handlePlayerDisconnect({ socket: firstSocket, games: session.games, onPlayerDisconnect: () => {
+    assert.fail("A stale transport must not run the new owner's disconnect lifecycle");
+  } });
+
+  assert.equal(session.games.get("crew").players.left.connected, true);
+  assert.equal(session.games.get("crew").players.left.inputEpoch, inputEpoch);
+  assert.equal(session.roomEvents.length, eventCount);
+  assert.equal(firstSocket.data.playerId, null);
+  assert.equal(replacementSocket.data.playerId, "left");
 });
 
 test("room switching runs disconnect lifecycle and makes the old slot available", () => {

@@ -1,3 +1,4 @@
+import { FIGHT_INPUT_TEMPLATE } from "../../../public/games/fight/shared/simulation.js";
 import { fightPresentation } from "../../../public/games/fight/catalog.js";
 import { pongPresentation } from "../../../public/games/pong/catalog.js";
 import { roadRashPresentation } from "../../../public/games/roadrash/catalog.js";
@@ -10,7 +11,7 @@ const BUNDLED_GAME_TICK_RATE_HZ = 60;
 const BUNDLED_PLAYER_IDS = Object.freeze(["p1", "p2"]);
 
 /**
- * @typedef {{left: boolean, right: boolean, jump: boolean, attack: boolean, heavyAttack: boolean, aerialAttack: boolean}} FightInputTemplate
+ * @typedef {import("../../../public/games/fight/shared/simulation.js").FightInputState} FightInputTemplate
  * @typedef {{up: boolean, down: boolean}} PongInputTemplate
  */
 
@@ -62,14 +63,7 @@ export const fightGameMeta = {
   description: "Read your rival. Time your strike. Settle it in a two-player sword duel.",
   namespace: "/fight",
   room: makeTwoPlayerRoomMetadata(),
-  networking: makeNetworkingMetadata("/fight", {
-    left: false,
-    right: false,
-    jump: false,
-    attack: false,
-    heavyAttack: false,
-    aerialAttack: false,
-  }),
+  networking: makeNetworkingMetadata("/fight", FIGHT_INPUT_TEMPLATE),
   path: "/games/fight",
   engine: "kaboom",
   runtime: makeKaboomRuntime("fight"),

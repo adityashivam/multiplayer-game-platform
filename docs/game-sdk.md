@@ -111,7 +111,7 @@ Other optional factories in the same module are:
 
 - `createSideViewCharacterController({state,input,movement,actions?})`: configure field bindings, speed, gravity, jump velocity, floor, bounds and optional timed actions.
 - `createTimedActionController({state,definitions,bindings,onStart?})`: configure action durations/cooldowns and ordered input bindings. A binding has `{inputKey,actionId,when?}`; ordinary bindings need no handwritten predicate.
-- `createHorizontalSeparationController({state,minX,maxX,minDistance,verticalLimit})`: configure body separation and arena bounds.
+- `createHorizontalSeparationController({state,minX,maxX,minDistance,verticalLimit})`: configure body separation and arena bounds. Wall contact transfers blocked displacement to the free body so the requested spacing is preserved, up to the available arena span.
 
 Controllers validate settings at construction. They mutate the supplied owned player state and read inputs. Input/state field bindings let games use their own names. Custom conditions, effects and full simulation callbacks are supported; these mechanics are optional.
 
@@ -150,6 +150,17 @@ const networkSession = createNetworkedGameSession({
 ```
 
 `socket` is the `getGameSocket(namespace)` facade. `localPlayerId` comes from its `gameJoined` event; game UI may also need that ID for labels and scoring. `interpolator` is created with `createWorkerInterpolator({extractPositions,extractVelocities?,interpDelayMs?,maxBufferSize?})`, using selectors appropriate to the game's snapshot shape. `controls` can use `createInputLatch(template,{edgeKeys})` so short action presses survive between captures.
+
+Keep the `rejoinToken` returned by `gameJoined`, scoped to the room and namespace, and include it when joining after a reconnect or reload:
+
+```js
+socket.send("joinGame", {
+  gameId: roomId,
+  rejoinToken: savedRejoinToken ?? undefined,
+});
+```
+
+The server may still be waiting for the previous transport's disconnect. When the token identifies that occupied slot, it returns `roomFull` with `{gameId,rejoinPending:true}`. The facade retries the same room and token every 500 ms for at most 20 seconds, without allocating another slot or displacing the live owner. It delivers one final `roomFull` to game UI if recovery expires. Newcomers and invalid tokens receive ordinary full-room failures immediately. Success, disconnect, socket disposal or a new join request cancels pending retries. Game adapters should not add a second retry loop.
 
 Call `networkSession.samplePose({nowMs,deltaSec})` once per fixed simulation step and render its returned pose. `createPluggablePoseRuntime()` provides fixed sampling with independent rendering. Use the same fixed duration on browser and server; the SDK cannot infer a game's simulation cadence from rendering FPS.
 

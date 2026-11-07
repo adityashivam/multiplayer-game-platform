@@ -11,7 +11,9 @@ const require = createRequire(import.meta.url);
 const parserUrl = pathToFileURL(require.resolve("socket.io-msgpack-parser")).href;
 const gameSocketUrl = new URL("../public/platform/frontend-engine/gameSocket.js", import.meta.url);
 const protocolUrl = new URL("../shared/networkProtocol.js", gameSocketUrl).href;
+const roomJoinRecoveryUrl = new URL("./roomJoinRecovery.js", gameSocketUrl).href;
 const gameSocketSource = (await readFile(gameSocketUrl, "utf8"))
+  .replace('"./roomJoinRecovery.js"', JSON.stringify(roomJoinRecoveryUrl))
   .replace('"/platform/frontend-engine/msgpackParser.js"', JSON.stringify(parserUrl))
   .replace('"../shared/networkProtocol.js"', JSON.stringify(protocolUrl));
 const { getGameSocket } = await import(`data:text/javascript;base64,${Buffer.from(gameSocketSource).toString("base64")}`);
@@ -33,6 +35,38 @@ function createTestGameConnection(testContext) {
   });
 
   return { rawSocket, socket };
+}
+
+function createControlledTimeouts(testContext) {
+  let currentTimeMs = 0;
+  let nextTimerId = 0;
+  const pendingTimeouts = new Map();
+  testContext.mock.method(globalThis, "setTimeout", (callback, delayMs = 0) => {
+    const timerId = ++nextTimerId;
+    pendingTimeouts.set(timerId, { callback, dueAtMs: currentTimeMs + delayMs });
+    return timerId;
+  });
+  testContext.mock.method(globalThis, "clearTimeout", (timerId) => {
+    pendingTimeouts.delete(timerId);
+  });
+
+  return {
+    tick(elapsedMs) {
+      const targetTimeMs = currentTimeMs + elapsedMs;
+      while (true) {
+        const nextTimeout = [...pendingTimeouts.entries()]
+          .filter(([, timeout]) => timeout.dueAtMs <= targetTimeMs)
+          .sort(([, firstTimeout], [, secondTimeout]) => firstTimeout.dueAtMs - secondTimeout.dueAtMs)[0];
+        if (!nextTimeout) break;
+
+        const [timerId, timeout] = nextTimeout;
+        pendingTimeouts.delete(timerId);
+        currentTimeMs = timeout.dueAtMs;
+        timeout.callback();
+      }
+      currentTimeMs = targetTimeMs;
+    },
+  };
 }
 
 function createFullSnapshot(sequenceNumber, inputEpoch) {
@@ -244,3 +278,156 @@ test("each state subscriber receives each accepted snapshot once", (testContext)
   assert.deepEqual(firstSubscriberSequences, [1]);
   assert.deepEqual(secondSubscriberSequences, [1]);
 });
+
+test("a server-confirmed busy rejoin retries the same identity without delivering room-full errors", (testContext) => {
+  const timers = createControlledTimeouts(testContext);
+  const { rawSocket, socket } = createTestGameConnection(testContext);
+  const joinRequests = [];
+  const roomFullEvents = [];
+  rawSocket.on("joinGame", (joinRequest) => joinRequests.push(joinRequest));
+  socket.onEvent("roomFull", (roomFullPayload) => roomFullEvents.push(roomFullPayload));
+
+  socket.send("joinGame", { gameId: "rejoin-fixture", rejoinToken: "saved-owner-token" });
+  rawSocket.emit("roomFull", { gameId: "rejoin-fixture", rejoinPending: true });
+  assert.deepEqual(roomFullEvents, []);
+  timers.tick(499);
+  assert.equal(joinRequests.length, 1);
+  timers.tick(1);
+  assert.deepEqual(joinRequests, [
+    { gameId: "rejoin-fixture", rejoinToken: "saved-owner-token" },
+    { gameId: "rejoin-fixture", rejoinToken: "saved-owner-token" },
+  ]);
+
+  rawSocket.emit("gameJoined", { gameId: "rejoin-fixture", playerId: "left", rejoinToken: "saved-owner-token" });
+  timers.tick(25000);
+  assert.equal(joinRequests.length, 2);
+  assert.deepEqual(roomFullEvents, []);
+});
+
+test("a rejoin that stays occupied stops retrying after twenty seconds and reports failure once per subscriber", (testContext) => {
+  const timers = createControlledTimeouts(testContext);
+  const { rawSocket, socket } = createTestGameConnection(testContext);
+  let joinCount = 0;
+  const firstSubscriberEvents = [];
+  const secondSubscriberEvents = [];
+  const pendingPayload = { gameId: "occupied-fixture", rejoinPending: true };
+  rawSocket.on("joinGame", () => {
+    joinCount += 1;
+    rawSocket.emit("roomFull", { ...pendingPayload });
+    rawSocket.emit("roomFull", { ...pendingPayload });
+  });
+  socket.onEvent("roomFull", (roomFullPayload) => firstSubscriberEvents.push(roomFullPayload));
+  socket.onEvent("roomFull", (roomFullPayload) => secondSubscriberEvents.push(roomFullPayload));
+  socket.send("joinGame", { gameId: "occupied-fixture", rejoinToken: "saved-owner-token" });
+
+  for (let elapsedMs = 0; elapsedMs < 19500; elapsedMs += 500) {
+    timers.tick(500);
+  }
+  assert.deepEqual(firstSubscriberEvents, []);
+  assert.deepEqual(secondSubscriberEvents, []);
+  assert.equal(joinCount, 40);
+  timers.tick(500);
+  assert.deepEqual(firstSubscriberEvents, [{ gameId: "occupied-fixture" }]);
+  assert.deepEqual(secondSubscriberEvents, [{ gameId: "occupied-fixture" }]);
+
+  rawSocket.emit("roomFull", { ...pendingPayload });
+  timers.tick(25000);
+  assert.equal(joinCount, 40);
+  assert.equal(firstSubscriberEvents.length, 1);
+  assert.equal(secondSubscriberEvents.length, 1);
+});
+
+test("ordinary full-room failures reach the client immediately without retries", (testContext) => {
+  const timers = createControlledTimeouts(testContext);
+  const { rawSocket, socket } = createTestGameConnection(testContext);
+  let joinCount = 0;
+  const roomFullEvents = [];
+  rawSocket.on("joinGame", () => { joinCount += 1; });
+  socket.onEvent("roomFull", (roomFullPayload) => roomFullEvents.push(roomFullPayload));
+  socket.send("joinGame", { gameId: "full-fixture" });
+  rawSocket.emit("roomFull");
+  timers.tick(25000);
+
+  assert.deepEqual(roomFullEvents, [undefined]);
+  assert.equal(joinCount, 1);
+});
+
+test("retry metadata without a submitted rejoin token cannot start a retry loop", (testContext) => {
+  const timers = createControlledTimeouts(testContext);
+  const { rawSocket, socket } = createTestGameConnection(testContext);
+  let joinCount = 0;
+  const roomFullEvents = [];
+  rawSocket.on("joinGame", () => { joinCount += 1; });
+  socket.onEvent("roomFull", (roomFullPayload) => roomFullEvents.push(roomFullPayload));
+  socket.send("joinGame", { gameId: "newcomer-fixture" });
+  const roomFullPayload = { gameId: "newcomer-fixture", rejoinPending: true, retryAfterMs: 0 };
+  rawSocket.emit("roomFull", roomFullPayload);
+  timers.tick(25000);
+
+  assert.deepEqual(roomFullEvents, [roomFullPayload]);
+  assert.equal(joinCount, 1);
+});
+
+test("rejoin recovery expires even if the server stops answering retry requests", (testContext) => {
+  const timers = createControlledTimeouts(testContext);
+  const { rawSocket, socket } = createTestGameConnection(testContext);
+  let joinCount = 0;
+  const roomFullEvents = [];
+  rawSocket.on("joinGame", () => { joinCount += 1; });
+  socket.onEvent("roomFull", (roomFullPayload) => roomFullEvents.push(roomFullPayload));
+  socket.send("joinGame", { gameId: "silent-fixture", rejoinToken: "saved-owner-token" });
+  rawSocket.emit("roomFull", { gameId: "silent-fixture", rejoinPending: true });
+  timers.tick(500);
+  assert.equal(joinCount, 2);
+  timers.tick(19500);
+
+  assert.deepEqual(roomFullEvents, [{ gameId: "silent-fixture" }]);
+  assert.equal(joinCount, 2);
+});
+
+test("a final room rejection cannot be restarted by delayed retry metadata", (testContext) => {
+  const timers = createControlledTimeouts(testContext);
+  const { rawSocket, socket } = createTestGameConnection(testContext);
+  let joinCount = 0;
+  const roomFullEvents = [];
+  rawSocket.on("joinGame", () => { joinCount += 1; });
+  socket.onEvent("roomFull", (roomFullPayload) => roomFullEvents.push(roomFullPayload));
+  socket.send("joinGame", { gameId: "rejected-fixture", rejoinToken: "saved-owner-token" });
+  rawSocket.emit("roomFull", { gameId: "rejected-fixture", rejoinPending: true });
+  timers.tick(500);
+  rawSocket.emit("roomFull");
+  rawSocket.emit("roomFull", { gameId: "rejected-fixture", rejoinPending: true });
+  timers.tick(25000);
+
+  assert.deepEqual(roomFullEvents, [undefined]);
+  assert.equal(joinCount, 2);
+});
+
+for (const cancelAction of ["disconnect", "destroy", "another-room"]) {
+  test(`pending room rejoin cancels on ${cancelAction}`, (testContext) => {
+    const timers = createControlledTimeouts(testContext);
+    const { rawSocket, socket } = createTestGameConnection(testContext);
+    const joinRequests = [];
+    const roomFullEvents = [];
+    rawSocket.on("joinGame", (joinRequest) => joinRequests.push(joinRequest));
+    socket.onEvent("roomFull", (roomFullPayload) => roomFullEvents.push(roomFullPayload));
+    socket.send("joinGame", { gameId: "cancel-fixture", rejoinToken: "saved-owner-token" });
+    rawSocket.emit("roomFull", { gameId: "cancel-fixture", rejoinPending: true });
+
+    if (cancelAction === "disconnect") {
+      rawSocket.connected = false;
+      rawSocket.emit("disconnect");
+    } else if (cancelAction === "destroy") {
+      socket.destroy();
+    } else {
+      socket.send("joinGame", { gameId: "another-fixture" });
+      rawSocket.emit("roomFull", { gameId: "cancel-fixture", rejoinPending: true });
+    }
+    timers.tick(25000);
+
+    assert.deepEqual(roomFullEvents, []);
+    assert.deepEqual(joinRequests.map((joinRequest) => joinRequest.gameId), cancelAction === "another-room"
+      ? ["cancel-fixture", "another-fixture"]
+      : ["cancel-fixture"]);
+  });
+}

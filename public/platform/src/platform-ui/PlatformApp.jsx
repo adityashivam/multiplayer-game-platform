@@ -7,7 +7,6 @@ import GameView from "./components/platform-screen/GameView.jsx";
 import LobbyHeader from "./components/platform-screen/LobbyHeader.jsx";
 import LobbyList from "./components/platform-screen/LobbyList.jsx";
 import PlatformShell from "./components/platform-shell/PlatformShell.jsx";
-import { TOGGLE_NETWORK_PANEL_EVENT } from "./constants/events.js";
 import useGameCatalog from "./hooks/useGameCatalog.js";
 import useCatalogGame from "./hooks/useCatalogGame.js";
 import useLobbyAudio from "./hooks/useLobbyAudio.js";
@@ -226,9 +225,6 @@ export default function App() {
           setExitConfirmOpen(true);
         }
 
-        if (action === "b") {
-          window.dispatchEvent(new CustomEvent(TOGGLE_NETWORK_PANEL_EVENT));
-        }
         return;
       }
 

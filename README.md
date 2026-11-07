@@ -15,6 +15,8 @@ node server/platform-backend-server/server.js
 
 Open `http://localhost:3000` in two browser tabs to play.
 
+Fight's attack, guard, dash and special controls are documented in [the gameplay guide](docs/fight-gameplay.md).
+
 ---
 
 ## Project Structure
