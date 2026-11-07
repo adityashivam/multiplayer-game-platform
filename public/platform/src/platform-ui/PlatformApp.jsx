@@ -64,7 +64,8 @@ export default function App() {
   const { connectionState, endGameState, endGameBridgeRef } = usePlatformGameUiState(setShareModal);
   const activeGame = useMemo(() => resolveGameById(route?.gameId), [resolveGameById, route?.gameId]);
   const { disposeGameSession, gameLoadError } = usePlatformGameLoader({
-    game: activeGame,
+    // Wait for the catalog so shared links don't start both fallback and fetched runtimes.
+    game: loadingGames ? null : activeGame,
     setShareModal,
   });
   const activeGameRuntime = useMemo(() => getGameRuntimeSpec(activeGame), [activeGame]);
