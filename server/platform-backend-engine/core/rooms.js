@@ -1,5 +1,23 @@
 import { randomBytes } from "crypto";
 import { emitEvent } from "./events.js";
+import { SOCKET_EVENT } from "../../../public/platform/shared/networkProtocol.js";
+
+/**
+ * Include command ownership only for games that expose a valid input epoch.
+ * @param {"p1" | "p2"} playerId
+ * @param {string} gameId
+ * @param {string} rejoinToken
+ * @param {number | undefined} inputEpoch
+ * @returns {{playerId: "p1" | "p2", gameId: string, rejoinToken: string, inputEpoch?: number}}
+ */
+function createGameJoinedPayload(playerId, gameId, rejoinToken, inputEpoch) {
+  return {
+    playerId,
+    gameId,
+    rejoinToken,
+    ...(Number.isSafeInteger(inputEpoch) ? { inputEpoch } : {}),
+  };
+}
 
 function findRejoinSlot(state, rejoinToken) {
   if (!rejoinToken || !state || !state.players) return null;
@@ -142,6 +160,10 @@ export function handleJoinGame({
     }
   }
 
-  emitEvent({ socket, type: "gameJoined", payload: { playerId, gameId, rejoinToken: token } });
+  emitEvent({
+    socket,
+    type: SOCKET_EVENT.GAME_JOINED,
+    payload: createGameJoinedPayload(playerId, gameId, token, state.players[playerId]?.inputEpoch),
+  });
   emitEvent({ socket, gameId, type: "playerJoined", payload: { playerId }, target: "others" });
 }

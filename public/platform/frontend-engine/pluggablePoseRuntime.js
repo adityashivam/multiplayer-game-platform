@@ -1,58 +1,70 @@
 import { createModularRuntime } from "./modularRuntime.js";
 
+const DEFAULT_TARGET_RENDER_FPS = 60;
+
+/**
+ * @template {string} PoseKey
+ * @template {object} SharedState
+ * @typedef {object} PoseRuntimeConfig
+ * @property {number} [fixedDtSec=1/120]
+ * @property {number} [maxFrameSec=0.08]
+ * @property {number} [maxFixedSteps=10]
+ * @property {number | null} [targetRenderFps=60] Null renders every frame.
+ * @property {SharedState} [shared] Mutable state shared by all callbacks.
+ * @property {() => number} [nowFn] Clock returning milliseconds.
+ * @property {(context: import("./modularRuntime.js").RuntimeContext<SharedState>) => (Record<PoseKey, number> | null | undefined)} samplePose
+ * @property {(pose: Record<PoseKey, number>, context: import("./modularRuntime.js").RuntimeContext<SharedState>) => void} applyPose
+ * @property {(context: import("./modularRuntime.js").RuntimeContext<SharedState>) => boolean} [shouldSample]
+ * @property {(context: import("./modularRuntime.js").RuntimeContext<SharedState>) => void} [onReset]
+ * @property {(context: import("./modularRuntime.js").RuntimeContext<SharedState>) => void} [onDispose]
+ */
+
 function clampNumber(value, min, max) {
   return Math.max(min, Math.min(max, value));
 }
 
-function copyPoseToTarget(target, source) {
-  const keys = Object.keys(source);
+/**
+ * @template {string} PoseKey
+ * @param {Partial<Record<PoseKey, number>>} targetPose Mutated in place.
+ * @param {Record<PoseKey, number>} sourcePose
+ */
+function copyPoseToTarget(targetPose, sourcePose) {
+  const keys = Object.keys(sourcePose);
   for (let i = 0; i < keys.length; i += 1) {
     const key = keys[i];
-    target[key] = source[key];
+    targetPose[key] = sourcePose[key];
   }
-}
-
-function lerpPose(outPose, prevPose, currPose, keys, alpha) {
-  const t = clampNumber(alpha, 0, 1);
-  for (let i = 0; i < keys.length; i += 1) {
-    const key = keys[i];
-    const prev = prevPose[key];
-    const curr = currPose[key];
-    outPose[key] = prev + (curr - prev) * t;
-  }
-  return outPose;
 }
 
 /**
- * Generic fixed-step + interpolated pose runtime for any game genre.
+ * @template {string} PoseKey
+ * @param {Record<PoseKey, number>} renderPose Mutated and returned for reuse.
+ * @param {Record<PoseKey, number>} previousPose
+ * @param {Record<PoseKey, number>} currentPose
+ * @param {PoseKey[]} keys
+ * @param {number} alpha
+ * @returns {Record<PoseKey, number>}
+ */
+function interpolatePoseFields(renderPose, previousPose, currentPose, keys, alpha) {
+  const t = clampNumber(alpha, 0, 1);
+  for (let i = 0; i < keys.length; i += 1) {
+    const key = keys[i];
+    const previousValue = previousPose[key];
+    const currentValue = currentPose[key];
+    renderPose[key] = previousValue + (currentValue - previousValue) * t;
+  }
+  return renderPose;
+}
+
+/**
+ * Sample a game's numeric pose on fixed steps and interpolate it for rendering.
+ * Samples are copied into owned buffers. applyPose receives a reused buffer and
+ * must copy it before retaining it across frames.
  *
- * @param {Object} config
- * @param {number} [config.fixedDtSec=1/120]
- *   Fixed simulation step (seconds). Lower values = finer simulation,
- *   higher CPU cost. Typical range: 1/60 to 1/144.
- * @param {number} [config.maxFrameSec=0.08]
- *   Frame delta clamp used when tab resumes or frame stalls. Prevents
- *   huge simulation jumps after hitches.
- * @param {number} [config.maxFixedSteps=10]
- *   Max fixed updates per render frame. Prevents spiral-of-death under load
- *   by dropping overflow simulation work.
- * @param {number|null} [config.targetRenderFps=60]
- *   Render cap used by the internal runtime. Set `null` to render every frame.
- * @param {Object} [config.shared]
- *   Mutable shared context object available in every callback as `ctx.shared`.
- * @param {() => number} [config.nowFn]
- *   Time provider returning milliseconds. Defaults to `performance.now()`.
- * @param {(ctx: Object) => (Record<string, number> | null | undefined)} config.samplePose
- *   Required. Called on each fixed step. Return numeric pose fields that should
- *   be interpolated to render smoothly (for example `{ x, y, rot }`).
- * @param {(pose: Record<string, number>, ctx: Object) => void} config.applyPose
- *   Required. Called on render steps with the interpolated pose.
- * @param {(ctx: Object) => boolean} [config.shouldSample]
- *   Optional gate to skip sampling for a fixed step (for example when paused).
- * @param {(ctx: Object) => void} [config.onReset]
- *   Optional callback when runtime is reset.
- * @param {(ctx: Object) => void} [config.onDispose]
- *   Optional callback when runtime is destroyed.
+ * @template {string} PoseKey
+ * @template {object} SharedState
+ * @param {PoseRuntimeConfig<PoseKey, SharedState>} [config]
+ * @throws {Error} When sampling or rendering callbacks are missing.
  */
 export function createPluggablePoseRuntime(config = {}) {
   const samplePose = typeof config.samplePose === "function" ? config.samplePose : null;
@@ -72,33 +84,42 @@ export function createPluggablePoseRuntime(config = {}) {
     fixedDtSec: config.fixedDtSec ?? 1 / 120,
     maxFrameSec: config.maxFrameSec ?? 0.08,
     maxFixedSteps: config.maxFixedSteps ?? 10,
-    targetRenderFps: config.targetRenderFps ?? 60,
+    targetRenderFps: config.targetRenderFps === undefined
+      ? DEFAULT_TARGET_RENDER_FPS
+      : config.targetRenderFps,
     shared: config.shared,
     nowFn: config.nowFn,
   });
 
   let hasPose = false;
   let poseKeys = [];
-  let prevPose = {};
-  let currPose = {};
-  let outPose = {};
+  let previousPose = {};
+  let currentPose = {};
+  let renderPose = {};
 
   function resetPoseBuffer() {
     hasPose = false;
     poseKeys = [];
-    prevPose = {};
-    currPose = {};
-    outPose = {};
+    previousPose = {};
+    currentPose = {};
+    renderPose = {};
   }
 
+  /**
+   * Copy a sample into the two fixed-step buffers without retaining its object.
+   * @param {Record<PoseKey, number> | null | undefined} pose
+   * @returns {boolean} Whether a pose sample was accepted.
+   */
   function commitPose(pose) {
-    if (!pose || typeof pose !== "object" || Array.isArray(pose)) return false;
+    if (!pose || typeof pose !== "object" || Array.isArray(pose)) {
+      return false;
+    }
 
     if (!hasPose) {
       poseKeys = Object.keys(pose);
-      copyPoseToTarget(prevPose, pose);
-      copyPoseToTarget(currPose, pose);
-      copyPoseToTarget(outPose, pose);
+      copyPoseToTarget(previousPose, pose);
+      copyPoseToTarget(currentPose, pose);
+      copyPoseToTarget(renderPose, pose);
       hasPose = true;
       return true;
     }
@@ -110,30 +131,38 @@ export function createPluggablePoseRuntime(config = {}) {
 
     for (let i = 0; i < poseKeys.length; i += 1) {
       const key = poseKeys[i];
-      prevPose[key] = currPose[key];
-      currPose[key] = pose[key];
+      previousPose[key] = currentPose[key];
+      currentPose[key] = pose[key];
     }
     return true;
   }
 
   runtime.addSystem({
     name: "pose-buffer",
-    onReset(ctx) {
+    onReset(runtimeContext) {
       resetPoseBuffer();
-      if (onReset) onReset(ctx);
+      if (onReset) {
+        onReset(runtimeContext);
+      }
     },
-    onFixedUpdate(ctx) {
-      if (shouldSample && !shouldSample(ctx)) return;
-      const sampledPose = samplePose(ctx);
+    onFixedUpdate(runtimeContext) {
+      if (shouldSample && !shouldSample(runtimeContext)) {
+        return;
+      }
+      const sampledPose = samplePose(runtimeContext);
       commitPose(sampledPose);
     },
-    onLateUpdate(ctx) {
-      if (!hasPose) return;
-      const renderedPose = lerpPose(outPose, prevPose, currPose, poseKeys, ctx.alpha);
-      applyPose(renderedPose, ctx);
+    onLateUpdate(runtimeContext) {
+      if (!hasPose) {
+        return;
+      }
+      const renderedPose = interpolatePoseFields(renderPose, previousPose, currentPose, poseKeys, runtimeContext.alpha);
+      applyPose(renderedPose, runtimeContext);
     },
-    onDispose(ctx) {
-      if (onDispose) onDispose(ctx);
+    onDispose(runtimeContext) {
+      if (onDispose) {
+        onDispose(runtimeContext);
+      }
     },
   });
 

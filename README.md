@@ -944,51 +944,30 @@ Remote players are rendered using **Hermite cubic spline interpolation** between
 **Without velocities (linear):** Position jumps between straight-line segments at each snapshot.
 **With velocities (Hermite):** Position follows smooth curves that respect velocity at each snapshot.
 
-### Client Prediction
+### Fight command prediction
 
-The local player uses **client-side prediction** for instant input response:
+Fight captures one command per 1/60-second simulation step. The server and client both use the pure player rules in `public/platform/shared/fightSimulation.js`. Short jump/attack presses are latched until capture. Rendering runs independently of the simulation rate.
 
-1. Player presses a key → local physics simulation runs immediately
-2. Server receives the input, runs authoritative simulation, sends back state with `inputSeqAck`
-3. Client receives server state → reconciles by computing error between predicted and server position
-4. Error is absorbed as a **correction offset** that decays exponentially over subsequent frames
-5. If error exceeds thresholds, **resimulation** replays all pending inputs from the server's authoritative state
+Protocol-2 frames contain `{ type: "inputFrame", protocol: 2, epoch, seq, state }`. The server controls duration, advances physics every fixed world tick and incorporates queued commands before advancing `inputSeqAck`. Late command states are coalesced with action edges preserved; `inputSimulationTick` prevents replaying time the server already simulated. Queue length and catch-up work are bounded. Dropped world time or 500 ms input starvation triggers an epoch resynchronization. Epochs change on reconnect and rematch so old commands cannot affect a new session. Legacy clients remain supported.
 
-### Resimulation (Rollback-Replay)
+`createCommandPredictor()` in `commandPrediction.js` takes game simulation and pose callbacks. On every authoritative snapshot, it restores the authoritative player state and replays the outstanding commands. Correction offsets affect rendering only; ordinary network delay does not become a simulation correction. This is local player reconciliation, not full-world rollback.
 
-When prediction diverges too far from the server:
+The shared interpolator keeps a monotonic remote playback clock, adapts its delay gradually and bounds extrapolation. `getNetworkStats()` exposes `effectiveDelayMs`, `bufferOccupancyMs`, `playbackTimeMs` and `underrunCount`. Tune these using measurements rather than directly changing the playback timestamp every frame.
 
-1. Save current visual position
-2. Reset predictor to server's authoritative position
-3. Replay all pending (unacknowledged) input frames
-4. Inject the visual difference as a decaying correction to prevent pops
+### Testing server speed and network delivery
 
-**Tunable thresholds** (in `main.js`):
+```bash
+npm test
+npm run build
+npm start
+npm run net:probe -- --url http://localhost:3000 --seconds 30
+npm run net:probe -- --url https://your-service.onrender.com --seconds 30
+```
 
-| Parameter | Default | Range | Description |
-|-----------|---------|-------|-------------|
-| `RESIM_ERROR_PX` | 9 | 6-30 | Soft trigger: resim when prediction diverges this far (px) |
-| `RESIM_HARD_ERROR_PX` | 22 | 16-60 | Hard trigger: force resim at this error |
-| `RESIM_COOLDOWN_MS` | 33 | 30-200 | Min time between resimulations (ms) |
+The probe creates one temporary two-player Fight room and closes its clients afterward. It works with the current protocol and legacy deployments. It reports RTT and arriving-snapshot gaps separately from server snapshot timestamps, loop lag, room CPU and dropped simulation steps. It is a single-match diagnostic, not a server capacity/load benchmark.
 
-### Tuning Guide
+`GET /api/health` reports the running build/commit, protocol, uptime and event-loop histogram. Render supplies `RENDER_GIT_COMMIT`; local builds report `development` unless `BUILD_ID` or `GIT_COMMIT` is set. The histogram includes its 20 ms sampling interval and must not be interpreted as network RTT.
 
-**Movement feels laggy / floaty:**
-- Increase `correctionBlendFactor` (faster error absorption)
-- Decrease `RESIM_COOLDOWN_MS` (more frequent resim)
-- Decrease `correctionDecayCoeff` (corrections last longer to close gaps)
+In the game, press **N** or click **NET** to compare network RTT, server loop lag/CPU, prediction correction, pending inputs and remote buffer underruns. Snapshot sequence gaps do not measure IP packet loss over WebSocket/TCP.
 
-**Movement has visible jitter / micro-teleports:**
-- Increase `correctionDeadzone` (ignore small errors)
-- Increase `hardSnapDistSq` (fewer hard teleports)
-- Decrease `correctionBlendFactor` (slower, smoother correction)
-
-**Near-opponent oscillation:**
-- Increase `contactMoveSuppression` (less local movement near contact)
-- Increase `contactServerFollowRate` (follow server more)
-- Increase `proximityLerpMax` (stronger server pull)
-
-**Remote player stutters:**
-- Increase `interpDelayMs` (more buffer = smoother)
-- Add `extractVelocities` for Hermite interpolation
-- Check network quality via `interpolator.getNetworkStats()`
+To test the changes on an existing deployment, deploy the new source and rebuild the frontend. A locally rebuilt client does not update Render. Keep protocol and build identity consistent when comparing results.

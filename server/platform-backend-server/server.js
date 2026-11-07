@@ -4,6 +4,7 @@ import msgpackParser from "socket.io-msgpack-parser";
 import express from "express";
 import path from "path";
 import { fileURLToPath } from "url";
+import { registerHealthRoute } from "./healthRoutes.js";
 import { registerFightGame } from "../platform-backend-engine/games/fight.js";
 import { registerPongGame } from "../platform-backend-engine/games/pong.js";
 import { registerRoadRashGame } from "../platform-backend-engine/games/roadrash.js";
@@ -54,6 +55,8 @@ app.use(
 app.get("/", (req, res) => {
   res.sendFile(platformIndex);
 });
+
+registerHealthRoute(app);
 
 app.get("/api/games", (req, res) => {
   res.json({

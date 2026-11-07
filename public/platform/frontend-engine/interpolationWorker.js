@@ -1,13 +1,24 @@
 import { createInterpolator } from "./interpolation.js";
 
 /**
- * Creates an interpolator that runs synchronously on the main thread.
- *
- * The previous Worker-based approach added IPC latency (1-3 ms per
- * postMessage round-trip) and always returned *stale* positions
- * (the result of the PREVIOUS frame's request).  Synchronous
- * interpolation on the main thread gives fresh data every frame,
- * which is critical for smooth 60 fps rendering.
+ * @template State
+ * @template {string} PoseKey
+ * @typedef {object} WorkerInterpolationConfig
+ * @property {(serverState: State) => Record<PoseKey, number>} extractPositions
+ * @property {(serverState: State) => (Record<PoseKey, number> | null)} [extractVelocities]
+ * @property {number} [interpDelayMs=45]
+ * @property {number} [maxBufferSize=32]
+ * @property {boolean} [adaptive=true]
+ */
+
+/**
+ * Keep the established worker API while sampling synchronously on the main
+ * thread so each render receives current positions. Raw snapshots are retained
+ * by reference only after the reduced snapshot is accepted.
+ * @template {{ net?: import("../shared/networkProtocol.js").SnapshotNetworkMetadata | null }} State
+ * @template {string} PoseKey
+ * @param {WorkerInterpolationConfig<State, PoseKey>} [config]
+ * @throws {Error} When the position extractor is missing.
  */
 export function createWorkerInterpolator(config = {}) {
   const extractPositions = config.extractPositions;
@@ -16,7 +27,7 @@ export function createWorkerInterpolator(config = {}) {
     : null;
   const interpolationConfig = {
     interpDelayMs: config.interpDelayMs ?? 45,
-    maxBufferSize: config.maxBufferSize ?? 10,
+    maxBufferSize: config.maxBufferSize ?? 32,
     adaptive: config.adaptive ?? true,
     extractVelocities: extractVelocities
       ? (reducedState) => reducedState.velocities
@@ -28,25 +39,42 @@ export function createWorkerInterpolator(config = {}) {
   }
 
   let disposed = false;
+  /** @type {State | null} */
   let latestState = null;
 
   const interpolator = createInterpolator(interpolationConfig);
 
-  function pushState(state) {
-    if (disposed) return;
-    const positions = extractPositions(state);
-    if (!positions || typeof positions !== "object" || Array.isArray(positions)) return;
-    latestState = state;
+  /**
+   * @param {State} serverState
+   * @param {{ timestampMs?: number }} [options] Arrival clock override.
+   */
+  function pushState(serverState, options = {}) {
+    if (disposed) {
+      return;
+    }
 
-    const velocities = extractVelocities ? extractVelocities(state) : null;
+    const positions = extractPositions(serverState);
+    if (!positions || typeof positions !== "object" || Array.isArray(positions)) {
+      return;
+    }
+
+    const velocities = extractVelocities ? extractVelocities(serverState) : null;
     const reducedState = {
       positions,
       velocities,
-      net: state.net && typeof state.net === "object" && !Array.isArray(state.net) ? state.net : null,
+      net: serverState.net && typeof serverState.net === "object" && !Array.isArray(serverState.net)
+        ? serverState.net
+        : null,
     };
-    interpolator.pushState(reducedState, { timestampMs: performance.now() });
+    if (interpolator.pushState(reducedState, options)) {
+      latestState = serverState;
+    }
   }
 
+  /**
+   * @param {import("./interpolation.js").InterpolationRuntimeOptions} [runtimeOptions]
+   * @returns {Record<PoseKey, number> | null} May reuse the interpolator's pose object.
+   */
   function getInterpolatedPositions(runtimeOptions = {}) {
     if (disposed) return null;
     return interpolator.getInterpolatedPositions(
@@ -55,10 +83,12 @@ export function createWorkerInterpolator(config = {}) {
     );
   }
 
+  /** @returns {State | null} The most recently accepted raw snapshot reference. */
   function getLatestState() {
     return latestState;
   }
 
+  /** @returns {import("./interpolation.js").InterpolationNetworkStats | null} */
   function getNetworkStats() {
     if (disposed) return null;
     return interpolator.getNetworkStats();

@@ -1,4 +1,34 @@
 import { emitEvent } from "./events.js";
+import {
+  NETWORK_TIMING,
+  SNAPSHOT_KIND,
+  SNAPSHOT_PROTOCOL,
+  SOCKET_EVENT,
+} from "../../../public/platform/shared/networkProtocol.js";
+
+/**
+ * @typedef {object} RoomCpuTimingSummary
+ * @property {number|null} roomCpuMs
+ * @property {number|null} roomCpuAvgMs
+ * @property {number|null} roomCpuP95Ms
+ * @property {number|null} roomCpuP99Ms
+ */
+
+/**
+ * Monotonic simulation timing and rolling CPU measurements owned by one room.
+ * @typedef {object} RoomSimulationClock
+ * @property {number} lastNowMs
+ * @property {number} accumulatorMs
+ * @property {number} droppedSteps
+ * @property {number} cpuEwmaMs
+ * @property {number[]} cpuSamples
+ * @property {number} lastCpuMs
+ * @property {number} fixedTickMs
+ * @property {number} simTick
+ * @property {number} [_cpuIdx] Next circular CPU sample slot after the window fills.
+ * @property {number} [_cpuDescAge] Ticks since the cached CPU quantiles were refreshed.
+ * @property {RoomCpuTimingSummary} [_cpuDesc] Lazily created CPU timing summary.
+ */
 
 const MAX_ELAPSED_MS = 250;
 const MAX_SIM_STEPS_PER_TICK = 5;
@@ -27,16 +57,23 @@ function quantileFromSamples(samples, q) {
   return sorted[lower] + (sorted[upper] - sorted[lower]) * weight;
 }
 
-function ensureRoomClock(state, now, tickMs) {
+/**
+ * @param {{__roomClock?: RoomSimulationClock}} state
+ * @param {number} monotonicNowMs
+ * @param {number} tickMs
+ * @returns {RoomSimulationClock}
+ */
+function ensureRoomClock(state, monotonicNowMs, tickMs) {
   if (!state.__roomClock) {
     state.__roomClock = {
-      lastNowMs: now,
+      lastNowMs: monotonicNowMs,
       accumulatorMs: 0,
       droppedSteps: 0,
       cpuEwmaMs: 0,
       cpuSamples: [],
       lastCpuMs: 0,
       fixedTickMs: tickMs,
+      simTick: 0,
     };
     return state.__roomClock;
   }
@@ -45,6 +82,31 @@ function ensureRoomClock(state, now, tickMs) {
     state.__roomClock.fixedTickMs = tickMs;
   }
   return state.__roomClock;
+}
+
+/**
+ * Accumulate elapsed room time and discard excess work before running game systems.
+ * Dropped-step counters must be visible to input resynchronization in that step.
+ * @param {{__loopTick?: number, __loopMonotonicNow?: number}} state
+ * @param {RoomSimulationClock} roomClock Mutated in place.
+ * @param {number} monotonicNowMs
+ * @param {number} tickMs
+ */
+function accumulateRoomSimulationTime(state, roomClock, monotonicNowMs, tickMs) {
+  const elapsedMs = clamp(monotonicNowMs - roomClock.lastNowMs, 0, MAX_ELAPSED_MS);
+  roomClock.lastNowMs = monotonicNowMs;
+  state.__loopTick = (state.__loopTick || 0) + 1;
+  state.__loopMonotonicNow = monotonicNowMs;
+  roomClock.accumulatorMs += elapsedMs;
+
+  const excessStepCount = Math.max(
+    0,
+    Math.floor(roomClock.accumulatorMs / tickMs) - MAX_SIM_STEPS_PER_TICK,
+  );
+  if (excessStepCount) {
+    roomClock.droppedSteps += excessStepCount;
+    roomClock.accumulatorMs -= excessStepCount * tickMs;
+  }
 }
 
 function updateCpuMetrics(clock, cpuMs) {
@@ -109,6 +171,7 @@ function decorateStatePayload(payload, state, now, tickMs, roomClock, loopLagMs)
       seq,
       serverTime: Number.isFinite(existingNet.serverTime) ? existingNet.serverTime : now,
       tickRate: Number.isFinite(existingNet.tickRate) ? existingNet.tickRate : tickRate,
+      simTick: roomClock.simTick,
       server: {
         eventLoopLagMs: roundTo(loopLagMs, 2),
         tickDriftMs: roundTo(roomClock.accumulatorMs, 2),
@@ -199,8 +262,8 @@ function flattenBySchema(payload, schemaTokens) {
 
 function toPackedFullPayload(transport, seq, values, netMeta) {
   return {
-    __packed: 1,
-    k: "f",
+    __packed: SNAPSHOT_PROTOCOL.PACKED,
+    k: SNAPSHOT_KIND.FULL,
     s: seq,
     p: transport.schemaPaths,
     v: values,
@@ -210,8 +273,8 @@ function toPackedFullPayload(transport, seq, values, netMeta) {
 
 function toPackedDeltaPayload(seq, baseSeq, changes, netMeta) {
   return {
-    __packed: 1,
-    k: "d",
+    __packed: SNAPSHOT_PROTOCOL.PACKED,
+    k: SNAPSHOT_KIND.DELTA,
     s: seq,
     b: baseSeq,
     c: changes,
@@ -286,62 +349,82 @@ function packStatePayload(state, payload) {
   return packed;
 }
 
+/**
+ * Advance authoritative room simulations using monotonic elapsed time, then emit snapshots.
+ * Wall time remains available separately for cleanup and snapshot timestamps.
+ * @template {object} GameState
+ * @param {object} options
+ * @param {Map<string, GameState>} options.games Mutable authoritative room states.
+ * @param {import("socket.io").Namespace} options.nsp
+ * @param {number} [options.tickMs]
+ * @param {number} [options.dtFallback]
+ * @param {(state: GameState, dtSec: number) => void} [options.beforeUpdate]
+ * @param {(state: GameState, dtSec: number) => void} [options.updateState]
+ * @param {(state: GameState) => object} [options.serializeState]
+ * @param {(state: GameState, dtSec: number) => void} [options.afterEmit]
+ * @param {string} [options.stateEvent]
+ * @param {(state: GameState, nowMs: number) => boolean} [options.shouldCleanup]
+ * @param {number} [options.loopLagMs]
+ * @param {number} [options.nowMs] Wall time in milliseconds.
+ * @param {number} [options.monotonicNowMs] Monotonic time in milliseconds.
+ * @returns {void}
+ */
 export function tickGames({
   games,
   nsp,
-  tickMs = 1000 / 60,
-  dtFallback = 1 / 60,
+  tickMs = 1000 / NETWORK_TIMING.SIMULATION_HZ,
+  dtFallback = NETWORK_TIMING.FIXED_DT_SEC,
   beforeUpdate,
   updateState,
   serializeState,
   afterEmit,
-  stateEvent = "state",
+  stateEvent = SOCKET_EVENT.STATE,
   shouldCleanup,
   loopLagMs = 0,
+  nowMs = Date.now(),
+  monotonicNowMs = performance.now(),
 }) {
-  const now = Date.now();
-  const toDelete = [];
-  const fixedDt = tickMs > 0 ? tickMs / 1000 : dtFallback;
+  const gameIdsToDelete = [];
+  const fixedDtSec = tickMs > 0 ? tickMs / 1000 : dtFallback;
 
-  for (const [gameId, state] of games.entries()) {
-    if (shouldCleanup && shouldCleanup(state, now)) {
-      toDelete.push(gameId);
+  for (const [gameId, gameState] of games.entries()) {
+    if (shouldCleanup && shouldCleanup(gameState, nowMs)) {
+      gameIdsToDelete.push(gameId);
       continue;
     }
 
-    const roomClock = ensureRoomClock(state, now, tickMs);
-    const elapsedMs = clamp(now - roomClock.lastNowMs, 0, MAX_ELAPSED_MS);
-    roomClock.lastNowMs = now;
-    roomClock.accumulatorMs += elapsedMs;
+    const roomClock = ensureRoomClock(gameState, monotonicNowMs, tickMs);
+    accumulateRoomSimulationTime(gameState, roomClock, monotonicNowMs, tickMs);
 
     const roomCpuStart = performance.now();
-    let steps = 0;
+    let simulatedStepCount = 0;
 
-    while (roomClock.accumulatorMs >= tickMs && steps < MAX_SIM_STEPS_PER_TICK) {
+    while (roomClock.accumulatorMs >= tickMs && simulatedStepCount < MAX_SIM_STEPS_PER_TICK) {
       if (beforeUpdate) {
-        beforeUpdate(state, fixedDt);
+        beforeUpdate(gameState, fixedDtSec);
       }
 
       if (updateState) {
-        updateState(state, fixedDt);
+        updateState(gameState, fixedDtSec);
       }
 
       roomClock.accumulatorMs -= tickMs;
-      steps += 1;
+      roomClock.simTick += 1;
+      simulatedStepCount += 1;
     }
 
     if (roomClock.accumulatorMs >= tickMs) {
-      const dropped = Math.floor(roomClock.accumulatorMs / tickMs);
-      roomClock.droppedSteps += dropped;
+      const droppedStepCount = Math.floor(roomClock.accumulatorMs / tickMs);
+      roomClock.droppedSteps += droppedStepCount;
       roomClock.accumulatorMs = roomClock.accumulatorMs % tickMs;
     }
 
     if (serializeState) {
-      let payload = serializeState(state);
-      payload = decorateStatePayload(payload, state, now, tickMs, roomClock, loopLagMs);
-      payload = packStatePayload(state, payload);
-      if (payload != null) {
-        emitEvent({ nsp, gameId, type: stateEvent, payload, target: "game" });
+      let snapshotPayload = serializeState(gameState);
+      snapshotPayload = decorateStatePayload(snapshotPayload, gameState, nowMs, tickMs, roomClock, loopLagMs);
+      snapshotPayload = packStatePayload(gameState, snapshotPayload);
+      if (snapshotPayload != null) {
+        emitEvent({ nsp, gameId, type: stateEvent, payload: snapshotPayload, target: "game" });
       }
     }
 
@@ -349,12 +432,12 @@ export function tickGames({
     updateCpuMetrics(roomClock, roomCpuMs);
 
     if (afterEmit) {
-      const simulatedDt = steps > 0 ? steps * fixedDt : dtFallback;
-      afterEmit(state, simulatedDt);
+      const simulatedDtSec = simulatedStepCount > 0 ? simulatedStepCount * fixedDtSec : dtFallback;
+      afterEmit(gameState, simulatedDtSec);
     }
   }
 
-  for (const id of toDelete) {
-    games.delete(id);
+  for (const gameId of gameIdsToDelete) {
+    games.delete(gameId);
   }
 }

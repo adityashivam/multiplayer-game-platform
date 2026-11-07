@@ -1,9 +1,43 @@
 import msgpackParser from "/platform/frontend-engine/msgpackParser.js";
+import {
+  NETWORK_TIMING,
+  SNAPSHOT_KIND,
+  SNAPSHOT_PROTOCOL,
+  SOCKET_EVENT,
+} from "../shared/networkProtocol.js";
+
+/** @typedef {(...eventArguments: unknown[]) => void} SocketEventHandler */
+
+/**
+ * @typedef {object} SnapshotDecodeContext
+ * @property {string[] | null} schemaPaths Game-defined flattened snapshot paths.
+ * @property {string[][] | null} schemaTokens
+ * @property {unknown[] | null} lastValues Baseline values indexed by schema path.
+ * @property {number | null} lastSeq
+ */
+
+/**
+ * @typedef {object} GameConnectionSnapshot
+ * @property {"connected" | "disconnected" | "reconnecting"} status
+ * @property {number | null} ping Round-trip latency in milliseconds.
+ * @property {number | null} pingP95Ms
+ * @property {number | null} pingP99Ms
+ * @property {number} jitterMs
+ * @property {number | null} jitterP95Ms
+ * @property {number | null} jitterP99Ms
+ * @property {number} packetLossPct Snapshot sequence gaps, not IP packet loss.
+ * @property {number | null} packetLossP95Pct
+ * @property {number | null} packetLossP99Pct
+ * @property {number} updateRateHz
+ * @property {number} outOfOrderCount
+ * @property {number | null} serverTickRate
+ * @property {import("../shared/networkProtocol.js").ServerTimingMetrics | null} server
+ */
 
 const socketCache = new Map();
 
 const STATE_SAMPLE_WINDOW = 240;
-const DEFAULT_STATE_INTERVAL_MS = 1000 / 60;
+const DEFAULT_STATE_INTERVAL_MS = 1000 / NETWORK_TIMING.SIMULATION_HZ;
 const CONNECTION_NOTIFY_INTERVAL_MS = 120;
 
 function normalizeNamespace(namespace) {
@@ -61,7 +95,7 @@ function toFiniteNumber(value) {
 function getNetMeta(payload) {
   if (!payload || typeof payload !== "object" || Array.isArray(payload)) return null;
   if (payload.net && typeof payload.net === "object") return payload.net;
-  if (payload.__packed === 1 && payload.n && typeof payload.n === "object") return payload.n;
+  if (payload.__packed === SNAPSHOT_PROTOCOL.PACKED && payload.n && typeof payload.n === "object") return payload.n;
   return null;
 }
 
@@ -92,6 +126,12 @@ function inflateStateFromSchema(schemaTokens, values) {
   return root;
 }
 
+/**
+ * Reuse one connection per normalized game namespace. State subscribers share
+ * decoding and metrics while each handler receives an accepted snapshot once.
+ * @param {string} namespace
+ * @throws {Error} When the namespace or Socket.IO browser client is unavailable.
+ */
 export function getGameSocket(namespace) {
   const normalized = normalizeNamespace(namespace);
   if (socketCache.has(normalized)) {
@@ -135,6 +175,9 @@ export function getGameSocket(namespace) {
 
   const eventWrappers = new Map();
   const decodedStateCache = new WeakMap();
+  /** @type {WeakMap<object, Set<SocketEventHandler>>} */
+  let stateDeliveries = new WeakMap();
+  /** @type {SnapshotDecodeContext} */
   const decodeTransport = {
     schemaPaths: null,
     schemaTokens: null,
@@ -154,7 +197,9 @@ export function getGameSocket(namespace) {
     }
   }
 
-  function resetStateMetrics() {
+  /** Clear snapshot metrics, sequence acceptance, and the packed delta baseline. */
+  function resetSnapshotSession() {
+    stateDeliveries = new WeakMap();
     prevStateArrivalMs = null;
     prevStateSeq = null;
     intervalEwmaMs = DEFAULT_STATE_INTERVAL_MS;
@@ -189,6 +234,7 @@ export function getGameSocket(namespace) {
     return clamp((1 - totalReceivedPackets / expected) * 100, 0, 100);
   }
 
+  /** @type {GameConnectionSnapshot | null} */
   let cachedSnapshot = null;
   let snapshotDirty = true;
 
@@ -330,10 +376,10 @@ export function getGameSocket(namespace) {
 
   function decodePackedState(payload) {
     if (!payload || typeof payload !== "object" || Array.isArray(payload)) return payload;
-    if (payload.__packed !== 1) return payload;
+    if (payload.__packed !== SNAPSHOT_PROTOCOL.PACKED) return payload;
 
     const kind = payload.k;
-    if (kind === "f") {
+    if (kind === SNAPSHOT_KIND.FULL) {
       const schemaPaths = Array.isArray(payload.p) ? payload.p : decodeTransport.schemaPaths;
       if (!Array.isArray(schemaPaths) || schemaPaths.length === 0) return null;
       const seq = toFiniteNumber(payload.s);
@@ -355,7 +401,7 @@ export function getGameSocket(namespace) {
       return state;
     }
 
-    if (kind === "d") {
+    if (kind === SNAPSHOT_KIND.DELTA) {
       if (
         !Array.isArray(decodeTransport.schemaTokens) ||
         !Array.isArray(decodeTransport.lastValues) ||
@@ -417,13 +463,15 @@ export function getGameSocket(namespace) {
     setConnectionState("connected");
   };
 
-  raw.on("connect", handleConnectState);
-  raw.on("disconnect", handleDisconnectState);
-  raw.io.on("reconnect_attempt", handleReconnectAttempt);
-  raw.io.on("reconnect", handleReconnect);
+  raw.on(SOCKET_EVENT.CONNECT, handleConnectState);
+  // A rematch starts a fresh snapshot sequence and delta baseline on this socket.
+  raw.on(SOCKET_EVENT.REMATCH_STARTED, resetSnapshotSession);
+  raw.on(SOCKET_EVENT.DISCONNECT, handleDisconnectState);
+  raw.io.on(SOCKET_EVENT.RECONNECT_ATTEMPT, handleReconnectAttempt);
+  raw.io.on(SOCKET_EVENT.RECONNECT, handleReconnect);
 
   // State packet recording is handled inside the onEvent wrapper for
-  // "state" events — no need for onAny which fires on EVERY event and
+  // state events — no need for onAny which fires on EVERY event and
   // duplicates the work.
   const handleAnyEvent = null;
 
@@ -462,15 +510,15 @@ export function getGameSocket(namespace) {
     attachEngineListeners(raw.io.engine);
   }
   // Engine may not exist yet on first connect; attach after open
-  raw.io.on("open", handleManagerOpen);
+  raw.io.on(SOCKET_EVENT.OPEN, handleManagerOpen);
 
-  // Application-level ping probe (runs every 5s for faster updates)
+  // Application probes refresh the measured round-trip latency.
   function startPingProbe() {
     stopPingProbe();
     pingInterval = setInterval(() => {
       if (!raw.connected) return;
       const start = performance.now();
-      raw.volatile.emit("__ping", () => {
+      raw.volatile.emit(SOCKET_EVENT.PING, () => {
         ping = Math.round(performance.now() - start);
         pushSample(pingSamples, ping);
         markSnapshotDirty();
@@ -485,9 +533,9 @@ export function getGameSocket(namespace) {
     }
   }
   const handleConnectProbe = () => {
-    // Measure immediately on connect, then every 5s
+    // Measure immediately on connect, then keep probing periodically.
     const start = performance.now();
-    raw.volatile.emit("__ping", () => {
+    raw.volatile.emit(SOCKET_EVENT.PING, () => {
       ping = Math.round(performance.now() - start);
       pushSample(pingSamples, ping);
       markSnapshotDirty();
@@ -500,14 +548,14 @@ export function getGameSocket(namespace) {
     stopPingProbe();
     ping = null;
     pingSamples.length = 0;
-    resetStateMetrics();
+    resetSnapshotSession();
     cachedSnapshot = null;
     snapshotDirty = true;
     scheduleConnectionNotify({ force: true });
   };
 
-  raw.on("connect", handleConnectProbe);
-  raw.on("disconnect", handleDisconnectProbe);
+  raw.on(SOCKET_EVENT.CONNECT, handleConnectProbe);
+  raw.on(SOCKET_EVENT.DISCONNECT, handleDisconnectProbe);
 
   function clearWrappedHandlers(event) {
     const eventMap = eventWrappers.get(event);
@@ -518,30 +566,57 @@ export function getGameSocket(namespace) {
     eventWrappers.delete(event);
   }
 
+  /**
+   * Record accepted-state metrics once, then mark this subscriber's delivery.
+   * Older sequences are rejected before recording or invoking the subscriber.
+   * @param {{ net?: import("../shared/networkProtocol.js").SnapshotNetworkMetadata }} serverState
+   * @param {SocketEventHandler} subscriber
+   * @returns {boolean} Whether this subscriber should receive the snapshot.
+   */
+  function recordStateDelivery(serverState, subscriber) {
+    let deliveredSubscribers = stateDeliveries.get(serverState);
+    if (!deliveredSubscribers) {
+      const sequenceNumber = toFiniteNumber(serverState?.net?.seq);
+      if (sequenceNumber != null) {
+        if (lastDeliveredStateSeq != null && sequenceNumber <= lastDeliveredStateSeq) {
+          return false;
+        }
+        lastDeliveredStateSeq = sequenceNumber;
+      }
+
+      recordStatePacket(serverState);
+      deliveredSubscribers = new Set();
+      stateDeliveries.set(serverState, deliveredSubscribers);
+    }
+
+    if (deliveredSubscribers.has(subscriber)) {
+      return false;
+    }
+    deliveredSubscribers.add(subscriber);
+    return true;
+  }
+
   const api = {
+    /**
+     * @param {string} event Game-defined event name.
+     * @param {SocketEventHandler} handler
+     * @returns {() => void} Remove this subscriber.
+     */
     onEvent(event, handler) {
       if (typeof handler !== "function") return () => {};
-      const isStateEvent = event === "state";
+      const isStateEvent = event === SOCKET_EVENT.STATE;
       const wrapped = (...args) => {
         const payload = args[0];
         const shouldDecode =
           isStateEvent ||
-          (payload && typeof payload === "object" && !Array.isArray(payload) && payload.__packed === 1);
+          (payload && typeof payload === "object" && !Array.isArray(payload) && payload.__packed === SNAPSHOT_PROTOCOL.PACKED);
         if (shouldDecode) {
           const decoded = decodeStatePayload(args[0]);
           if (!decoded) return;
           args[0] = decoded;
         }
-        // Record metrics for state packets (replaces the removed onAny handler)
-        if (isStateEvent) {
-          recordStatePacket(args[0]);
-          const seq = toFiniteNumber(args[0]?.net?.seq);
-          if (seq != null) {
-            if (lastDeliveredStateSeq != null && seq <= lastDeliveredStateSeq) {
-              return;
-            }
-            lastDeliveredStateSeq = seq;
-          }
+        if (isStateEvent && !recordStateDelivery(args[0], handler)) {
+          return;
         }
         handler(...args);
       };
@@ -601,13 +676,14 @@ export function getGameSocket(namespace) {
       notifyPending = false;
       connectionListeners.clear();
 
-      removeListener(raw, "connect", handleConnectState);
-      removeListener(raw, "disconnect", handleDisconnectState);
-      removeListener(raw, "connect", handleConnectProbe);
-      removeListener(raw, "disconnect", handleDisconnectProbe);
-      removeListener(raw.io, "reconnect_attempt", handleReconnectAttempt);
-      removeListener(raw.io, "reconnect", handleReconnect);
-      removeListener(raw.io, "open", handleManagerOpen);
+      removeListener(raw, SOCKET_EVENT.CONNECT, handleConnectState);
+      removeListener(raw, SOCKET_EVENT.REMATCH_STARTED, resetSnapshotSession);
+      removeListener(raw, SOCKET_EVENT.DISCONNECT, handleDisconnectState);
+      removeListener(raw, SOCKET_EVENT.CONNECT, handleConnectProbe);
+      removeListener(raw, SOCKET_EVENT.DISCONNECT, handleDisconnectProbe);
+      removeListener(raw.io, SOCKET_EVENT.RECONNECT_ATTEMPT, handleReconnectAttempt);
+      removeListener(raw.io, SOCKET_EVENT.RECONNECT, handleReconnect);
+      removeListener(raw.io, SOCKET_EVENT.OPEN, handleManagerOpen);
       // onAny handler removed for performance — no cleanup needed.
       detachEngineListeners(raw.io?.engine);
 

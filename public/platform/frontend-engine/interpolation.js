@@ -1,8 +1,74 @@
 import { getConnectionState } from "./connectionBridge.js";
+import { NETWORK_TIMING } from "../shared/networkProtocol.js";
 
-const DEFAULT_STATE_INTERVAL_MS = 1000 / 60;
+const DEFAULT_STATE_INTERVAL_MS = 1000 / NETWORK_TIMING.SIMULATION_HZ;
 const STATE_SAMPLE_WINDOW = 180;
 const MIN_SAMPLE_SPACING_MS = 0.01;
+const DEFAULT_MAX_BUFFER_SIZE = 32;
+const MIN_BUFFERED_SNAPSHOT_INTERVALS = 2;
+const MAX_PLAYBACK_CORRECTION_RATIO = 0.25;
+
+/**
+ * @typedef {object} InterpolationRuntimeOptions
+ * @property {number} [nowMs] Render clock in milliseconds.
+ * @property {number} [renderIntervalMs]
+ * @property {number} [interpDelayMs]
+ * @property {number} [extrapolateMs]
+ * @property {number} [packetLossPct] Snapshot sequence gaps, not IP packet loss.
+ * @property {number} [pingMs] Round-trip latency.
+ * @property {number} [pingP95Ms]
+ * @property {number} [jitterP95Ms]
+ */
+
+/**
+ * @typedef {object} InterpolationConnectionMetrics
+ * @property {number | null} [packetLossPct]
+ * @property {number | null} [ping]
+ * @property {number | null} [pingP95Ms]
+ * @property {number | null} [jitterP95Ms]
+ */
+
+/**
+ * @typedef {object} SnapshotDeliveryMetrics
+ * @property {number} avgIntervalMs
+ * @property {number} jitterMs
+ * @property {number} packetLossPct Snapshot sequence gaps, not IP packet loss.
+ * @property {number} updateRateHz
+ * @property {number} outOfOrderCount
+ * @property {number | null} serverTickRate
+ */
+
+/**
+ * @typedef {SnapshotDeliveryMetrics & {
+ *   renderIntervalMs: number,
+ *   renderFps: number | null,
+ *   interpDelayMs: number,
+ *   extrapolateMs: number,
+ *   playbackTimeMs: number | null,
+ *   effectiveDelayMs: number | null,
+ *   bufferOccupancyMs: number | null,
+ *   underrunCount: number
+ * }} InterpolationNetworkStats
+ */
+
+/**
+ * @template State
+ * @template {string} PoseKey
+ * @typedef {object} InterpolationConfig
+ * @property {number} [interpDelayMs=45] Base render delay in milliseconds.
+ * @property {number} [maxBufferSize=32]
+ * @property {boolean} [adaptive=true]
+ * @property {() => InterpolationConnectionMetrics} [connectionProvider]
+ * @property {(serverState: State) => (Record<PoseKey, number> | null)} [extractVelocities]
+ */
+
+/**
+ * @template State
+ * @typedef {object} SnapshotSample
+ * @property {number} timestamp Server sample mapped to the local clock.
+ * @property {number} arrivalMs Local arrival time; sample spacing ignores jitter.
+ * @property {State} serverState Retained by reference without mutation.
+ */
 
 function lerp(a, b, t) {
   return a + (b - a) * t;
@@ -136,6 +202,13 @@ function createStateMetrics() {
   };
 }
 
+/**
+ * @param {number} baseInterpDelayMs
+ * @param {SnapshotDeliveryMetrics} metrics
+ * @param {InterpolationRuntimeOptions} runtimeOptions
+ * @param {() => InterpolationConnectionMetrics} connectionProvider
+ * @returns {{ interpDelayMs: number, extrapolateMs: number }}
+ */
 function deriveAdaptiveSmoothing(baseInterpDelayMs, metrics, runtimeOptions, connectionProvider) {
   const avgIntervalMs = metrics?.avgIntervalMs ?? DEFAULT_STATE_INTERVAL_MS;
   const jitterMs = metrics?.jitterMs ?? 0;
@@ -169,8 +242,7 @@ function deriveAdaptiveSmoothing(baseInterpDelayMs, metrics, runtimeOptions, con
   const renderPenaltyMs = Math.max(0, renderIntervalMs - DEFAULT_STATE_INTERVAL_MS);
 
   let interpDelayMs =
-    Math.max(baseInterpDelayMs, 42) +
-    avgIntervalMs * 1.15 +
+    Math.max(baseInterpDelayMs, avgIntervalMs * MIN_BUFFERED_SNAPSHOT_INTERVALS) +
     jitterMs * 1.45 +
     jitterP95Ms * 0.45 +
     packetLossPct * 1.9 +
@@ -204,14 +276,13 @@ function deriveAdaptiveSmoothing(baseInterpDelayMs, metrics, runtimeOptions, con
  * Creates a state interpolation controller that buffers server snapshots
  * and lerps positional data between them for smooth rendering.
  *
- * @param {Object} [config]
- * @param {number} [config.interpDelayMs=45] Base render delay behind latest state in ms.
- * @param {number} [config.maxBufferSize=10] Max snapshots to retain.
- * @param {boolean} [config.adaptive=true] Whether to auto-tune interpolation from live net quality.
+ * @template {{ net?: import("../shared/networkProtocol.js").SnapshotNetworkMetadata | null }} State
+ * @template {string} PoseKey
+ * @param {InterpolationConfig<State, PoseKey>} [config]
  */
 export function createInterpolator(config = {}) {
   const baseInterpDelayMs = config.interpDelayMs ?? 45;
-  const maxBufferSize = config.maxBufferSize ?? 10;
+  const maxBufferSize = config.maxBufferSize ?? DEFAULT_MAX_BUFFER_SIZE;
   const adaptive = config.adaptive ?? true;
   const connectionProvider = typeof config.connectionProvider === "function"
     ? config.connectionProvider
@@ -220,18 +291,27 @@ export function createInterpolator(config = {}) {
     ? config.extractVelocities
     : null;
   const metrics = createStateMetrics();
+  /** @type {SnapshotSample<State>[]} */
   const buffer = [];
-  const _reusableResult = {};
-  let _cachedKeys = null;
+  const interpolatedPositions = {};
+  let poseKeys = null;
   let prevRenderSampleMs = null;
   let renderIntervalEwmaMs = DEFAULT_STATE_INTERVAL_MS;
   let serverTimeOffsetMs = null;
   let lastServerSampleTimeMs = null;
   let lastStateSeq = null;
+  let playbackTimeMs = null;
+  let playbackNowMs = null;
+  let effectiveDelayMs = null;
+  let underrunCount = 0;
+  let inUnderrun = false;
 
   /**
-   * Buffer a new server state snapshot.
-   * @param {Object} state Raw server state.
+   * Retain an accepted snapshot without mutating it. Duplicates and older
+   * sequences leave both the buffer and the playback clock unchanged.
+   * @param {State} state Raw server state.
+   * @param {{ timestampMs?: number }} [options] Local arrival clock override.
+   * @returns {boolean} Whether the snapshot was accepted.
    */
   function pushState(state, options = {}) {
     const nowMs = Number.isFinite(options?.timestampMs) ? options.timestampMs : performance.now();
@@ -239,7 +319,7 @@ export function createInterpolator(config = {}) {
     const seq = toFiniteNumber(net?.seq);
     if (seq != null) {
       if (lastStateSeq != null && seq <= lastStateSeq) {
-        return;
+        return false;
       }
       lastStateSeq = seq;
     }
@@ -249,10 +329,6 @@ export function createInterpolator(config = {}) {
     if (serverTimeMs != null) {
       if (serverTimeOffsetMs == null) {
         serverTimeOffsetMs = nowMs - serverTimeMs;
-      } else {
-        // Track server clock drift slowly; avoid jitter from one packet's transit spike.
-        const observedOffsetMs = nowMs - serverTimeMs;
-        serverTimeOffsetMs += (observedOffsetMs - serverTimeOffsetMs) * 0.08;
       }
 
       let stableServerTimeMs = serverTimeMs;
@@ -270,13 +346,15 @@ export function createInterpolator(config = {}) {
       }
     }
 
-    buffer.push({ timestamp: sampleTimestampMs, data: state });
+    buffer.push({ timestamp: sampleTimestampMs, arrivalMs: nowMs, serverState: state });
     metrics.record(state, nowMs);
     if (buffer.length > maxBufferSize) {
       buffer.splice(0, buffer.length - maxBufferSize);
     }
+    return true;
   }
 
+  /** @param {InterpolationRuntimeOptions} [runtimeOptions] */
   function getRuntimeSmoothing(runtimeOptions = {}) {
     const effectiveOptions = {
       ...runtimeOptions,
@@ -301,11 +379,60 @@ export function createInterpolator(config = {}) {
   }
 
   /**
-   * Sample the buffer and return interpolated positional values.
-   *
-   * @param {(state: Object) => Record<string, number>} extractPositions
-   *   Game-specific function that pulls numeric fields to interpolate.
-   * @returns {Record<string, number> | null} Interpolated positions, or null if buffer is empty.
+   * Move playback toward buffered authority, preserving monotonic time even when
+   * delay or extrapolation changes. Underruns count transitions before clamping.
+   * @param {number} nowMs
+   * @param {number} delayMs
+   * @param {number} extrapolateMs
+   * @returns {number} Playback time used for this render sample.
+   */
+  function advancePlaybackClock(nowMs, delayMs, extrapolateMs) {
+    const latestSample = buffer[buffer.length - 1];
+    const latestTimestampMs = latestSample.timestamp;
+
+    // Project the latest authoritative sample forward by its age. This makes
+    // occupancy the reference and follows clock drift without shifting samples.
+    const targetPlaybackTimeMs = nowMs >= latestSample.arrivalMs
+      ? latestTimestampMs + (nowMs - latestSample.arrivalMs) - delayMs
+      : nowMs - delayMs;
+    const previousPlaybackTimeMs = playbackTimeMs;
+
+    if (playbackTimeMs == null) {
+      playbackTimeMs = targetPlaybackTimeMs;
+    } else {
+      const elapsedMs = Math.max(0, nowMs - playbackNowMs);
+      // Correct gradually, never stepping the authoritative timeline backward.
+      const correctionMs = clamp(
+        targetPlaybackTimeMs - (playbackTimeMs + elapsedMs),
+        -elapsedMs * MAX_PLAYBACK_CORRECTION_RATIO,
+        elapsedMs * MAX_PLAYBACK_CORRECTION_RATIO,
+      );
+      playbackTimeMs += elapsedMs + correctionMs;
+    }
+    playbackNowMs = nowMs;
+
+    const underrun = playbackTimeMs > latestTimestampMs;
+    if (underrun && !inUnderrun) {
+      underrunCount += 1;
+    }
+    inUnderrun = underrun;
+    playbackTimeMs = Math.max(
+      previousPlaybackTimeMs ?? -Infinity,
+      Math.min(playbackTimeMs, latestTimestampMs + Math.max(0, extrapolateMs)),
+    );
+
+    const projectedServerNowMs = latestTimestampMs + Math.max(0, nowMs - latestSample.arrivalMs);
+    effectiveDelayMs = Math.max(0, projectedServerNowMs - playbackTimeMs);
+    return playbackTimeMs;
+  }
+
+  /**
+   * Sample positional fields. Interpolated or extrapolated results reuse an owned
+   * object; copy them before retaining them across calls. Endpoint results are
+   * returned directly from the game's extractor.
+   * @param {(serverState: State) => Record<PoseKey, number>} extractPositions
+   * @param {InterpolationRuntimeOptions} [runtimeOptions]
+   * @returns {Record<PoseKey, number> | null}
    */
   function getInterpolatedPositions(extractPositions, runtimeOptions = {}) {
     if (buffer.length === 0) return null;
@@ -318,9 +445,8 @@ export function createInterpolator(config = {}) {
     prevRenderSampleMs = nowMs;
 
     const smoothing = getRuntimeSmoothing(runtimeOptions);
-    const delayMs = smoothing.interpDelayMs;
     const extrapolateMs = smoothing.extrapolateMs;
-    const renderTime = nowMs - delayMs;
+    const renderTime = advancePlaybackClock(nowMs, smoothing.interpDelayMs, extrapolateMs);
 
     // Find stateA: last snapshot with timestamp <= renderTime
     let aIdx = -1;
@@ -333,7 +459,7 @@ export function createInterpolator(config = {}) {
 
     // renderTime is before all snapshots — use earliest
     if (aIdx === -1) {
-      return extractPositions(buffer[0].data);
+      return extractPositions(buffer[0].serverState);
     }
 
     const bIdx = aIdx + 1;
@@ -341,37 +467,37 @@ export function createInterpolator(config = {}) {
     // renderTime is past all snapshots — optionally extrapolate
     if (bIdx >= buffer.length) {
       const latest = buffer[buffer.length - 1];
-      let latestPositions = extractPositions(latest.data);
-      if (!_cachedKeys) _cachedKeys = Object.keys(latestPositions);
+      let latestPositions = extractPositions(latest.serverState);
+      if (!poseKeys) poseKeys = Object.keys(latestPositions);
 
       if (extrapolateMs > 0) {
         const lead = clamp(renderTime - latest.timestamp, 0, extrapolateMs);
         if (lead > 0) {
           // Prefer actual velocity data for extrapolation (more accurate than finite diff)
-          const velLatest = extractVelocities ? extractVelocities(latest.data) : null;
+          const velLatest = extractVelocities ? extractVelocities(latest.serverState) : null;
           if (velLatest) {
             const leadSec = lead / 1000;
-            for (let i = 0; i < _cachedKeys.length; i++) {
-              const key = _cachedKeys[i];
+            for (let i = 0; i < poseKeys.length; i++) {
+              const key = poseKeys[i];
               if (key in velLatest && Number.isFinite(velLatest[key])) {
-                _reusableResult[key] = latestPositions[key] + velLatest[key] * leadSec;
+                interpolatedPositions[key] = latestPositions[key] + velLatest[key] * leadSec;
               } else {
-                _reusableResult[key] = latestPositions[key];
+                interpolatedPositions[key] = latestPositions[key];
               }
             }
-            latestPositions = _reusableResult;
+            latestPositions = interpolatedPositions;
           } else if (buffer.length >= 2) {
             // Fallback: finite-difference velocity
             const prev = buffer[buffer.length - 2];
             const range = latest.timestamp - prev.timestamp;
             if (range > 0) {
-              const prevPositions = extractPositions(prev.data);
-              for (let i = 0; i < _cachedKeys.length; i++) {
-                const key = _cachedKeys[i];
+              const prevPositions = extractPositions(prev.serverState);
+              for (let i = 0; i < poseKeys.length; i++) {
+                const key = poseKeys[i];
                 const velocity = (latestPositions[key] - prevPositions[key]) / range;
-                _reusableResult[key] = latestPositions[key] + velocity * lead;
+                interpolatedPositions[key] = latestPositions[key] + velocity * lead;
               }
-              latestPositions = _reusableResult;
+              latestPositions = interpolatedPositions;
             }
           }
         }
@@ -388,27 +514,31 @@ export function createInterpolator(config = {}) {
     const range = stateB.timestamp - stateA.timestamp;
     const t = range > 0 ? clamp((renderTime - stateA.timestamp) / range, 0, 1) : 1;
 
-    const posA = extractPositions(stateA.data);
-    const posB = extractPositions(stateB.data);
-    if (!_cachedKeys) _cachedKeys = Object.keys(posA);
+    const posA = extractPositions(stateA.serverState);
+    const posB = extractPositions(stateB.serverState);
+    if (!poseKeys) poseKeys = Object.keys(posA);
 
     // Use Hermite (cubic) interpolation when velocity data is available,
     // otherwise fall back to linear lerp.
-    const velA = extractVelocities ? extractVelocities(stateA.data) : null;
-    const velB = extractVelocities ? extractVelocities(stateB.data) : null;
+    const velA = extractVelocities ? extractVelocities(stateA.serverState) : null;
+    const velB = extractVelocities ? extractVelocities(stateB.serverState) : null;
     const rangeSec = range / 1000;
 
-    for (let i = 0; i < _cachedKeys.length; i++) {
-      const key = _cachedKeys[i];
+    for (let i = 0; i < poseKeys.length; i++) {
+      const key = poseKeys[i];
       if (
         velA && velB &&
         key in velA && key in velB &&
         Number.isFinite(velA[key]) && Number.isFinite(velB[key]) &&
         rangeSec > 0
       ) {
-        _reusableResult[key] = hermite(posA[key], velA[key], posB[key], velB[key], t, rangeSec);
+        interpolatedPositions[key] = clamp(
+          hermite(posA[key], velA[key], posB[key], velB[key], t, rangeSec),
+          Math.min(posA[key], posB[key]),
+          Math.max(posA[key], posB[key]),
+        );
       } else {
-        _reusableResult[key] = lerp(posA[key], posB[key], t);
+        interpolatedPositions[key] = lerp(posA[key], posB[key], t);
       }
     }
 
@@ -417,17 +547,18 @@ export function createInterpolator(config = {}) {
       buffer.splice(0, aIdx);
     }
 
-    return _reusableResult;
+    return interpolatedPositions;
   }
 
   /**
    * Return the most recently received raw server state.
-   * @returns {Object | null}
+   * @returns {State | null} The retained snapshot reference.
    */
   function getLatestState() {
-    return buffer.length > 0 ? buffer[buffer.length - 1].data : null;
+    return buffer.length > 0 ? buffer[buffer.length - 1].serverState : null;
   }
 
+  /** @returns {InterpolationNetworkStats} A new metrics object. */
   function getNetworkStats() {
     const snapshot = metrics.getSnapshot();
     const tuned = deriveAdaptiveSmoothing(
@@ -442,6 +573,12 @@ export function createInterpolator(config = {}) {
       renderFps: renderIntervalEwmaMs > 0 ? 1000 / renderIntervalEwmaMs : null,
       interpDelayMs: tuned.interpDelayMs,
       extrapolateMs: tuned.extrapolateMs,
+      playbackTimeMs,
+      effectiveDelayMs,
+      bufferOccupancyMs: playbackTimeMs == null || buffer.length === 0
+        ? null
+        : buffer[buffer.length - 1].timestamp - playbackTimeMs,
+      underrunCount,
     };
   }
 
@@ -454,7 +591,12 @@ export function createInterpolator(config = {}) {
     serverTimeOffsetMs = null;
     lastServerSampleTimeMs = null;
     lastStateSeq = null;
-    _cachedKeys = null;
+    playbackTimeMs = null;
+    playbackNowMs = null;
+    effectiveDelayMs = null;
+    underrunCount = 0;
+    inUnderrun = false;
+    poseKeys = null;
   }
 
   return { pushState, getInterpolatedPositions, getLatestState, getNetworkStats, reset };

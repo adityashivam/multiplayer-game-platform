@@ -9,9 +9,56 @@ import {
 import { openShareModal } from "/platform/frontend-engine/shareModalBridge.js";
 import { createWorkerInterpolator } from "/platform/frontend-engine/interpolationWorker.js";
 import { updateConnectionState } from "/platform/frontend-engine/connectionBridge.js";
-import { createClientPredictor } from "/platform/frontend-engine/clientPrediction.js";
-import { createInputTimeline } from "/platform/frontend-engine/inputTimeline.js";
+import { createCommandPredictor } from "/platform/frontend-engine/commandPrediction.js";
+import {
+  FIGHT_FIXED_DT_SEC,
+  FIGHT_INPUT_TEMPLATE,
+  stepFightPlayer,
+  resolveFightSeparation,
+} from "/platform/shared/fightSimulation.js";
+import {
+  INPUT_LIMITS,
+  INPUT_MESSAGE_TYPE,
+  INPUT_PROTOCOL,
+  NETWORK_TIMING,
+  SOCKET_EVENT,
+} from "/platform/shared/networkProtocol.js";
+import { createInputTimeline, createInputLatch } from "/platform/frontend-engine/inputTimeline.js";
 import { createPluggablePoseRuntime } from "/platform/frontend-engine/pluggablePoseRuntime.js";
+
+/** @typedef {import("../../platform/shared/fightSimulation.js").FightInputState} FightInputState */
+/** @typedef {import("../../platform/shared/fightSimulation.js").FightPlayerId} FightPlayerId */
+
+/**
+ * @typedef {import("../../platform/shared/fightSimulation.js").FightPlayerState & {
+ *   health: number,
+ *   inputEpoch?: number,
+ *   inputSeqAck?: number,
+ *   inputSimulationTick?: number
+ * }} FightSnapshotPlayerState
+ */
+
+/**
+ * @typedef {object} FightSnapshot
+ * @property {{ p1: FightSnapshotPlayerState, p2: FightSnapshotPlayerState }} players
+ * @property {1 | 2} [inputProtocol]
+ * @property {number} timer
+ * @property {boolean} gameOver
+ * @property {FightPlayerId | "tie" | null} winner
+ * @property {boolean} started
+ * @property {number | null} startAt
+ * @property {{ p1: boolean, p2: boolean }} connected
+ * @property {import("../../platform/shared/networkProtocol.js").SnapshotNetworkMetadata} [net]
+ */
+
+/**
+ * @typedef {object} FightPredictionContext
+ * @property {number} [simulationTick]
+ * @property {boolean} active
+ * @property {FightSnapshotPlayerState} [opponent]
+ */
+
+/** @typedef {{ p1x: number, p1y: number, p2x: number, p2y: number }} FightRenderPose */
 
 // ---------- Kaboom init ----------
 const { canvas } = getGameDomRefs();
@@ -47,59 +94,47 @@ const OPPONENT_JOIN_EVENT = "kaboom:opponent-joined";
 const ROOM_READY_EVENT = "kaboom:room-ready";
 const DISPOSE_GAME_EVENT = "kaboom:dispose-game";
 const NET_STATS_REFRESH_MS = 150;
-const SERVER_TICK_MS = 1000 / 60;
-const INPUT_STREAM_HZ = 120;
-const MAX_PENDING_INPUT_FRAMES = 240;
-// ── Resimulation Tuning ──
-// Controls when the client replays inputs from an authoritative server snapshot.
-// More aggressive = tighter sync with server, but more visual corrections.
-// More conservative = fewer corrections, but prediction can drift further.
-const RESIM_ERROR_PX = 9;        // Soft threshold: trigger resim when prediction diverges this many px from server.
-                                  //   Lower → tighter sync, more frequent resims. Higher → more drift tolerance.
-                                  //   Range: 6-30. Below 6 causes constant resim churn.
-const RESIM_HARD_ERROR_PX = 22;  // Hard threshold: force resim even if soft threshold wasn't met.
-                                  //   Should be ~2x RESIM_ERROR_PX. Range: 16-60.
-const RESIM_COOLDOWN_MS = 33;    // Minimum time between resimulations in ms.
-                                  //   Lower → more responsive but more CPU. Higher → less CPU but more drift.
-                                  //   Range: 30-200. At 33ms, resim can happen every ~2 frames.
+const FIGHT_DIAGNOSTICS_REFRESH_MS = 500;
+const FIGHT_INTERPOLATION_DELAY_MS = 42;
+const FIGHT_EXTRAPOLATE_MS = 10;
+const FIGHT_SNAPSHOT_BUFFER_SIZE = 32;
+const FIGHT_MAX_SMOOTHING_DISTANCE = 250;
 const LOCAL_NET_HUD_ENABLED = false;
 let shareModalShown = false;
 let toggleNetworkDiagnostics = () => {};
 let cleanupNetworkDiagnostics = () => {};
 let resetFightNetcodeState = () => {};
 let stopFightInputStream = () => {};
-let sendFightInputNow = () => {};
 let activeFightRuntime = null;
 
-const localInputState = {
-  left: false,
-  right: false,
-  jump: false,
-  attack: false,
-  heavyAttack: false,
-  aerialAttack: false,
-};
+const inputLatch = createInputLatch(FIGHT_INPUT_TEMPLATE, {
+  edgeKeys: ["jump", "attack", "heavyAttack", "aerialAttack"],
+});
 
-function extractFightPositions(state) {
+/**
+ * @param {FightSnapshot} serverState
+ * @returns {FightRenderPose}
+ */
+function extractFightPositions(serverState) {
   return {
-    p1x: state.players.p1.x,
-    p1y: state.players.p1.y,
-    p2x: state.players.p2.x,
-    p2y: state.players.p2.y,
+    p1x: serverState.players.p1.x,
+    p1y: serverState.players.p1.y,
+    p2x: serverState.players.p2.x,
+    p2y: serverState.players.p2.y,
   };
 }
 
-function extractFightVelocities(state) {
+/**
+ * @param {FightSnapshot} serverState
+ * @returns {FightRenderPose}
+ */
+function extractFightVelocities(serverState) {
   return {
-    p1x: state.players.p1.vx || 0,
-    p1y: state.players.p1.vy || 0,
-    p2x: state.players.p2.vx || 0,
-    p2y: state.players.p2.vy || 0,
+    p1x: serverState.players.p1.vx || 0,
+    p1y: serverState.players.p1.vy || 0,
+    p2x: serverState.players.p2.vx || 0,
+    p2y: serverState.players.p2.vy || 0,
   };
-}
-
-function clampNumber(value, min, max) {
-  return Math.max(min, Math.min(max, value));
 }
 
 function toFiniteNumber(value) {
@@ -107,140 +142,12 @@ function toFiniteNumber(value) {
 }
 
 function resetLocalInputState() {
-  Object.keys(localInputState).forEach((key) => {
-    localInputState[key] = false;
-  });
+  inputLatch.reset();
 }
 
-function cloneLocalInputState() {
-  return {
-    left: Boolean(localInputState.left),
-    right: Boolean(localInputState.right),
-    jump: Boolean(localInputState.jump),
-    attack: Boolean(localInputState.attack),
-    heavyAttack: Boolean(localInputState.heavyAttack),
-    aerialAttack: Boolean(localInputState.aerialAttack),
-  };
-}
-
-function createNetworkEstimator({ expectedTickMs = SERVER_TICK_MS, maxSamples = 180 } = {}) {
-  let prevArrivalMs = null;
-  let prevSeq = null;
-  let prevTransitMs = null;
-  let intervalEwmaMs = expectedTickMs;
-  let jitterMs = 0;
-  let totalExpected = 0;
-  let totalReceived = 0;
-  let outOfOrderCount = 0;
-  const lossWindow = [];
-  const recentArrivals = [];
-
-  function pushLossSample(expected, received) {
-    lossWindow.push({ expected, received });
-    totalExpected += expected;
-    totalReceived += received;
-    if (lossWindow.length > maxSamples) {
-      const removed = lossWindow.shift();
-      totalExpected -= removed.expected;
-      totalReceived -= removed.received;
-    }
-  }
-
-  function recordSnapshot({ arrivalMs, seq, serverTimeMs }) {
-    if (!Number.isFinite(arrivalMs)) return;
-
-    if (prevArrivalMs != null) {
-      const interval = Math.max(0, arrivalMs - prevArrivalMs);
-      intervalEwmaMs += (interval - intervalEwmaMs) * 0.12;
-      if (!Number.isFinite(serverTimeMs)) {
-        const jitterDelta = Math.abs(interval - intervalEwmaMs);
-        jitterMs += (jitterDelta - jitterMs) / 16;
-      }
-    }
-    prevArrivalMs = arrivalMs;
-
-    recentArrivals.push(arrivalMs);
-    while (recentArrivals.length > 0 && arrivalMs - recentArrivals[0] > 5000) {
-      recentArrivals.shift();
-    }
-
-    if (Number.isFinite(seq)) {
-      if (prevSeq == null) {
-        pushLossSample(1, 1);
-        prevSeq = seq;
-      } else if (seq > prevSeq) {
-        const gap = seq - prevSeq;
-        pushLossSample(gap, 1);
-        prevSeq = seq;
-      } else if (seq < prevSeq) {
-        outOfOrderCount += 1;
-      }
-    } else {
-      pushLossSample(1, 1);
-    }
-
-    if (Number.isFinite(serverTimeMs)) {
-      const transitMs = arrivalMs - serverTimeMs;
-      if (prevTransitMs != null) {
-        const jitterDelta = Math.abs(transitMs - prevTransitMs);
-        jitterMs += (jitterDelta - jitterMs) / 16;
-      }
-      prevTransitMs = transitMs;
-    }
-  }
-
-  function getStats() {
-    let updateRateHz = 0;
-    if (recentArrivals.length >= 2) {
-      const span = recentArrivals[recentArrivals.length - 1] - recentArrivals[0];
-      if (span > 0) {
-        updateRateHz = ((recentArrivals.length - 1) * 1000) / span;
-      }
-    }
-
-    const expected = Math.max(1, totalExpected);
-    const packetLossPct = clampNumber((1 - totalReceived / expected) * 100, 0, 100);
-
-    return {
-      avgIntervalMs: intervalEwmaMs,
-      jitterMs,
-      packetLossPct,
-      updateRateHz,
-      outOfOrderCount,
-    };
-  }
-
-  function reset() {
-    prevArrivalMs = null;
-    prevSeq = null;
-    prevTransitMs = null;
-    intervalEwmaMs = expectedTickMs;
-    jitterMs = 0;
-    totalExpected = 0;
-    totalReceived = 0;
-    outOfOrderCount = 0;
-    lossWindow.length = 0;
-    recentArrivals.length = 0;
-  }
-
-  return { recordSnapshot, getStats, reset };
-}
-
-function deriveSmoothingConfig(stats, pingMs) {
-  const avgIntervalMs = stats?.avgIntervalMs ?? SERVER_TICK_MS;
-  const jitterMs = stats?.jitterMs ?? 0;
-  const packetLossPct = stats?.packetLossPct ?? 0;
-  const rttMs = Number.isFinite(pingMs) ? pingMs : 0;
-
-  let interpDelayMs = 34 + avgIntervalMs * 1.1 + jitterMs * 1.4 + packetLossPct * 1.4;
-  if (rttMs > 100) interpDelayMs += (rttMs - 100) * 0.1;
-  interpDelayMs = clampNumber(interpDelayMs, 34, 140);
-
-  let extrapolateMs = 8 + jitterMs * 0.85 + packetLossPct * 1.2;
-  if (rttMs > 170) extrapolateMs += 4;
-  extrapolateMs = clampNumber(extrapolateMs, 8, 50);
-
-  return { interpDelayMs, extrapolateMs };
+/** @returns {FightInputState} Captures held controls and consumes pending action edges. */
+function captureLocalInputState() {
+  return inputLatch.capture();
 }
 
 function createNetworkHud(canvasEl) {
@@ -434,8 +341,10 @@ const unsubscribeConnection = socket.onConnectionChange((snapshot) => {
 });
 let roomReadyPromise = null;
 
+/** @type {FightPlayerId | null} */
 let myPlayerId = null;
 let myRejoinToken = null;
+let myInputEpoch = null;
 let readyToPlay = false;
 let lastConnected = { p1: false, p2: false };
 let opponentJoined = false;
@@ -445,13 +354,8 @@ let rematchPending = false;
 const interpolator = createWorkerInterpolator({
   extractPositions: extractFightPositions,
   extractVelocities: extractFightVelocities,
-  interpDelayMs: 42,   // Base render delay behind server in ms. The remote player is rendered this far
-                        //   in the past to have snapshots to interpolate between.
-                        //   Lower → less visual latency but more extrapolation (guessing). Higher → smoother but laggier.
-                        //   Range: 30-100. 50 is a good default for 60Hz server tick.
-  maxBufferSize: 14,   // Max server snapshots to keep in the interpolation buffer.
-                        //   Higher → survives longer packet loss bursts. Lower → less memory.
-                        //   Range: 6-20. At 60Hz tick, 12 = 200ms of history.
+  interpDelayMs: FIGHT_INTERPOLATION_DELAY_MS,
+  maxBufferSize: FIGHT_SNAPSHOT_BUFFER_SIZE,
 });
 
 registerRematchHandler(() => {
@@ -461,7 +365,7 @@ registerRematchHandler(() => {
     status: "Waiting for opponent...",
     phase: "waiting",
   });
-  socket.send("rematch");
+  socket.send(SOCKET_EVENT.REMATCH);
 });
 
 function announceRoomReady(roomId) {
@@ -484,24 +388,26 @@ function announceOpponentJoined() {
   );
 }
 
-function sendInputFlag(type, value) {
-  if (Object.prototype.hasOwnProperty.call(localInputState, type)) {
-    localInputState[type] = Boolean(value);
-  }
+/**
+ * @param {keyof FightInputState} inputKey
+ * @param {boolean} active
+ */
+function setLocalInputFlag(inputKey, active) {
+  inputLatch.set(inputKey, active);
 }
 
 function handleDirectionalInput(direction, active) {
   switch (direction) {
     case "left":
     case "right":
-      sendInputFlag(direction, active);
+      setLocalInputFlag(direction, active);
       break;
     case "up":
-      sendInputFlag("jump", active);
+      setLocalInputFlag("jump", active);
       break;
     case "down":
       // D-pad down = light attack
-      sendInputFlag("attack", active);
+      setLocalInputFlag("attack", active);
       break;
     default:
       break;
@@ -512,20 +418,20 @@ function handleActionInput(action) {
   switch (action) {
     case "a": {
       // A = light attack
-      sendInputFlag("attack", true);
-      setTimeout(() => sendInputFlag("attack", false), 150);
+      setLocalInputFlag("attack", true);
+      setTimeout(() => setLocalInputFlag("attack", false), 150);
       break;
     }
     case "x": {
       // X = heavy attack (slower, more damage)
-      sendInputFlag("heavyAttack", true);
-      setTimeout(() => sendInputFlag("heavyAttack", false), 300);
+      setLocalInputFlag("heavyAttack", true);
+      setTimeout(() => setLocalInputFlag("heavyAttack", false), 300);
       break;
     }
     case "y": {
       // Y = aerial attack
-      sendInputFlag("aerialAttack", true);
-      setTimeout(() => sendInputFlag("aerialAttack", false), 200);
+      setLocalInputFlag("aerialAttack", true);
+      setTimeout(() => setLocalInputFlag("aerialAttack", false), 200);
       break;
     }
     case "start":
@@ -547,6 +453,8 @@ function handleActionInput(action) {
 
 function initControllerNavigation() {
   const cleanups = [];
+  window.addEventListener("blur", resetLocalInputState);
+  cleanups.push(() => window.removeEventListener("blur", resetLocalInputState));
 
   cleanups.push(dpad.left.onHold(
     () => handleDirectionalInput("left", true),
@@ -585,11 +493,11 @@ function tryJoinGame() {
   if (!token) {
     try { token = sessionStorage.getItem(`rejoinToken:${GAME_SLUG}:${gameId}`); } catch (e) { /* noop */ }
   }
-  socket.send("joinGame", { gameId, rejoinToken: token || undefined });
+  socket.send(SOCKET_EVENT.JOIN_GAME, { gameId, rejoinToken: token || undefined });
   hasJoined = true;
 }
 
-socket.onEvent("connect", () => {
+socket.onEvent(SOCKET_EVENT.CONNECT, () => {
   hasJoined = false;
   // Check if the URL room ID changed (e.g., back/forward navigation)
   const pathRoomId = getRoomIdFromPath();
@@ -603,17 +511,17 @@ socket.onEvent("connect", () => {
   });
 });
 
-socket.onEvent("roomFull", () => {
+socket.onEvent(SOCKET_EVENT.ROOM_FULL, () => {
   alert("Room is full!");
 });
 
-socket.onEvent("gameJoined", ({ playerId, gameId: joinedGameId, rejoinToken: token }) => {
+socket.onEvent(SOCKET_EVENT.GAME_JOINED, ({ playerId, gameId: joinedGameId, rejoinToken: token, inputEpoch }) => {
+  myInputEpoch = Number.isSafeInteger(inputEpoch) ? inputEpoch : null;
   myPlayerId = playerId;
   myRejoinToken = token || null;
   readyToPlay = true;
   gameId = joinedGameId;
   resetFightNetcodeState();
-  sendFightInputNow();
   if (token && joinedGameId) {
     try { sessionStorage.setItem(`rejoinToken:${GAME_SLUG}:${joinedGameId}`, token); } catch (e) { /* noop */ }
   }
@@ -622,7 +530,7 @@ socket.onEvent("gameJoined", ({ playerId, gameId: joinedGameId, rejoinToken: tok
   console.log("Joined game", joinedGameId, "as", playerId);
 });
 
-socket.onEvent("rematchRequested", ({ playerId }) => {
+socket.onEvent(SOCKET_EVENT.REMATCH_REQUESTED, ({ playerId }) => {
   if (playerId === myPlayerId) return;
   updateEndGameModal({
     status: "Accept challenge.",
@@ -631,7 +539,8 @@ socket.onEvent("rematchRequested", ({ playerId }) => {
   });
 });
 
-socket.onEvent("rematchStarted", () => {
+socket.onEvent(SOCKET_EVENT.REMATCH_STARTED, () => {
+  myInputEpoch = null;
   rematchPending = false;
   interpolator.reset();
   resetLocalInputState();
@@ -751,9 +660,9 @@ scene("fight", () => {
     activeFightRuntime.destroy();
     activeFightRuntime = null;
   }
-  socket.offEvent("state");
-  socket.offEvent("playerJoined");
-  socket.offEvent("playerLeft");
+  socket.offEvent(SOCKET_EVENT.STATE);
+  socket.offEvent(SOCKET_EVENT.PLAYER_JOINED);
+  socket.offEvent(SOCKET_EVENT.PLAYER_LEFT);
 
   const background = add([sprite("background"), scale(4)]);
   background.add([sprite("trees")]);
@@ -812,139 +721,166 @@ scene("fight", () => {
   let joinToastText = null;
   let joinToastTimer = null;
   let lastNetworkHudPaint = 0;
+  /** @type {FightSnapshot | null} */
   let latestServerState = null;
   let latestStateSeq = null;
-  let lastAckSeq = 0;
-  let lastResimAtMs = 0;
-  let hasAuthoritativeSync = false;
-  const netEstimator = createNetworkEstimator();
-  let latestNetStats = netEstimator.getStats();
-  let smoothingConfig = { interpDelayMs: 42, extrapolateMs: 10 };
-  // Reusable options object to avoid allocation per frame
-  const _interpRuntimeOpts = {
+  /** @type {Partial<import("../../platform/frontend-engine/interpolation.js").InterpolationNetworkStats>} */
+  let latestNetStats = {};
+  let lastDiagnosticsAtMs = 0;
+  let smoothingConfig = {
+    interpDelayMs: FIGHT_INTERPOLATION_DELAY_MS,
+    extrapolateMs: FIGHT_EXTRAPOLATE_MS,
+  };
+  /** @type {import("../../platform/frontend-engine/interpolation.js").InterpolationRuntimeOptions} */
+  const interpolationRuntimeOptions = {
     pingMs: 0,
     pingP95Ms: 0,
     jitterP95Ms: 0,
     packetLossPct: 0,
-    interpDelayMs: 42,
-    extrapolateMs: 10,
   };
-  // ── Client Prediction Tuning (local player responsiveness) ──
-  const predictor = createClientPredictor({
-    // Physics constants — MUST match server/games/fight.js exactly or prediction will diverge.
-    moveSpeed: 500,
-    jumpSpeed: -1300,
-    gravity: 1600,
-    worldMinX: 100,
-    worldMaxX: 1180,
-    groundY: 870,
-    minSeparation: 120,
 
-    correctionBlendFactor: 0.45,
-    correctionDeadzone: 0.35,
-    correctionDecayCoeff: 28,
-
-    // ── Contact / Near-Opponent Feel ──
-    // When two players are close, the client can't accurately predict push-apart
-    // because the opponent's position is delayed. These params control how the
-    // client handles this uncertainty zone.
-    contactExitBuffer: 64,         // Extra px beyond minSeparation before contact assist fully releases.
-                                    //   Higher → contact assist lingers longer after separating. Range: 30-100.
-    contactAssistRiseRate: 20,     // How fast contact assist engages when entering contact zone (1/sec).
-                                    //   Higher → snappier engagement. Lower → gradual transition.
-                                    //   Range: 10-30. Too high causes jitter at contact boundary.
-    contactAssistFallRate: 11,     // How fast contact assist releases when leaving contact zone (1/sec).
-                                    //   Lower → smoother exit from contact. Higher → snappier release.
-                                    //   Range: 4-20.
-    contactMoveSuppression: 0.58,  // How much local X movement is suppressed near opponent (0-1).
-                                    //   0 = no suppression (full local control, but oscillates).
-                                    //   1 = full suppression (server-only movement near contact).
-                                    //   Range: 0.5-0.9. Higher = more stable but less responsive.
-    contactServerFollowRate: 24,   // How fast position follows server near contact (1/sec).
-                                    //   Higher → tighter server tracking. Lower → more local feel.
-                                    //   Range: 10-30. Too high causes rubber-banding.
-  });
-  const _predictionOpts = { active: false, attackSlowdown: false, opponentX: undefined, opponentY: undefined };
-  const _replayPredictionOpts = {
-    active: false,
-    attackSlowdown: false,
-    opponentX: undefined,
-    opponentY: undefined,
-    replay: true,
-  };
-  const movementRuntime = createPluggablePoseRuntime({
-    fixedDtSec: 1 / 120,
-    maxFrameSec: 0.08,
-    maxFixedSteps: 10,
-    targetRenderFps: 60,
-    samplePose: (ctx) => {
-      if (!player1 || !player2) return;
-
-      _interpRuntimeOpts.pingMs = latestConnectionSnapshot?.ping ?? 0;
-      _interpRuntimeOpts.pingP95Ms = latestConnectionSnapshot?.pingP95Ms ?? 0;
-      _interpRuntimeOpts.jitterP95Ms = latestConnectionSnapshot?.jitterP95Ms ?? 0;
-      _interpRuntimeOpts.packetLossPct = latestConnectionSnapshot?.packetLossPct ?? 0;
-      _interpRuntimeOpts.interpDelayMs = smoothingConfig.interpDelayMs;
-      _interpRuntimeOpts.extrapolateMs = smoothingConfig.extrapolateMs;
-      _interpRuntimeOpts.nowMs = ctx.nowMs;
-
-      const positions = interpolator.getInterpolatedPositions(_interpRuntimeOpts);
-      if (!positions) return;
-
-      const localServerPlayer = myPlayerId && latestServerState?.players?.[myPlayerId];
-      _predictionOpts.active = Boolean(
-        latestServerState?.started &&
-          !latestServerState?.gameOver &&
-          latestServerState?.connected?.p1 &&
-          latestServerState?.connected?.p2,
-      );
-      _predictionOpts.attackSlowdown = Boolean(
-        localServerPlayer?.attacking ||
-          localInputState.attack ||
-          localInputState.heavyAttack ||
-          localInputState.aerialAttack,
-      );
-      const remoteServerPlayer = myPlayerId === "p1"
-        ? latestServerState?.players?.p2
-        : myPlayerId === "p2"
-          ? latestServerState?.players?.p1
-          : null;
-      _predictionOpts.opponentX = remoteServerPlayer?.x ??
-        (myPlayerId === "p1" ? positions.p2x : myPlayerId === "p2" ? positions.p1x : undefined);
-      _predictionOpts.opponentY = remoteServerPlayer?.y ??
-        (myPlayerId === "p1" ? positions.p2y : myPlayerId === "p2" ? positions.p1y : undefined);
-
-      const predicted = predictor.step(
-        ctx.fixedDtSec,
-        localServerPlayer,
-        localInputState,
-        _predictionOpts,
-      );
-
+  /**
+   * Mutate only the owned prediction state. Separation uses an opponent copy so
+   * prediction cannot change the retained authoritative snapshot.
+   * @param {FightSnapshotPlayerState} playerState
+   * @param {FightInputState} inputState
+   * @param {number} fixedDtSec
+   * @param {FightPredictionContext} predictionContext
+   */
+  function simulatePredictedFightPlayer(playerState, inputState, fixedDtSec, predictionContext) {
+    stepFightPlayer(playerState, inputState, fixedDtSec, predictionContext);
+    if (predictionContext.active && predictionContext.opponent && !playerState.dead) {
+      const opponentState = { ...predictionContext.opponent };
       if (myPlayerId === "p1") {
-        return {
-          p1x: predicted ? predicted.x : positions.p1x,
-          p1y: (predicted ? predicted.y : positions.p1y) + PLAYER1_Y_OFFSET,
-          p2x: positions.p2x,
-          p2y: positions.p2y + PLAYER2_Y_OFFSET,
-        };
+        resolveFightSeparation(playerState, opponentState);
+      } else {
+        resolveFightSeparation(opponentState, playerState);
       }
+    }
+  }
 
-      if (myPlayerId === "p2") {
-        return {
-          p1x: positions.p1x,
-          p1y: positions.p1y + PLAYER1_Y_OFFSET,
-          p2x: predicted ? predicted.x : positions.p2x,
-          p2y: (predicted ? predicted.y : positions.p2y) + PLAYER2_Y_OFFSET,
-        };
-      }
+  const predictor = createCommandPredictor({
+    fixedDtSec: FIGHT_FIXED_DT_SEC,
+    simulate: simulatePredictedFightPlayer,
+    extractPose: (playerState) => ({ x: playerState.x, y: playerState.y }),
+    maxSmoothingDistance: FIGHT_MAX_SMOOTHING_DISTANCE,
+  });
 
-      return {
-        p1x: positions.p1x,
-        p1y: positions.p1y + PLAYER1_Y_OFFSET,
-        p2x: positions.p2x,
-        p2y: positions.p2y + PLAYER2_Y_OFFSET,
+  /** @returns {FightPredictionContext} */
+  function createFightPredictionContext() {
+    return {
+      simulationTick: latestServerState?.players?.[myPlayerId]?.inputSimulationTick,
+      active: Boolean(
+        latestServerState?.started &&
+        !latestServerState?.gameOver &&
+        latestServerState?.connected?.p1 &&
+        latestServerState?.connected?.p2,
+      ),
+      opponent: myPlayerId === "p1" ? latestServerState?.players?.p2 : latestServerState?.players?.p1,
+    };
+  }
+
+  /** @param {number} nowMs */
+  function sampleInterpolatedFightPositions(nowMs) {
+    interpolationRuntimeOptions.pingMs = latestConnectionSnapshot?.ping ?? 0;
+    interpolationRuntimeOptions.pingP95Ms = latestConnectionSnapshot?.pingP95Ms ?? 0;
+    interpolationRuntimeOptions.jitterP95Ms = latestConnectionSnapshot?.jitterP95Ms ?? 0;
+    interpolationRuntimeOptions.packetLossPct = latestConnectionSnapshot?.packetLossPct ?? 0;
+    interpolationRuntimeOptions.nowMs = nowMs;
+    return interpolator.getInterpolatedPositions(interpolationRuntimeOptions);
+  }
+
+  /** Capture and predict one command only after the current input epoch is ready. */
+  function advanceLocalFightPrediction() {
+    const localServerPlayer = myPlayerId && latestServerState?.players?.[myPlayerId];
+    if (localServerPlayer && !predictor.getState()) {
+      predictor.reset(localServerPlayer);
+    }
+
+    const epochReady = latestServerState?.inputProtocol !== INPUT_PROTOCOL.QUEUED ||
+      Number.isSafeInteger(myInputEpoch);
+    if (
+      localServerPlayer &&
+      readyToPlay &&
+      epochReady &&
+      socket.isConnected() &&
+      !document.hidden &&
+      !latestServerState.gameOver
+    ) {
+      const inputFrame = inputTimeline.sendNow();
+      predictor.advance(inputFrame, createFightPredictionContext());
+    }
+  }
+
+  /** @param {number} nowMs */
+  function refreshFightNetDiagnostics(nowMs) {
+    if (nowMs - lastDiagnosticsAtMs >= FIGHT_DIAGNOSTICS_REFRESH_MS) {
+      lastDiagnosticsAtMs = nowMs;
+      latestNetStats = interpolator.getNetworkStats() || {};
+      smoothingConfig = {
+        interpDelayMs: latestNetStats.effectiveDelayMs ?? latestNetStats.interpDelayMs ?? FIGHT_INTERPOLATION_DELAY_MS,
+        extrapolateMs: latestNetStats.extrapolateMs ?? 0,
       };
+      updateConnectionState({
+        prediction: predictor.getStats(),
+        interpolation: latestNetStats,
+      });
+    }
+  }
+
+  /**
+   * Apply prediction to the local player's pose and interpolation to the opponent.
+   * @param {FightRenderPose} interpolatedPositions
+   * @param {{ x: number, y: number } | null} predictedPose
+   * @returns {FightRenderPose}
+   */
+  function createFightRenderPose(interpolatedPositions, predictedPose) {
+    if (myPlayerId === "p1") {
+      return {
+        p1x: predictedPose ? predictedPose.x : interpolatedPositions.p1x,
+        p1y: (predictedPose ? predictedPose.y : interpolatedPositions.p1y) + PLAYER1_Y_OFFSET,
+        p2x: interpolatedPositions.p2x,
+        p2y: interpolatedPositions.p2y + PLAYER2_Y_OFFSET,
+      };
+    }
+
+    if (myPlayerId === "p2") {
+      return {
+        p1x: interpolatedPositions.p1x,
+        p1y: interpolatedPositions.p1y + PLAYER1_Y_OFFSET,
+        p2x: predictedPose ? predictedPose.x : interpolatedPositions.p2x,
+        p2y: (predictedPose ? predictedPose.y : interpolatedPositions.p2y) + PLAYER2_Y_OFFSET,
+      };
+    }
+
+    return {
+      p1x: interpolatedPositions.p1x,
+      p1y: interpolatedPositions.p1y + PLAYER1_Y_OFFSET,
+      p2x: interpolatedPositions.p2x,
+      p2y: interpolatedPositions.p2y + PLAYER2_Y_OFFSET,
+    };
+  }
+
+  const movementRuntime = createPluggablePoseRuntime({
+    fixedDtSec: FIGHT_FIXED_DT_SEC,
+    maxFrameSec: 0.08,
+    maxFixedSteps: 5,
+    targetRenderFps: null,
+    samplePose: (runtimeContext) => {
+      if (!player1 || !player2) {
+        return;
+      }
+
+      const interpolatedPositions = sampleInterpolatedFightPositions(runtimeContext.nowMs);
+      if (!interpolatedPositions) {
+        return;
+      }
+
+      advanceLocalFightPrediction();
+      const predictedPose = predictor.getRenderPose(runtimeContext.fixedDtSec);
+      refreshFightNetDiagnostics(runtimeContext.nowMs);
+
+      return createFightRenderPose(interpolatedPositions, predictedPose);
     },
     applyPose: (pose) => {
       if (!player1 || !player2) return;
@@ -956,14 +892,32 @@ scene("fight", () => {
   });
   activeFightRuntime = movementRuntime;
 
+  /**
+   * Encode one command using the current server-advertised input protocol.
+   * @param {import("../../platform/frontend-engine/inputTimeline.js").InputCommandFrame<FightInputState>} inputFrame
+   */
+  function sendFightInputFrame(inputFrame) {
+    if (!readyToPlay || !myPlayerId) {
+      return;
+    }
+
+    socket.send(SOCKET_EVENT.INPUT, {
+      type: INPUT_MESSAGE_TYPE.FRAME,
+      seq: inputFrame.seq,
+      dtSec: inputFrame.dtSec,
+      state: inputFrame.input,
+      ...(latestServerState?.inputProtocol === INPUT_PROTOCOL.QUEUED
+        ? { protocol: INPUT_PROTOCOL.QUEUED, epoch: myInputEpoch }
+        : {}),
+    });
+  }
+
   const inputTimeline = createInputTimeline({
-    hz: INPUT_STREAM_HZ,
-    maxPendingFrames: MAX_PENDING_INPUT_FRAMES,
-    captureInput: cloneLocalInputState,
-    sendFrame: (frame) => {
-      if (!readyToPlay || !myPlayerId) return;
-      socket.send("input", { type: "inputFrame", seq: frame.seq, dtSec: frame.dtSec, state: frame.input });
-    },
+    hz: NETWORK_TIMING.SIMULATION_HZ,
+    fixedDtSec: FIGHT_FIXED_DT_SEC,
+    maxPendingFrames: INPUT_LIMITS.MAX_PENDING_FRAMES,
+    captureInput: captureLocalInputState,
+    sendFrame: sendFightInputFrame,
   });
   const netHud = createNetworkHud(gameCanvas);
   const handleKeyToggleNetwork = (event) => {
@@ -997,8 +951,7 @@ scene("fight", () => {
     lastNetworkHudPaint = nowMs;
 
     const pingMs = toFiniteNumber(latestConnectionSnapshot?.ping);
-    const predState = predictor.getState();
-    const correctionMagnitude = Math.hypot(predState.correctionX || 0, predState.correctionY || 0);
+    const correctionMagnitude = predictor.getStats().correctionDistance;
     const localRole = myPlayerId ? myPlayerId.toUpperCase() : "--";
     const status = (latestConnectionSnapshot?.status || "connecting").toUpperCase();
 
@@ -1006,7 +959,7 @@ scene("fight", () => {
       `NET ${status}`,
       `Ping RTT: ${pingMs == null ? "--" : `${pingMs} ms`}`,
       `Jitter: ${(latestNetStats.jitterMs || 0).toFixed(1)} ms`,
-      `Packet Loss: ${(latestNetStats.packetLossPct || 0).toFixed(1)}%`,
+      `Snapshot gaps: ${(latestNetStats.packetLossPct || 0).toFixed(1)}%`,
       `Update Rate: ${(latestNetStats.updateRateHz || 0).toFixed(1)} Hz`,
       `Interp Delay: ${Math.round(smoothingConfig.interpDelayMs)} ms`,
       `Extrapolation: ${Math.round(smoothingConfig.extrapolateMs)} ms`,
@@ -1017,109 +970,34 @@ scene("fight", () => {
     ]);
   }
 
-  function resetNetcodeState() {
+  /**
+   * Clear prediction and rendering history. Player departures retain the input
+   * sequence until the server advertises a new epoch.
+   * @param {{ preserveSequence?: boolean }} [options]
+   */
+  function resetNetcodeState({ preserveSequence = false } = {}) {
     movementRuntime.reset();
     interpolator.reset();
-    netEstimator.reset();
-    latestNetStats = netEstimator.getStats();
-    smoothingConfig = { interpDelayMs: 42, extrapolateMs: 10 };
+    latestNetStats = {};
+    smoothingConfig = {
+      interpDelayMs: FIGHT_INTERPOLATION_DELAY_MS,
+      extrapolateMs: FIGHT_EXTRAPOLATE_MS,
+    };
     latestServerState = null;
     latestStateSeq = null;
-    lastAckSeq = 0;
-    lastResimAtMs = 0;
-    hasAuthoritativeSync = false;
-    inputTimeline.reset();
+    if (!preserveSequence) {
+      inputTimeline.reset();
+    }
     resetLocalInputState();
     predictor.reset(null);
     lastNetworkHudPaint = 0;
     refreshNetworkHud(performance.now(), true);
   }
 
-  function shouldResimulate(localPlayerState, pendingFrames, ackSeq) {
-    if (!localPlayerState) return false;
-    if (!Array.isArray(pendingFrames) || pendingFrames.length === 0) return false;
-    if (!hasAuthoritativeSync) return true;
-
-    const pred = predictor.getState();
-    if (!pred?.initialized) return false;
-
-    const predictedX = (pred.x || 0) + (pred.correctionX || 0);
-    const predictedY = (pred.y || 0) + (pred.correctionY || 0);
-    const dx = localPlayerState.x - predictedX;
-    const dy = localPlayerState.y - predictedY;
-    const errorSq = dx * dx + dy * dy;
-
-    const nowMs = performance.now();
-    const ackAdvanced = ackSeq > lastAckSeq;
-    if (!ackAdvanced) return false;
-
-    const pingMs = Math.max(0, toFiniteNumber(latestConnectionSnapshot?.ping) ?? 0);
-    const jitterMs = Math.max(0, latestNetStats?.jitterMs ?? 0);
-    const leadAllowancePx = Math.abs(localPlayerState.vx || 0) * (pingMs / 1000);
-    const jitterAllowancePx = clampNumber(jitterMs * 1.6, 0, 28);
-    const softErrorPx = Math.max(RESIM_ERROR_PX, leadAllowancePx + jitterAllowancePx + 8);
-    const hardErrorPx = Math.max(RESIM_HARD_ERROR_PX, softErrorPx * 1.7);
-    const cooldownElapsed = nowMs - lastResimAtMs >= RESIM_COOLDOWN_MS;
-
-    if (cooldownElapsed && errorSq >= hardErrorPx * hardErrorPx) {
-      return true;
-    }
-
-    if (cooldownElapsed && errorSq >= softErrorPx * softErrorPx) {
-      return true;
-    }
-
-    return false;
-  }
-
-  function resimulateFromAuthoritative(localPlayerState, replayOpponent, started, gameOver, connected) {
-    // Capture old visual position before resim to prevent pops
-    const oldState = predictor.getState();
-    const oldVisualX = oldState.initialized ? (oldState.x + oldState.correctionX) : null;
-    const oldVisualY = oldState.initialized ? (oldState.y + oldState.correctionY) : null;
-
-    const pendingFrames = inputTimeline.getPendingFrames();
-    predictor.reset(localPlayerState);
-
-    _replayPredictionOpts.active = Boolean(started && !gameOver && connected?.p1 && connected?.p2);
-    _replayPredictionOpts.attackSlowdown = false;
-    _replayPredictionOpts.opponentX = replayOpponent?.x;
-    _replayPredictionOpts.opponentY = replayOpponent?.y;
-
-    for (let i = 0; i < pendingFrames.length; i += 1) {
-      const frame = pendingFrames[i];
-      const replayInput = frame.input;
-      _replayPredictionOpts.attackSlowdown = Boolean(
-        localPlayerState.attacking ||
-          replayInput.attack ||
-          replayInput.heavyAttack ||
-          replayInput.aerialAttack,
-      );
-      predictor.step(frame.dtSec, localPlayerState, replayInput, _replayPredictionOpts);
-    }
-
-    // Inject visual offset so the rendered position doesn't jump.
-    // The correction decays naturally over subsequent frames.
-    if (oldVisualX != null) {
-      const newState = predictor.getState();
-      const dx = oldVisualX - newState.x;
-      const dy = oldVisualY - newState.y;
-      const jumpDistSq = dx * dx + dy * dy;
-      // Only smooth if the jump is noticeable (>2px) but not a true teleport
-      if (jumpDistSq > 4 && jumpDistSq < 62500) {
-        predictor.injectCorrection(dx, dy);
-      }
-    }
-
-    hasAuthoritativeSync = true;
-    lastResimAtMs = performance.now();
-  }
-
   resetFightNetcodeState = resetNetcodeState;
   stopFightInputStream = () => inputTimeline.stop();
-  sendFightInputNow = () => inputTimeline.sendNow();
   resetNetcodeState();
-  inputTimeline.start();
+  // Input is captured by the same fixed simulation clock used for prediction.
 
   function makePlayer(posX, posY, scaleFactor, id) {
     const p = add([
@@ -1276,71 +1154,69 @@ scene("fight", () => {
     }
   }
 
-  socket.onEvent("playerJoined", ({ playerId }) => {
+  socket.onEvent(SOCKET_EVENT.PLAYER_JOINED, ({ playerId }) => {
     showJoinToast(`Player ${playerId === "p1" ? "1" : "2"} joined the game`);
     announceOpponentJoined();
   });
 
-  socket.onEvent("playerLeft", ({ playerId }) => {
+  socket.onEvent(SOCKET_EVENT.PLAYER_LEFT, ({ playerId }) => {
     showJoinToast(`Player ${playerId === "p1" ? "1" : "2"} left the game`);
     opponentJoined = false;
     window.__kaboomOpponentJoined = null;
     rematchPending = false;
     gameOverFlag = false;
-    resetNetcodeState();
+    resetNetcodeState({ preserveSequence: true });
     hideEndGameModal();
   });
 
+  /**
+   * Start a fresh command session on epoch changes, then acknowledge and replay.
+   * The authoritative player and timeline input objects are only read.
+   * @param {{ p1: FightSnapshotPlayerState, p2: FightSnapshotPlayerState }} players
+   */
+  function reconcileLocalFightPlayer(players) {
+    if (myPlayerId && players?.[myPlayerId]) {
+      const localPlayerState = players[myPlayerId];
+      if (Number.isSafeInteger(localPlayerState.inputEpoch) && localPlayerState.inputEpoch !== myInputEpoch) {
+        myInputEpoch = localPlayerState.inputEpoch;
+        inputTimeline.reset();
+        predictor.reset(localPlayerState);
+      }
+
+      const acknowledgedSequence = toFiniteNumber(localPlayerState.inputSeqAck) ?? 0;
+      inputTimeline.acknowledge(acknowledgedSequence);
+      predictor.reconcile(
+        localPlayerState,
+        inputTimeline.getPendingFrames(),
+        createFightPredictionContext(),
+        acknowledgedSequence,
+      );
+    }
+  }
+
   // Server state updates
-  socket.onEvent("state", (state) => {
+  socket.onEvent(SOCKET_EVENT.STATE, (serverState) => {
     if (!player1 || !player2 || !player1HealthBar || !player2HealthBar) {
       return;
     }
 
     const arrivalMs = performance.now();
-    const arrivalWallClockMs = Date.now();
-    const netMeta = state?.net || {};
-    const seq = toFiniteNumber(netMeta.seq);
-    const serverTimeMs = toFiniteNumber(netMeta.serverTime);
-    netEstimator.recordSnapshot({ arrivalMs: arrivalWallClockMs, seq, serverTimeMs });
-    if (seq != null) {
-      if (latestStateSeq != null && seq <= latestStateSeq) {
+    const networkMetadata = serverState?.net || {};
+    const sequenceNumber = toFiniteNumber(networkMetadata.seq);
+    if (sequenceNumber != null) {
+      if (latestStateSeq != null && sequenceNumber <= latestStateSeq) {
         return;
       }
-      latestStateSeq = seq;
+      latestStateSeq = sequenceNumber;
     }
-    latestNetStats = netEstimator.getStats();
-    smoothingConfig = deriveSmoothingConfig(latestNetStats, latestConnectionSnapshot?.ping);
-    latestServerState = state;
+    latestServerState = serverState;
 
     // Buffer state for interpolated rendering
-    interpolator.pushState(state);
+    interpolator.pushState(serverState);
 
     // Discrete updates use latest state immediately
-    const { players, timer, gameOver, winner, started, startAt, connected } = state;
-    if (myPlayerId && players?.[myPlayerId]) {
-      const localPlayerState = players[myPlayerId];
-      const ackSeq = toFiniteNumber(localPlayerState.inputSeqAck);
-      if (ackSeq != null) {
-        inputTimeline.acknowledge(ackSeq);
-      }
-
-      const replayOpponent = myPlayerId === "p1"
-        ? players?.p2
-        : myPlayerId === "p2"
-          ? players?.p1
-          : null;
-      const pendingFrames = inputTimeline.getPendingFrames();
-      if (ackSeq != null && shouldResimulate(localPlayerState, pendingFrames, ackSeq)) {
-        resimulateFromAuthoritative(localPlayerState, replayOpponent, started, gameOver, connected);
-      } else {
-        predictor.reconcile(localPlayerState);
-      }
-
-      if (ackSeq != null) {
-        lastAckSeq = ackSeq;
-      }
-    }
+    const { players, timer, gameOver, winner, started, startAt, connected } = serverState;
+    reconcileLocalFightPlayer(players);
     if (connected) {
       if (connected.p1 !== lastConnected.p1 || connected.p2 !== lastConnected.p2) {
         if (connected.p1 && !lastConnected.p1 && connected.p2) {
@@ -1358,16 +1234,16 @@ scene("fight", () => {
     }
     updateStartUI(started, startAt, connected, gameOver);
 
-    const s1 = players.p1;
-    const s2 = players.p2;
+    const player1State = players.p1;
+    const player2State = players.p2;
 
     // Facing direction (discrete)
-    player1.flipX = s1.dir === -1;
-    player2.flipX = s2.dir === -1;
+    player1.flipX = player1State.dir === -1;
+    player2.flipX = player2State.dir === -1;
 
     // Health bars (discrete)
-    player1HealthBar.width = s1.health;
-    player2HealthBar.width = s2.health;
+    player1HealthBar.width = player1State.health;
+    player2HealthBar.width = player2State.health;
 
     // Timer (discrete)
     count.text = String(Math.ceil(timer));
@@ -1390,8 +1266,8 @@ scene("fight", () => {
     }
 
     // Animations (discrete)
-    updatePlayerAnimation(player1, s1, "player1");
-    updatePlayerAnimation(player2, s2, "player2");
+    updatePlayerAnimation(player1, player1State, "player1");
+    updatePlayerAnimation(player2, player2State, "player2");
 
     refreshNetworkHud(arrivalMs);
   });
@@ -1454,7 +1330,6 @@ function disposeGameRuntime() {
   resetFightNetcodeState = () => {};
   stopFightInputStream?.();
   stopFightInputStream = () => {};
-  sendFightInputNow = () => {};
   registerRematchHandler(null);
   hideEndGameModal();
   resetLocalInputState();
@@ -1465,14 +1340,14 @@ function disposeGameRuntime() {
   updateConnectionState({ status: "disconnected", ping: null });
   window.__kaboomOpponentJoined = null;
 
-  socket.offEvent("connect");
-  socket.offEvent("roomFull");
-  socket.offEvent("gameJoined");
-  socket.offEvent("rematchRequested");
-  socket.offEvent("rematchStarted");
-  socket.offEvent("playerJoined");
-  socket.offEvent("playerLeft");
-  socket.offEvent("state");
+  socket.offEvent(SOCKET_EVENT.CONNECT);
+  socket.offEvent(SOCKET_EVENT.ROOM_FULL);
+  socket.offEvent(SOCKET_EVENT.GAME_JOINED);
+  socket.offEvent(SOCKET_EVENT.REMATCH_REQUESTED);
+  socket.offEvent(SOCKET_EVENT.REMATCH_STARTED);
+  socket.offEvent(SOCKET_EVENT.PLAYER_JOINED);
+  socket.offEvent(SOCKET_EVENT.PLAYER_LEFT);
+  socket.offEvent(SOCKET_EVENT.STATE);
   socket.destroy?.();
 
   window.removeEventListener(DISPOSE_GAME_EVENT, handleDisposeEvent);

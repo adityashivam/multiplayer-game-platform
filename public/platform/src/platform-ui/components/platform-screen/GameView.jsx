@@ -196,13 +196,13 @@ export default function GameView({
             : "--",
       },
       {
-        label: "Packet Loss",
+        label: "Snapshot gaps",
         value: Number.isFinite(connection?.packetLossPct)
           ? `${connection.packetLossPct.toFixed(1)}%`
           : "--",
       },
       {
-        label: "Loss p95/p99",
+        label: "Snapshot gaps p95/p99",
         value:
           Number.isFinite(connection?.packetLossP95Pct) && Number.isFinite(connection?.packetLossP99Pct)
             ? `${connection.packetLossP95Pct.toFixed(1)} / ${connection.packetLossP99Pct.toFixed(1)}%`
@@ -215,6 +215,26 @@ export default function GameView({
       {
         label: "Tick Rate",
         value: Number.isFinite(connection?.serverTickRate) ? `${connection.serverTickRate} Hz` : "--",
+      },
+      {
+        label: "Prediction correction",
+        value: Number.isFinite(connection?.prediction?.correctionDistance)
+          ? `${connection.prediction.correctionDistance.toFixed(1)} px` : "--",
+      },
+      {
+        label: "Pending inputs",
+        value: Number.isFinite(connection?.prediction?.pendingCommands)
+          ? String(connection.prediction.pendingCommands) : "--",
+      },
+      {
+        label: "Remote display delay",
+        value: Number.isFinite(connection?.interpolation?.effectiveDelayMs)
+          ? `${connection.interpolation.effectiveDelayMs.toFixed(1)} ms` : "--",
+      },
+      {
+        label: "Buffer underruns",
+        value: Number.isFinite(connection?.interpolation?.underrunCount)
+          ? String(connection.interpolation.underrunCount) : "--",
       },
       {
         label: "Out-of-order",
@@ -249,6 +269,12 @@ export default function GameView({
           : "--",
       },
       {
+        label: "Server dropped steps",
+        value: Number.isFinite(connection?.server?.droppedSteps)
+          ? String(connection.server.droppedSteps)
+          : "--",
+      },
+      {
         label: "Tick Drift",
         value: Number.isFinite(connection?.server?.tickDriftMs)
           ? `${connection.server.tickDriftMs.toFixed(2)} ms`
@@ -270,6 +296,8 @@ export default function GameView({
       },
     ],
     [
+      connection?.prediction,
+      connection?.interpolation,
       connection?.jitterMs,
       connection?.jitterP95Ms,
       connection?.jitterP99Ms,
@@ -285,6 +313,7 @@ export default function GameView({
       renderMetrics.frameP95Ms,
       renderMetrics.jankPct,
       connection?.server?.eventLoopLagMs,
+      connection?.server?.droppedSteps,
       connection?.server?.roomCpuMs,
       connection?.server?.roomCpuP95Ms,
       connection?.server?.roomCpuP99Ms,

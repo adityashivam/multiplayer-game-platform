@@ -2,18 +2,27 @@ import { getGamesStore } from "./gameStore.js";
 import { tickGames } from "./gameLoop.js";
 import { handleJoinGame, handlePlayerDisconnect } from "./rooms.js";
 import { registerSocketHandlers } from "./socketHandlers.js";
+import { NETWORK_TIMING, SOCKET_EVENT } from "../../../public/platform/shared/networkProtocol.js";
 
-function preciseInterval(callback, intervalMs) {
-  let expected = Date.now() + intervalMs;
-  let timer;
-  function step() {
-    const drift = Date.now() - expected;
+/**
+ * Schedule repeated callbacks against monotonic time and return a cancellation handle.
+ * @param {() => void} callback
+ * @param {number} intervalMs
+ * @returns {{clear: () => void}}
+ */
+function startMonotonicInterval(callback, intervalMs) {
+  let expectedInvocationMs = performance.now() + intervalMs;
+  let intervalTimer;
+
+  function invokeIntervalCallback() {
+    const schedulingDriftMs = performance.now() - expectedInvocationMs;
     callback();
-    expected += intervalMs;
-    timer = setTimeout(step, Math.max(0, intervalMs - drift));
+    expectedInvocationMs += intervalMs;
+    intervalTimer = setTimeout(invokeIntervalCallback, Math.max(0, intervalMs - schedulingDriftMs));
   }
-  timer = setTimeout(step, intervalMs);
-  return { clear: () => clearTimeout(timer) };
+
+  intervalTimer = setTimeout(invokeIntervalCallback, intervalMs);
+  return { clear: () => clearTimeout(intervalTimer) };
 }
 
 export function registerGame({
@@ -30,19 +39,19 @@ export function registerGame({
   serializeState,
   afterEmit,
   shouldCleanup,
-  tickMs = 1000 / 60,
-  dtFallback = 1 / 60,
-  stateEvent = "state",
+  tickMs = 1000 / NETWORK_TIMING.SIMULATION_HZ,
+  dtFallback = NETWORK_TIMING.FIXED_DT_SEC,
+  stateEvent = SOCKET_EVENT.STATE,
 }) {
   const nsp = io.of(meta.namespace);
   const games = getGamesStore(nsp);
-  let lastTickInvokeMs = Date.now();
+  let lastTickInvocationMs = performance.now();
 
-  preciseInterval(
+  startMonotonicInterval(
     () => {
-      const nowMs = Date.now();
-      const loopLagMs = Math.max(0, nowMs - lastTickInvokeMs - tickMs);
-      lastTickInvokeMs = nowMs;
+      const monotonicNowMs = performance.now();
+      const loopLagMs = Math.max(0, monotonicNowMs - lastTickInvocationMs - tickMs);
+      lastTickInvocationMs = monotonicNowMs;
       tickGames({
         games,
         nsp,
