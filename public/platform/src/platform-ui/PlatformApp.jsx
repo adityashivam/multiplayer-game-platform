@@ -14,6 +14,7 @@ import usePlatformGameLoader from "./hooks/usePlatformGameLoader.js";
 import usePlatformGameUiState from "./hooks/usePlatformGameUiState.js";
 import usePlatformPresentation from "./hooks/usePlatformPresentation.js";
 import usePlatformRoute from "./hooks/usePlatformRoute.js";
+import useTouchProfile from "./hooks/useTouchProfile.js";
 import { getGameRuntimeSpec } from "./services/gameRuntime.js";
 import { readCatalogColumnCount, readNextCatalogIndex } from "./services/catalogNavigation.js";
 
@@ -28,6 +29,8 @@ export default function App() {
   const [activeTab, setActiveTab] = useState("multi");
   const [cardZoomIndex, setCardZoomIndex] = useState(1);
   const [catalogQuery, setCatalogQuery] = useState({ page: 1, q: "", genre: "all", sort: "name-asc" });
+  const [touchEditorOpen, setTouchEditorOpen] = useState(false);
+  const [configDialogOpen, setConfigDialogOpen] = useState(false);
 
   const cardRefs = useRef([]);
   const prevSelectedRef = useRef(0);
@@ -40,6 +43,7 @@ export default function App() {
   const { route, navigateTo, isGameView, routeViewKey } = usePlatformRoute();
   const { games: visibleGames, catalogPage, filterOptions, loadingGames, catalogUnavailable } = useGameCatalog(catalogQuery);
   const { activeGame, gameLookupError } = useCatalogGame(route?.gameId, visibleGames);
+  const touchSettings = useTouchProfile(activeGame);
   const {
     muted,
     setMuted,
@@ -170,6 +174,7 @@ export default function App() {
 
   const returnToLobby = useCallback(() => {
     setExitConfirmOpen(false);
+    setTouchEditorOpen(false);
     if (route?.gameId) {
       disposeGameSession(route.gameId);
     }
@@ -179,7 +184,7 @@ export default function App() {
   const handleDirectionalInput = useCallback(
     (direction) => {
       ensureLobbyMusicPlayback();
-      if (isGameView || loadingGames || !visibleGames.length) return;
+      if (isGameView || activeTab === "config" || loadingGames || !visibleGames.length) return;
 
       const gridColumns = readCatalogColumnCount(cardRefs.current[0]?.closest("[data-game-grid]"));
 
@@ -194,7 +199,7 @@ export default function App() {
         return nextIndex;
       });
     },
-    [ensureLobbyMusicPlayback, isGameView, loadingGames, triggerHaptic, visibleGames.length],
+    [activeTab, ensureLobbyMusicPlayback, isGameView, loadingGames, triggerHaptic, visibleGames.length],
   );
 
   const selectLibraryGame = useCallback((index, shouldFocus = false) => {
@@ -227,6 +232,7 @@ export default function App() {
 
         return;
       }
+      if (activeTab === "config") return;
 
       switch (action) {
         case "a":
@@ -242,7 +248,7 @@ export default function App() {
           break;
       }
     },
-    [activateSelectedGame, ensureLobbyMusicPlayback, handleDirectionalInput, isGameView, setShareModal],
+    [activeTab, activateSelectedGame, ensureLobbyMusicPlayback, handleDirectionalInput, isGameView, setShareModal],
   );
 
   useEffect(() => {
@@ -317,7 +323,7 @@ export default function App() {
   }, [canZoomIn, ensureLobbyMusicPlayback, triggerHaptic]);
 
   const footer = !isGameView ? (
-    <BottomNav activeTab={activeTab} onTabChange={handleTabChange} icons={DEFAULT_THEME_ICONS.nav} />
+    <BottomNav activeTab={activeTab} onTabChange={handleTabChange} icons={DEFAULT_THEME_ICONS.nav} disabled={configDialogOpen} />
   ) : null;
 
   return (
@@ -329,8 +335,10 @@ export default function App() {
       controllerMode={controllerMode}
       onDirectional={handleDirectionalInput}
       onAction={handleActionInput}
+      immersive={isGameView && touchSettings.expanded}
+      controllerDisabled={Boolean(touchEditorOpen || configDialogOpen || shareOpen || exitConfirmOpen || endGameState.open)}
     >
-      {!isGameView && (
+      {!isGameView && activeTab !== "config" && (
         <LobbyHeader
           showZoomControls={activeTab !== "config"}
           canZoomIn={canZoomIn}
@@ -371,12 +379,24 @@ export default function App() {
           muted={muted}
           onToggleMute={() => setMuted((prev) => !prev)}
           onMusicVolumeChange={updateMusicVolume}
+          onDialogChange={setConfigDialogOpen}
         />
       )}
 
       {isGameView && (
         <GameView
           runtimeSpec={activeGameRuntime}
+          game={activeGame}
+          touchProfile={touchSettings.profile}
+          touchOrientation={touchSettings.orientation}
+          touchControlsEnabled={touchSettings.enabled}
+          expandedPlayArea={touchSettings.expanded}
+          onSaveTouchProfile={touchSettings.saveProfile}
+          touchProfileStatus={touchSettings.status}
+          touchEditorOpen={touchEditorOpen}
+          onTouchEditorChange={setTouchEditorOpen}
+          onOpenInvite={showShareInvite ? () => setShareModal(true) : undefined}
+          onRequestHome={() => handleActionInput("home")}
           shareOpen={showShareInvite && shareOpen}
           showNetworkUi={showNetworkUi}
           onCloseShare={() => setShareModal(false)}

@@ -25,6 +25,7 @@ function readPublicGameMetadata(game) {
     ...(game.room !== undefined ? { room: game.room } : {}),
     ...(game.networking !== undefined ? { networking: game.networking } : {}),
     ...(game.presentation !== undefined ? { presentation: game.presentation } : {}),
+    ...(game.touchControls !== undefined ? { touchControls: game.touchControls } : {}),
   };
 }
 

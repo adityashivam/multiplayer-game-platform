@@ -6,6 +6,7 @@ import ExitConfirmModal from "./ExitConfirmModal.jsx";
 import ShareModal from "./ShareModal.jsx";
 import { TOGGLE_NETWORK_PANEL_EVENT } from "../../constants/events.js";
 import styles from "../../PlatformApp.module.scss";
+import { TouchControlSurface, TouchLayoutEditor } from "../touch-controls/index.js";
 
 const FRAME_SAMPLE_WINDOW = 120;
 const FRAME_METRIC_PUSH_MS = 1000;
@@ -30,6 +31,17 @@ function quantileFromSamples(samples, q) {
 
 export default function GameView({
   runtimeSpec,
+  game,
+  touchProfile,
+  touchOrientation = "landscape",
+  touchControlsEnabled = false,
+  expandedPlayArea = false,
+  onSaveTouchProfile,
+  touchProfileStatus = "",
+  touchEditorOpen = false,
+  onTouchEditorChange,
+  onOpenInvite,
+  onRequestHome,
   shareOpen,
   showNetworkUi = true,
   onCloseShare,
@@ -55,8 +67,16 @@ export default function GameView({
   icons,
 }) {
   const [networkPanelOpen, setNetworkPanelOpen] = useState(false);
+  const [touchNotice, setTouchNotice] = useState("");
   const networkButtonRef = useRef(null);
-  const platformDialogOpen = shareOpen || endGameOpen || exitConfirmOpen;
+  const platformDialogOpen = shareOpen || endGameOpen || exitConfirmOpen || touchEditorOpen;
+  const allowTouchCustomization = Boolean(game?.touchControls?.customizable && touchProfile);
+  useEffect(() => {
+    if (touchEditorOpen || !touchProfileStatus) return undefined;
+    setTouchNotice(touchProfileStatus);
+    const noticeTimer = window.setTimeout(() => setTouchNotice(""), 2800);
+    return () => window.clearTimeout(noticeTimer);
+  }, [touchProfileStatus, touchEditorOpen]);
   const runtimeKind = runtimeSpec?.kind || "module";
   const runtimeMount = runtimeSpec?.mount || "canvas";
   const showModuleCanvas = runtimeKind === "module" && runtimeMount !== "dom";
@@ -366,6 +386,13 @@ export default function GameView({
             allow="autoplay; fullscreen; gamepad; clipboard-read; clipboard-write"
           />
         </div>
+        {game?.touchControls && touchProfile && <TouchControlSurface
+          game={game}
+          profile={touchProfile}
+          orientation={touchOrientation}
+          enabled={touchControlsEnabled}
+          disabled={Boolean(platformDialogOpen || gameLoadError)}
+        />}
         <GameToolbar
           showNetworkUi={showNetworkUi}
           connection={connection}
@@ -376,6 +403,12 @@ export default function GameView({
           isFullscreen={isFullscreen}
           onToggleFullscreen={onToggleFullscreen}
           fullscreenIcon={fullscreenIcon}
+          allowTouchCustomization={allowTouchCustomization}
+          onEditControls={() => { setNetworkPanelOpen(false); onTouchEditorChange?.(true); }}
+          disabled={Boolean(platformDialogOpen)}
+          expandedPlayArea={expandedPlayArea}
+          onHome={onRequestHome}
+          onInvite={onOpenInvite}
         />
         {showNetworkUi && networkPanelOpen && (
           <NetworkPanel rows={networkRows} onClose={() => {
@@ -383,6 +416,15 @@ export default function GameView({
             networkButtonRef.current?.focus({ preventScroll: true });
           }} />
         )}
+        {touchEditorOpen && allowTouchCustomization && <TouchLayoutEditor
+          game={game}
+          profile={touchProfile}
+          orientation={touchOrientation}
+          inGame
+          onCancel={() => onTouchEditorChange?.(false)}
+          onSave={(nextProfile, orientation) => { onSaveTouchProfile?.(nextProfile, orientation); onTouchEditorChange?.(false); }}
+        />}
+        {!touchEditorOpen && touchNotice && <div className={styles.touchProfileFeedback} role="status">{touchNotice}</div>}
         {endGameOpen && !exitConfirmOpen && (
           <EndGameModal
             title={endGameTitle}

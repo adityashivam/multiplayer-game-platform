@@ -1,4 +1,4 @@
-import { deadShiftPresentation } from "../../../public/games/dead-shift/catalog.js";
+import { deadShiftPresentation, deadShiftTouchControls } from "../../../public/games/dead-shift/catalog.js";
 import {
   DEAD_SHIFT_EDGE_KEYS,
   DEAD_SHIFT_FIXED_DT_SEC,
@@ -48,6 +48,7 @@ export const deadShiftGameMeta = {
   name: "Dead Shift",
   description: "Two survivors. One shared horde. Race for the most zombie kills in a 90-second containment breach.",
   presentation: deadShiftPresentation,
+  touchControls: deadShiftTouchControls,
   namespace: "/dead-shift",
   room: { playerIds: [...DEAD_SHIFT_PLAYER_IDS] },
   networking: {

@@ -72,6 +72,7 @@ export function createDeadShiftHud({ host, onEnter, onSelectWeapon, onMute }) {
     return weaponButton;
   });
   const enterButton = hud.querySelector(".ds-enter");
+  const introControls = hud.querySelector(".ds-intro-controls");
   const muteButton = hud.querySelector(".ds-mute");
   const errorPanel = hud.querySelector(".ds-error");
   let retryCallback = null;
@@ -81,6 +82,7 @@ export function createDeadShiftHud({ host, onEnter, onSelectWeapon, onMute }) {
   let hitUntilMs = 0;
   let damageUntilMs = 0;
   let feedUntilMs = 0;
+  let previousPlatformTouchActive = null;
 
   enterButton.addEventListener("click", onEnter);
   muteButton.addEventListener("click", () => {
@@ -107,12 +109,19 @@ export function createDeadShiftHud({ host, onEnter, onSelectWeapon, onMute }) {
       fields.feed.textContent = "";
     },
     /** Update authoritative readouts at ten Hz; crosshair feedback remains render-smooth. */
-    update({ snapshot, playerId, weapon, engaged, nowMs, pointerLocked, blocked }) {
+    update({ snapshot, playerId, weapon, engaged, nowMs, pointerLocked, blocked, platformTouchActive = false }) {
       hud.classList.toggle("ds-entered", engaged);
       hud.classList.toggle("ds-blocked", blocked);
       hud.classList.toggle("ds-captured", pointerLocked);
       hud.classList.toggle("ds-hit", nowMs < hitUntilMs);
       hud.classList.toggle("ds-hurt", nowMs < damageUntilMs);
+      if (platformTouchActive !== previousPlatformTouchActive) {
+        previousPlatformTouchActive = platformTouchActive;
+        hud.classList.toggle("ds-touch-active", platformTouchActive);
+        introControls.textContent = platformTouchActive
+          ? "Left stick moves · Drag right to look · Hold and drag Fire to shoot and aim"
+          : "WASD move · Mouse aim · Click fire · Right click to aim, or use the platform’s twin analog sticks";
+      }
       if (nowMs - lastUpdateAtMs < HUD_REFRESH_MS) return;
       lastUpdateAtMs = nowMs;
 
@@ -136,7 +145,9 @@ export function createDeadShiftHud({ host, onEnter, onSelectWeapon, onMute }) {
       fields.weaponName.textContent = weaponSettings.name.toUpperCase();
       fields.ammo.textContent = String(playerState?.ammo ?? weaponSettings.magazineSize);
       fields.magazine.textContent = String(weaponSettings.magazineSize);
-      fields.reload.textContent = playerState?.reloadRemaining > 0 ? `RELOADING ${playerState.reloadRemaining.toFixed(1)}s` : "R / X RELOAD";
+      fields.reload.textContent = playerState?.reloadRemaining > 0
+        ? `RELOADING ${playerState.reloadRemaining.toFixed(1)}s`
+        : platformTouchActive ? "TAP RELOAD" : "R / X RELOAD";
       weaponButtons.forEach((button, index) => button.setAttribute("aria-pressed", String(index === weapon)));
 
       let centerStatus = "";

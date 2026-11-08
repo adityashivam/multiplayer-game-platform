@@ -14,15 +14,18 @@ export default function PlatformShell({
   onDirectional,
   onAction,
   controllerDisabled = false,
+  immersive = false,
 }) {
   const [portraitShellCollapsed, setPortraitShellCollapsed] = useState(false);
 
   return (
-    <div className={classNames(styles.platformRoot, fullscreenActive && styles.platformRootFullscreen)}>
+    <div className={classNames(styles.platformRoot, fullscreenActive && styles.platformRootFullscreen, immersive && styles.platformRootImmersive)} data-platform-presentation={immersive ? "expanded" : "console"}>
       <div
         className={classNames(
           styles.platformConsole,
+          isGameScreen && styles.platformConsoleInGame,
           portraitShellCollapsed && styles.platformConsolePortraitExpanded,
+          immersive && styles.platformConsoleImmersive,
         )}
       >
         <div className={classNames(styles.platformControllerPane, styles.platformControllerPaneLeft)}>

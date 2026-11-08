@@ -6,6 +6,7 @@ import { createArenaActors } from "./characters.js";
 import { createArenaEffects } from "./effects.js";
 import { createRenderResources } from "./resources.js";
 import { createFirstPersonWeapons } from "./weapons.js";
+import { advanceDeadShiftAimBlend, DEAD_SHIFT_AIM_FOV_DEG, DEAD_SHIFT_CAMERA_FOV_DEG } from "./aimPresentation.js";
 
 /** @typedef {"low" | "medium" | "high"} RenderQuality */
 /** @typedef {import("../shared/simulation.js").DeadShiftPlayerState} DeadShiftPlayerState */
@@ -23,7 +24,7 @@ import { createFirstPersonWeapons } from "./weapons.js";
  * @property {import("../shared/simulation.js").DeadShiftEnemyState[]} enemies
  * @property {import("../shared/simulation.js").DeadShiftProjectileState[]} projectiles
  * @property {import("../shared/simulation.js").DeadShiftEvent[]} events
- * @property {DeadShiftInputState} input Current local aim and controls.
+ * @property {DeadShiftInputState & {aiming?: boolean}} input Current local aim and controls, including presentation-only ADS.
  * @property {boolean} moving
  * @property {boolean} reducedMotion
  */
@@ -51,7 +52,7 @@ export function createDeadShiftRenderer({ canvas }) {
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(0x102426);
   scene.fog = new THREE.FogExp2(0x173b3b, 0.022);
-  const camera = new THREE.PerspectiveCamera(73, 1, 0.06, 75);
+  const camera = new THREE.PerspectiveCamera(DEAD_SHIFT_CAMERA_FOV_DEG, 1, 0.06, 75);
   camera.rotation.order = "YXZ";
 
   const environmentScene = new RoomEnvironment();
@@ -113,6 +114,7 @@ export function createDeadShiftRenderer({ canvas }) {
   let damageFlashSec = 0;
   let livingCameraHeight = DEAD_SHIFT_PLAYER_SETTINGS.eyeHeight;
   let currentRoundId = null;
+  let aimBlend = 0;
 
   function resize(nextWidth, nextHeight) {
     if (disposed) return;
@@ -163,10 +165,17 @@ export function createDeadShiftRenderer({ canvas }) {
       effects.resetRound();
       damageFlashSec = 0;
       lastPlayerHealth = localPlayer.health;
+      aimBlend = 0;
     }
     const dead = localPlayer.health <= 0 || localPlayer.respawnRemaining > 0;
+    aimBlend = advanceDeadShiftAimBlend(aimBlend, Boolean(frame.input?.aiming && !dead && localPlayer.reloadRemaining <= 0), dtSec, reducedMotion);
+    const fieldOfViewDeg = DEAD_SHIFT_CAMERA_FOV_DEG + (DEAD_SHIFT_AIM_FOV_DEG - DEAD_SHIFT_CAMERA_FOV_DEG) * aimBlend;
+    if (Math.abs(camera.fov - fieldOfViewDeg) > 0.0001) {
+      camera.fov = fieldOfViewDeg;
+      camera.updateProjectionMatrix();
+    }
     livingCameraHeight += ((dead ? 0.55 : DEAD_SHIFT_PLAYER_SETTINGS.eyeHeight) - livingCameraHeight) * (1 - Math.exp(-dtSec * 7));
-    const movementBob = !reducedMotion && frame.moving && !dead ? Math.sin(timeSec * 16) * 0.012 : 0;
+    const movementBob = !reducedMotion && frame.moving && !dead ? Math.sin(timeSec * 16) * 0.012 * (1 - aimBlend * 0.8) : 0;
     camera.position.set(localPlayer.x || 0, (localPlayer.y || 0) + livingCameraHeight + movementBob, localPlayer.z || 0);
     camera.rotation.set(frame.input?.pitch ?? localPlayer.pitch ?? 0, frame.input?.yaw ?? localPlayer.yaw ?? 0, 0, "YXZ");
 

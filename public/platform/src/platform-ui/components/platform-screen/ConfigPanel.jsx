@@ -1,9 +1,10 @@
 import React from "react";
 import classNames from "../../../utils/classNames.js";
 import styles from "./ConfigPanel.module.scss";
+import TouchControlSettings from "./TouchControlSettings.jsx";
 
 /**
- * Expose lobby audio preferences with platform controls and caller-owned persistence.
+ * Present developer-enabled game layouts and the platform's audio preferences.
  * @param {{musicVolume: number, muted: boolean, onToggleMute: () => void, onMusicVolumeChange: (volume: number) => void}} props
  * @returns {React.ReactElement}
  */
@@ -12,12 +13,14 @@ export default function ConfigPanel({
   muted,
   onToggleMute,
   onMusicVolumeChange,
+  onDialogChange,
 }) {
   const sliderValue = Math.round((musicVolume ?? 0) * 100);
 
   return (
     <div className={styles.panel}>
       <h1 className={styles.heading}>Settings</h1>
+      <TouchControlSettings onDialogChange={onDialogChange} />
       <p className={styles.sectionLabel}>Audio</p>
       <div className={styles.audioCard}>
         <div className={styles.audioHeader}>

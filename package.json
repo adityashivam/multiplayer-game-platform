@@ -7,6 +7,7 @@
   "scripts": {
     "test": "node --test tests/*.test.js",
     "test:dead-shift:browser": "node tests/browser/dead-shift.mjs",
+    "test:touch-controls:browser": "node tests/browser/touch-layouts.mjs",
     "net:probe": "node scripts/network-probe.mjs",
     "start": "node server/platform-backend-server/server.js",
     "dev": "node --watch server/platform-backend-server/server.js",

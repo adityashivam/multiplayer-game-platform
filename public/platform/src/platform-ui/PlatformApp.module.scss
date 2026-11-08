@@ -8,6 +8,22 @@
   font-size: 0.92rem;
 }
 
+.touchProfileFeedback {
+  position: absolute;
+  z-index: 4;
+  bottom: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: calc(100% - 32px);
+  padding: 8px 12px;
+  border: 1px solid var(--platform-border);
+  border-radius: var(--platform-radius);
+  background: var(--platform-surface-inset);
+  color: var(--platform-text);
+  font: 10px var(--platform-font-body);
+  pointer-events: none;
+}
+
 .canvasFrame {
   flex: 1;
   min-height: 0;

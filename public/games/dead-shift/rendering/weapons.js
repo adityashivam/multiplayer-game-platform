@@ -1,6 +1,15 @@
 import * as THREE from "three";
 import { DEAD_SHIFT_WEAPONS } from "../shared/config.js";
 import { createStaticMeshBuilder } from "./resources.js";
+import { advanceDeadShiftAimBlend } from "./aimPresentation.js";
+
+const WEAPON_AIM_OFFSETS = Object.freeze([
+  { x: 0, y: -0.163, z: -0.56 },
+  { x: 0, y: -0.145, z: -0.51 },
+  { x: 0, y: -0.105, z: -0.54 },
+  { x: 0, y: -0.13, z: -0.54 },
+  { x: -0.18, y: -0.17, z: -0.46 },
+]);
 
 /** Every weapon has its own authored geometry, while all finishes are shared. */
 function buildWeaponModel(resources, materials, weaponIndex) {
@@ -198,6 +207,7 @@ export function createFirstPersonWeapons(resources) {
   let lastShotId = 0;
   let bobPhase = 0;
   let predictedShots = 0;
+  let aimBlend = 0;
 
   return {
     scene,
@@ -209,6 +219,7 @@ export function createFirstPersonWeapons(resources) {
       switchSec = 0;
       lastShotId = 0;
       predictedShots = 0;
+      aimBlend = 0;
     },
     resize(width, height) {
       camera.aspect = width / height;
@@ -227,6 +238,7 @@ export function createFirstPersonWeapons(resources) {
       const dead = localPlayer.health <= 0 || localPlayer.respawnRemaining > 0;
       scene.visible = !dead;
       const reloading = localPlayer.reloadRemaining > 0;
+      aimBlend = advanceDeadShiftAimBlend(aimBlend, Boolean(input?.aiming && !dead && !reloading), dtSec, reducedMotion);
       const fire = Boolean(input?.fire);
       const hasAuthority = roundId !== null;
       let fired = false;
@@ -251,12 +263,22 @@ export function createFirstPersonWeapons(resources) {
       flashSec = Math.max(0, flashSec - dtSec);
       switchSec = Math.max(0, switchSec - dtSec);
       bobPhase += dtSec * (input?.sprint ? 12 : 8.6) * (moving ? 1 : 0.2);
-      const movementScale = reducedMotion ? 0 : moving ? 1 : 0.12;
+      const movementScale = (reducedMotion ? 0 : moving ? 1 : 0.12) * (1 - aimBlend * 0.85);
       const reloadProgress = reloading ? 1 - Math.min(1, localPlayer.reloadRemaining / definition.reloadSec) : 0;
       const reloadArc = reloading ? Math.sin(reloadProgress * Math.PI) : 0;
       const narrow = camera.aspect < 1;
-      weaponRoot.position.set(narrow ? 0.18 : 0.28, -0.27 + Math.cos(bobPhase * 2) * 0.008 * movementScale - reloadArc * 0.18 - switchSec * 0.8, -0.6 + recoil * 0.055);
-      weaponRoot.rotation.set(recoil * (reducedMotion ? 0.018 : 0.08) - reloadArc * 0.37, 0.025 + Math.sin(bobPhase) * 0.008 * movementScale, -0.035 + reloadArc * 0.42);
+      const hipX = narrow ? 0.18 : 0.28;
+      const aimOffset = WEAPON_AIM_OFFSETS[weaponIndex];
+      weaponRoot.position.set(
+        hipX + (aimOffset.x - hipX) * aimBlend,
+        -0.27 + (aimOffset.y + 0.27) * aimBlend + Math.cos(bobPhase * 2) * 0.008 * movementScale - reloadArc * 0.18 - switchSec * 0.8,
+        -0.6 + (aimOffset.z + 0.6) * aimBlend + recoil * 0.055,
+      );
+      weaponRoot.rotation.set(
+        recoil * (reducedMotion ? 0.018 : 0.08) - reloadArc * 0.37,
+        0.025 * (1 - aimBlend) + Math.sin(bobPhase) * 0.008 * movementScale,
+        -0.035 * (1 - aimBlend) + reloadArc * 0.42,
+      );
       arms.position.z = weaponIndex === 2 ? -0.06 : weaponIndex === 4 ? -0.035 : 0;
       arms.rotation.z = reloading ? Math.sin(reloadProgress * Math.PI * 2) * 0.12 : 0;
       const muzzleZ = [-0.86, -0.64, -1.05, -0.77, -0.96][weaponIndex];

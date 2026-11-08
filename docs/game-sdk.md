@@ -71,9 +71,82 @@ All three fields are optional. `coverUrl` accepts a root-relative path or HTTPS 
 
 The platform derives capacity from `meta.room.playerIds`, with older player-count tags supported as a fallback. These labels describe supported capacity, not current online players. Titles, descriptions, and genre tags also come from ordinary game metadata. The library does not fabricate playtime, completion progress, or last-played activity.
 
+## Declare reusable touch controls
+
+Games opt into platform touch controls with a versioned `meta.touchControls` descriptor. Keep it in the game package and reuse it in server metadata and the browser fallback catalog. The platform supplies pointer ownership, 2/3/4-finger presets, a visual editor and browser/device persistence. Games own the meaning of control IDs, movement, camera sensitivity, combat and input mapping.
+
+```js
+export const touchControls = {
+  apiVersion: 1,
+  customizable: true,
+  defaultPreset: "two-thumb",
+  allowedPresets: ["two-thumb", "three-finger", "four-finger"],
+  controls: [
+    { id: "move", type: "stick", role: "move", label: "Move", icon: "joystick" },
+    { id: "look", type: "look", role: "look", label: "Look", editable: false },
+    { id: "fire", type: "button", role: "primary", label: "Fire", icon: "my_location", behavior: "hold-look" },
+    { id: "jump", type: "button", role: "jump", label: "Jump", behavior: "press" },
+    { id: "reload", type: "button", role: "reload", label: "Reload", defaultLayout: { size: 52, opacity: 0.65 } },
+  ],
+};
+
+const gameMetadata = {
+  // Other registration fields...
+  touchControls,
+};
+```
+
+The descriptor is optional. Set `customizable: false` to supply fixed runtime controls while preventing player edits; omit the descriptor to keep existing game-owned controls. Only games with explicit `customizable: true` appear in platform Game controls settings. Developer permission and `editable: false` always override saved preferences. A `look` area is always fixed. Restrict `allowedPresets` when only particular layouts suit the game; `defaultPreset` must be included.
+
+The version 1 contract accepts at most 16 controls. IDs are unique strings of 1–48 ASCII letters, digits, underscores or hyphens; `__proto__`, `constructor` and `prototype` are reserved. Labels are nonempty and at most 64 characters. Optional icons are plain names of at most 64 letters, digits, underscores or hyphens. Metadata has closed shapes: unsupported fields, types, roles, behavior values, nonfinite numbers and out-of-range defaults fail registration before callbacks mount.
+
+Supported types are `stick`, `look` and `button`. Roles are `move`, `look`, `primary`, `secondary`, `reload`, `jump` and `utility`. Roles select placement independently of type, while game-defined IDs select game behavior; for example, a game may declare a `stick` with role `look`. Multiple utility buttons remain possible. Presets contain only declared controls: three fingers move primary action to the upper left, and four fingers also move secondary action to the upper right. Two thumbs place primary action near the lower right; `hold-look` allows the firing thumb to drag the camera at the same time.
+
+`defaultLayout` may override any subset of `{ x, y, size, opacity }`: x/y are normalized centers from 0 to 1, size is 44–160 CSS pixels, and opacity is 0.25–1. The platform insets rendered controls to keep their full targets inside the host. Portrait and landscape have separate defaults and saved profiles. Individual default overrides apply to every preset; omit x/y to use each preset's placement.
+
+`public/platform/shared/touchControls.js` exports the descriptor/profile JSDoc types, `TOUCH_PRESET_IDS`, `TOUCH_CONTROL_LIMITS`, `createDefaultTouchProfile(descriptor)`, `sanitizeTouchProfile(descriptor, candidate)`, `resolveTouchLayout(descriptor, profile, orientation)`, and `updateTouchControl(profile, controlId, patch)`. Profiles are owned values with `{ version: 1, presetId, mode, hideShell, layouts }`. `mode` is `auto` by default and also accepts `on`/`off`; `hideShell` defaults to false. Layout maps hold partial overrides per preset. Sanitization discards removed/unknown/locked controls, ignores nonfinite or nonnumeric values, clamps finite values and preserves developer defaults for new controls. Editing an owned draft changes no saved data until Save.
+
+`touchControlSettings.js` supplies `loadTouchProfile(gameId, descriptor, orientation)`, `saveTouchProfile(gameId, descriptor, orientation, profile)` and `subscribeTouchProfile(gameId, descriptor, orientation, listener)`. Storage is local to this browser/device, game, orientation and preset; it does not sync through an account. Saving returns `{ profile, persisted }`. When quota or blocked storage prevents persistence, the returned profile remains usable for this page's session and `persisted` is false. Tell the player that these changes are session-only. Same-page saves and cross-tab updates notify subscribers; malformed stored JSON falls back safely. Unsubscribe when the owning view unmounts.
+
+Browser games subscribe through the SDK's window event boundary, which works across separately bundled game and React modules:
+
+```js
+import {
+  subscribePlatformTouchInput,
+  isPlatformTouchControlsActive,
+} from "/platform/frontend-engine/touchControlSurface.js";
+
+const touchInput = { moveX: 0, moveY: 0, fire: false, jumpQueued: false };
+const unsubscribeTouch = subscribePlatformTouchInput(gameMetadata.id, (inputEvent) => {
+  if (inputEvent.type === "reset") {
+    touchInput.moveX = 0;
+    touchInput.moveY = 0;
+    touchInput.fire = false;
+    touchInput.jumpQueued = false;
+  } else if (inputEvent.type === "axis" && inputEvent.controlId === "move") {
+    touchInput.moveX = inputEvent.x;
+    touchInput.moveY = inputEvent.y;
+  } else if (inputEvent.type === "look") {
+    rotateGameCamera(inputEvent.deltaX, inputEvent.deltaY); // Game-owned sensitivity/rules.
+  } else if (inputEvent.type === "action" && inputEvent.controlId === "fire") {
+    touchInput.fire = inputEvent.active;
+  } else if (inputEvent.type === "action" && inputEvent.controlId === "jump" && inputEvent.active) {
+    touchInput.jumpQueued = true;
+  }
+});
+```
+
+Merge these values into the game's existing input capture and consume queued actions once. Button `hold` (the default) emits true on press and false on release; `press` emits a true/false pulse on press, which games should latch until capture; `hold-look` also emits relative CSS pixel look deltas with that button's ID. Background right-half swipes use the declared look control ID. Stick axes use a circular deadzone, point right/down and have magnitude at most one. `isPlatformTouchControlsActive(gameId)` lets adapters suppress legacy touch controls while keeping keyboard/mouse behavior. Runtime teardown must call `unsubscribeTouch()`.
+
+The shell's `TouchControlSurface` owns the DOM binding. Custom platform surfaces can call `bindTouchControlSurface({ element, gameId, descriptor, layout, disabled })` and must dispose the returned binding. Place the surface in the game frame with `[data-touch-control-id]` children. Empty surface/look space uses `pointer-events: none`; the binding captures look on its parent host and ignores interactive HUD targets and platform chrome. It updates pressed/knob feedback directly in the DOM. Independent pointer IDs support movement, look and actions together; a finger's release cannot clear another finger's action. Cancel/capture loss releases that owner, and blur, hidden pages, host resize, disabling or disposal clear all input. Set `disabled` while platform dialogs/editors own focus. Layout editing never remounts the game renderer, and the match continues during editing.
+
+Players can explicitly choose to expand the play area by hiding decorative console controls during touch play. Selecting a preset or editing controls does not itself resize the shell, request browser fullscreen or lock orientation. Returning to the library restores the console presentation.
+
 ## Browse large catalogs
 
 The browser library requests bounded pages with `GET /api/games?page=1&pageSize=24&q=&genre=all&sort=name-asc`. The default page size is 24 and the maximum is 60. Supported sort values are `name-asc` and `name-desc`. Search matches titles, descriptions, and tags across the entire registered catalog. Genre options are global facets, not just tags from the visible page.
+
+Add `customizable=true` to request only games whose touch descriptor explicitly allows customization. This filter, search and genre selection run across the catalog before pagination, including the bundled browser fallback. Omitted or false `customizable` preserves ordinary catalog behavior. Use bounded filtered pages for a controls picker instead of fetching the entire catalog.
 
 Paged responses contain `{ games, total, page, pageSize, totalPages, genres }`. Pages beyond the current result set clamp to its last page. Invalid query parameters return HTTP 400. The browser debounces search and aborts obsolete requests; it mounts only the current page's cards. Desktop browsing uses a grid on the left and a full-height artwork panel on the right. Portrait browsing uses a full-width grid; selecting a game opens its details and Play action in a native dialog. Page jumps and previous/next controls keep the catalog navigable without an endless horizontal list.
 
@@ -88,6 +161,16 @@ The current catalog index is built from trusted registered game metadata at serv
 Library and game views share the same outer console dimensions, bezel, and controller positions. Game launch and shared links keep the user's current fullscreen/orientation state; the platform's Full Screen button is the explicit presentation control. `startInLandscape` is a game preference, not permission to resize the shell or automatically enter fullscreen.
 
 Render within the supplied game host. Size or rotate a game's own drawing surface using its host's measured bounds and observe host resizes when needed. Do not use browser viewport dimensions to expand a renderer beyond the screen, mutate the outer shell, or request fullscreen/orientation from game initialization and input handlers. Route transitions may fade screen content without translating or scaling the console.
+
+The platform's touch settings add an explicit **Expanded play area** preference. Players can select it in Config or the in-game Controls editor. The shell applies it without replacing the game canvas; game packages continue to fit the supplied host and do not toggle outer geometry themselves.
+
+### Player control editor
+
+Config → Game controls offers a bounded searchable picker containing only developer-enabled games. Players choose an allowed finger preset and edit button position, size, and opacity in a draft. Reset selected/Reset layout also remain drafts; Save applies them and Cancel discards them. Portrait and landscape profiles are labeled and saved separately for each game in the current device's browser. An open editor keeps its original target through device rotation.
+
+Games with customization enabled also get a platform Controls button during play. The same editor sits over the existing renderer and explains that the session continues while editing; gameplay input is neutralized and higher-priority invitation/results/exit dialogs retain focus. The Options menu controls automatic/always/off display and Expanded play area. Layout changes do not request browser fullscreen, change device orientation or restart a room.
+
+Run `npm run test:touch-controls:browser` against the local server for the complete two-client UI/touch regression. It uses an isolated Chrome profile, saves `touch-layout-*.png` screenshots in the OS temporary directory, and removes its profile on exit. `CHROME_PATH` overrides the default macOS Chrome executable; `PLATFORM_BASE_URL` overrides `http://localhost:3000`.
 
 ## Configure mechanics instead of rewriting them
 

@@ -1,6 +1,7 @@
 import { isSupportedPlayerSlotId } from "../../../public/platform/shared/gameIdentifiers.js";
 import { validateGamePresentation } from "../../../public/platform/shared/gamePresentation.js";
 import { createInputSchema } from "../../../public/platform/shared/inputSchema.js";
+import { validateTouchControls } from "../../../public/platform/shared/touchControls.js";
 
 /** The trusted, in-process game package contract supported by this engine. */
 export const GAME_PLUGIN_API_VERSION = 1;
@@ -31,6 +32,7 @@ export const GAME_PLUGIN_API_VERSION = 1;
  * @property {{playerIds: string[]}} [room]
  * @property {GameNetworkingMetadata} [networking]
  * @property {import("../../../public/platform/shared/gamePresentation.js").GamePresentation} [presentation]
+ * @property {import("../../../public/platform/shared/touchControls.js").TouchControlsDescriptor} [touchControls]
  */
 
 /**
@@ -124,6 +126,7 @@ function copyAndValidateGamePlugin(gamePlugin) {
   validateRoomMetadata(gameMetadata);
   validateNetworkingMetadata(gameMetadata);
   validateGamePresentation(gameMetadata.presentation, gameMetadata.id);
+  validateTouchControls(gameMetadata.touchControls, gameMetadata.id);
 
   try {
     const catalogMetadata = structuredClone(gameMetadata);

@@ -16,12 +16,14 @@ const SUPPORTED_SORTS = new Set(CATALOG_SORT_OPTIONS.map((option) => option.valu
  * @property {string} name
  * @property {string} [description]
  * @property {string[]} [tags]
+ * @property {import("./touchControls.js").TouchControlsDescriptor} [touchControls]
  * @typedef {object} GameCatalogQuery
  * @property {number} [page]
  * @property {number} [pageSize]
  * @property {string} [q]
  * @property {string} [genre]
  * @property {"name-asc"|"name-desc"} [sort]
+ * @property {boolean} [customizable] True restricts results to developer-enabled touch customization.
  * @typedef {object} CatalogGenre
  * @property {string} value
  * @property {string} label
@@ -45,8 +47,8 @@ function parsePositiveCatalogInteger(value, defaultValue, fieldName) {
 
 /**
  * Parse the supported catalog query fields before querying metadata.
- * @param {{page?: unknown, pageSize?: unknown, q?: unknown, genre?: unknown, sort?: unknown}} [query]
- * @returns {Required<GameCatalogQuery>}
+ * @param {{page?: unknown, pageSize?: unknown, q?: unknown, genre?: unknown, sort?: unknown, customizable?: unknown}} [query]
+ * @returns {Required<Omit<GameCatalogQuery, "customizable">> & {customizable?: boolean}}
  * @throws {TypeError} For malformed numeric, search, genre, or sort parameters.
  */
 export function parseGameCatalogQuery(query = {}) {
@@ -56,13 +58,25 @@ export function parseGameCatalogQuery(query = {}) {
   const q = query.q ?? "";
   const genre = query.genre ?? "all";
   const sort = query.sort ?? "name-asc";
+  const customizable = query.customizable;
 
   if (typeof q !== "string" || q.length > MAX_CATALOG_SEARCH_LENGTH ||
       typeof genre !== "string" || genre.length > MAX_CATALOG_SEARCH_LENGTH || !SUPPORTED_SORTS.has(sort)) {
     throw new TypeError("Catalog search, genre, or sort is invalid");
   }
+  if (customizable !== undefined && customizable !== true && customizable !== false &&
+      customizable !== "true" && customizable !== "false") {
+    throw new TypeError("Catalog customizable must be true or false");
+  }
 
-  return { page, pageSize, q: q.trim(), genre: normalizeCatalogGenre(genre), sort };
+  return {
+    page,
+    pageSize,
+    q: q.trim(),
+    genre: normalizeCatalogGenre(genre),
+    sort,
+    ...(customizable !== undefined ? { customizable: customizable === true || customizable === "true" } : {}),
+  };
 }
 
 /**
@@ -98,6 +112,7 @@ export function createGameCatalog(games) {
       const catalogQuery = parseGameCatalogQuery(query);
       const searchText = catalogQuery.q.toLowerCase();
       const matchingGames = indexedGames.filter((entry) =>
+        (catalogQuery.customizable !== true || entry.game.touchControls?.customizable === true) &&
         (catalogQuery.genre === "all" || entry.genres.includes(catalogQuery.genre)) &&
         (!searchText || entry.searchText.includes(searchText)));
       if (catalogQuery.sort === "name-desc") matchingGames.reverse();

@@ -37,6 +37,43 @@
   padding: 0;
 }
 
+// An explicit player preference expands the host without remounting its canvas.
+.platformRoot.platformRootImmersive {
+  padding: 0;
+
+  .platformConsoleImmersive {
+    width: 100%;
+    height: 100dvh;
+    max-width: none;
+    max-height: none;
+    grid-template-rows: minmax(0, 1fr) 0fr;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+
+    > .platformControllerPane,
+    > .platformPortraitDeck,
+    > .platformPortraitToggle { display: none; }
+
+    > .platformScreen {
+      width: 100%;
+      height: 100%;
+      flex: 1 1 100%;
+      border: 0;
+      border-radius: 0;
+
+      .screenContentGame {
+        padding: 0;
+        gap: 0;
+      }
+    }
+  }
+}
+
+.platformConsole.platformConsoleInGame {
+  transition: none;
+}
+
 .platformConsole {
   position: relative;
   width: min(1640px, 100%);

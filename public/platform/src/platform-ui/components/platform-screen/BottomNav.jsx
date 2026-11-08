@@ -18,7 +18,7 @@ const fallbackIcons = {
   config: "settings",
 };
 
-export default function BottomNav({ activeTab = "multi", onTabChange, icons }) {
+export default function BottomNav({ activeTab = "multi", onTabChange, icons, disabled = false }) {
   return (
     <nav className={styles.navBar} aria-label="Primary">
       {tabs.map((tab) => {
@@ -32,6 +32,7 @@ export default function BottomNav({ activeTab = "multi", onTabChange, icons }) {
             onClick={() => onTabChange?.(tab.id)}
             aria-current={isActive ? "page" : undefined}
             aria-label={tab.label}
+            disabled={disabled}
           >
             <span className={classNames("material-symbols-outlined", styles.navIcon)}>
               {icon}

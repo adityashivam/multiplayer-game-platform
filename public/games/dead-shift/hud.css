@@ -91,6 +91,18 @@
 .ds-error p { color: #bdc9be; }
 .ds-error button { justify-self: center; padding: 10px 20px; border: 0; border-radius: 4px; background: #00cce3; color: #041b20; }
 .ds-blocked { visibility: hidden; }
+.ds-touch-active .ds-weapons, .ds-touch-active .ds-control-hint, .ds-touch-active .ds-brand { display: none; }
+.ds-touch-active .ds-player-strip { left: 35%; right: 35%; bottom: max(12px, 2.5cqh); display: grid; grid-template-columns: 1fr 1fr; align-items: end; gap: 12px; }
+.ds-touch-active .ds-vitals { min-width: 0; }
+.ds-touch-active .ds-vitals strong, .ds-touch-active .ds-weapon-status strong { font-size: clamp(18px, 3.4cqw, 29px); }
+.ds-touch-active .ds-health-icon { font-size: 15px; }
+.ds-touch-active .ds-vitals small, .ds-touch-active .ds-weapon-status > div small { display: none; }
+.ds-touch-active .ds-weapon-name { font-size: 6px; letter-spacing: .08em; }
+.ds-touch-active .ds-weapon-status > div { gap: 4px; }
+.ds-touch-active .ds-weapon-status > div > span { font-size: 10px; }
+.ds-touch-active .ds-reload-label { font-size: 6px; white-space: nowrap; }
+.ds-touch-active .ds-room-status { position: absolute; bottom: calc(100% + 7px); left: -20%; right: -20%; max-width: none; text-align: center; line-height: 1.4; }
+.ds-touch-active .ds-mute { position: absolute; top: 48px; left: 50%; transform: translateX(-50%); white-space: nowrap; }
 @keyframes ds-enter { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
 @container (max-width: 580px) {
   .ds-brand > span:last-child { display: none; }

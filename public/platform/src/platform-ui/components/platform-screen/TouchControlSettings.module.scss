@@ -1,0 +1,152 @@
+.settingsSection {
+  display: grid;
+  grid-template-columns: minmax(130px, 180px) minmax(0, 1fr);
+  gap: clamp(20px, 3vw, 40px);
+  padding-bottom: 34px;
+  margin-bottom: 32px;
+  border-bottom: 1px solid var(--platform-border);
+}
+
+.sectionIntro {
+  h2 {
+    margin: 10px 0 12px;
+    font: 600 21px var(--platform-font-heading);
+    letter-spacing: -.03em;
+  }
+  > p {
+    margin: 0 0 20px;
+    color: var(--platform-text-muted);
+    font-size: 12px;
+    line-height: 1.8;
+  }
+}
+
+.sectionNumber { color: var(--platform-accent); font-size: 10px; letter-spacing: .14em; }
+.deviceNote { display: flex; align-items: center; gap: 5px; color: var(--platform-text-muted); font-size: 9px; line-height: 1.5; }
+.deviceNote > span { font-size: 14px; }
+.settingsBody { min-width: 0; }
+.gameRow { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-bottom: 22px; }
+.selectedGame { display: flex; align-items: center; min-width: 0; gap: 12px; }
+.selectedGame > img { width: 64px; height: 43px; border-radius: 5px; object-fit: cover; }
+.selectedGame > div { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.selectedGame small { color: var(--platform-text-muted); font-size: 10px; }
+.selectedGame strong { font-family: var(--platform-font-heading); font-size: 17px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.quietButton, .editButton, .pickerPagination > button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 40px;
+  flex-shrink: 0;
+  padding: 0 12px;
+  border: 1px solid var(--platform-border);
+  border-radius: var(--platform-radius);
+  background: var(--platform-surface-inset);
+  color: var(--platform-text);
+  font: 600 11px var(--platform-font-body);
+  cursor: pointer;
+
+  > span { font-size: 17px; }
+  &:hover { border-color: var(--platform-accent); }
+  &:focus-visible { outline: 2px solid var(--platform-focus); outline-offset: 3px; }
+}
+
+.presets {
+  display: grid;
+  grid-template-columns: repeat(var(--touch-preset-count, 3), minmax(0, 1fr));
+  gap: 8px;
+  min-width: 0;
+  margin: 0 0 22px;
+  padding: 0;
+  border: none;
+  > legend { margin-bottom: 10px; color: var(--platform-text-muted); font-size: 10px; }
+}
+
+.presetButton {
+  display: flex;
+  flex-direction: column;
+  align-items: start;
+  gap: 6px;
+  min-width: 0;
+  padding: 13px 12px;
+  border: 1px solid var(--platform-border);
+  border-radius: 8px;
+  background: var(--platform-surface-inset);
+  color: var(--platform-text-muted);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 120ms, background 120ms;
+  > strong { color: var(--platform-text); font: 600 12px var(--platform-font-body); }
+  > small { font-size: 8px; line-height: 1.5; }
+  &[aria-pressed="true"] { border-color: var(--platform-accent); background: #00cce60b; color: var(--platform-accent); }
+  &:focus-visible { outline: 2px solid var(--platform-focus); outline-offset: 3px; }
+}
+
+.presetFingers { display: flex; gap: 3px; align-items: center; margin-bottom: 4px; font: 500 22px var(--platform-font-heading); }
+.presetFingers > span { font-size: 20px; }
+.previewHeader { display: flex; justify-content: space-between; gap: 10px; align-items: center; margin-bottom: 10px; }
+.orientationTabs { display: flex; gap: 2px; min-width: 0; padding: 3px; background: var(--platform-surface-inset); border-radius: 6px; }
+.orientationTabs > button { min-height: 30px; padding: 0 9px; border: 0; border-radius: 4px; color: var(--platform-text-muted); background: transparent; font: 600 10px var(--platform-font-body); cursor: pointer; }
+.orientationTabs > button[aria-pressed="true"] { color: var(--platform-text); background: var(--platform-surface); }
+.orientationTabs > button:focus-visible { outline: 2px solid var(--platform-focus); }
+.editButton { background: var(--platform-accent); border-color: var(--platform-accent); color: #041b22; }
+.previewFrame { display: flex; align-items: center; justify-content: center; height: clamp(200px, 32vh, 290px); overflow: hidden; border: 1px solid var(--platform-border); border-radius: 10px; background: #0c171c; margin-bottom: 12px; }
+.preferenceRow { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 15px 0; border-bottom: 1px solid var(--platform-border); }
+.preferenceRow label { font-size: 12px; font-weight: 600; cursor: pointer; }
+.preferenceRow p { margin: 5px 0 0; font-size: 10px; line-height: 1.6; color: var(--platform-text-muted); }
+.preferenceRow select { max-width: 130px; min-height: 36px; padding: 0 8px; border: 1px solid var(--platform-border); border-radius: 6px; background: var(--platform-surface-inset); color: var(--platform-text); font: 11px var(--platform-font-body); }
+.preferenceRow select:focus-visible { outline: 2px solid var(--platform-focus); }
+.switch { flex-shrink: 0; appearance: none; width: 40px; height: 24px; margin: 0; padding: 3px; border-radius: 20px; border: 1px solid var(--platform-border); background: var(--platform-surface-inset); cursor: pointer; }
+.switch::before { content: ""; display: block; width: 16px; height: 16px; border-radius: 50%; background: var(--platform-text-muted); transition: transform 120ms; }
+.switch:checked { background: var(--platform-accent); border-color: var(--platform-accent); }
+.switch:checked::before { background: #08222a; transform: translateX(16px); }
+.switch:focus-visible { outline: 2px solid var(--platform-focus); outline-offset: 3px; }
+.saveStatus { margin: 11px 0 0; min-height: 16px; font-size: 9px; color: var(--platform-text-muted); }
+.emptyMessage { padding: 20px 0; color: var(--platform-text-muted); font-size: 12px; line-height: 1.7; }
+.pickerSearch { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; padding: 0 11px; border: 1px solid var(--platform-border); border-radius: 7px; background: var(--platform-surface-inset); }
+.pickerSearch > span { font-size: 20px; color: var(--platform-text-muted); }
+.pickerSearch input { width: 100%; min-height: 43px; border: 0; outline: 0; background: transparent; color: var(--platform-text); font: 12px var(--platform-font-body); }
+.pickerSearch:focus-within { border-color: var(--platform-accent); }
+.pickerList { min-height: 130px; max-height: min(310px, 42dvh); overflow-y: auto; }
+.pickerGame { display: flex; align-items: center; gap: 12px; width: 100%; padding: 11px 0; border: 0; border-bottom: 1px solid var(--platform-border); background: transparent; color: var(--platform-text); text-align: left; cursor: pointer; }
+.pickerGame img { width: 62px; height: 42px; object-fit: cover; border-radius: 5px; }
+.pickerGame > span:nth-last-child(2) { display: flex; flex-direction: column; gap: 5px; flex: 1; }
+.pickerGame strong { font: 600 13px var(--platform-font-heading); }
+.pickerGame small { color: var(--platform-text-muted); font-size: 10px; }
+.pickerGame > span:last-child { font-size: 20px; color: var(--platform-text-muted); }
+.pickerGame[aria-pressed="true"] > span:last-child { color: var(--platform-accent); }
+.pickerGame:focus-visible { outline: 2px solid var(--platform-focus); outline-offset: -2px; }
+.pickerPagination { display: flex; align-items: center; justify-content: space-between; margin: 14px 0 0; gap: 12px; }
+.pickerPagination > span { color: var(--platform-text-muted); font-size: 10px; }
+.pickerPagination > button { min-height: 33px; font-size: 10px; }
+.pickerPagination > button:disabled { opacity: .35; cursor: default; }
+
+@media (max-width: 760px) {
+  .settingsSection { grid-template-columns: 1fr; gap: 15px; }
+  .sectionIntro { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .sectionIntro h2 { margin: 0; font-size: 19px; }
+  .sectionIntro > p { display: none; }
+  .sectionIntro > .deviceNote { margin-left: auto; }
+}
+
+@media (max-width: 420px) {
+  .gameRow { gap: 8px; margin-bottom: 17px; }
+  .selectedGame { gap: 8px; }
+  .selectedGame > img { width: 47px; height: 35px; }
+  .selectedGame strong { font-size: 15px; }
+  .quietButton { font-size: 9px; padding-inline: 8px; }
+  .presets { gap: 5px; }
+  .presetButton { padding: 10px 8px; }
+  .presetButton > strong { font-size: 11px; }
+  .presetButton > small { display: none; }
+  .orientationTabs > button { font-size: 9px; padding-inline: 7px; }
+  .editButton { font-size: 10px; padding-inline: 9px; }
+  .preferenceRow { gap: 10px; }
+  .preferenceRow label { font-size: 11px; }
+  .preferenceRow p { font-size: 9px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .presetButton, .switch::before { transition: none; }
+}

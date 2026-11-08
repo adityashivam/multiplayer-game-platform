@@ -11,6 +11,7 @@ import { createDeadShiftMultiplayerSession } from "./client/multiplayer.js";
 import { createDeadShiftHud } from "./client/hud.js";
 import { createDeadShiftAudio } from "./client/audio.js";
 import { readDeadShiftEntityPosition } from "./client/snapshotPose.js";
+import { isPlatformTouchControlsActive } from "/platform/frontend-engine/touchControlSurface.js";
 
 const DISPOSE_GAME_EVENT = "kaboom:dispose-game";
 const MAX_FRAME_SEC = 0.08;
@@ -143,7 +144,13 @@ function startDeadShift() {
     localPlayer.weapon = controls.getWeapon();
     const lastInput = multiplayer.getInput();
     const active = snapshot?.started && !snapshot.gameOver && snapshot.players.p1.connected && snapshot.players.p2.connected && localPlayer.health > 0;
-    const input = { ...lastInput, ...aim, weapon: controls.getWeapon(), fire: Boolean(active && !controls.isBlocked() && lastInput.fire) };
+    const input = {
+      ...lastInput,
+      ...aim,
+      weapon: controls.getWeapon(),
+      fire: Boolean(active && !controls.isBlocked() && lastInput.fire),
+      aiming: Boolean(active && controls.isAiming()),
+    };
     const moving = Boolean(active && (Math.abs(input.moveX) > 0.05 || Math.abs(input.moveZ) > 0.05));
     renderer.render({
       dtSec,
@@ -168,6 +175,7 @@ function startDeadShift() {
       nowMs,
       pointerLocked: document.pointerLockElement === canvas,
       blocked: controls.isBlocked(),
+      platformTouchActive: isPlatformTouchControlsActive(DEAD_SHIFT_GAME_ID),
     });
     animationFrameId = requestAnimationFrame(renderFrame);
   }
