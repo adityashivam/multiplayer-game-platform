@@ -54,6 +54,19 @@
   gap: clamp(22px, 4.4vh, 48px);
 }
 
+.controllerFullCluster {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+
+  .analogStickHousing {
+    width: clamp(48px, 7vw, 72px);
+    padding: 8px;
+    border-radius: 20px;
+  }
+}
+
 .controllerSplitMain {
   width: 100%;
   display: flex;
@@ -70,9 +83,12 @@
 }
 
 .analogStickHousing {
+  position: relative;
+  flex: 0 0 auto;
   width: clamp(96px, 9.6vw, 132px);
   aspect-ratio: 1 / 1;
   padding: clamp(12px, 1.2vw, 16px);
+  border: 1px solid rgba(132, 147, 150, 0.16);
   border-radius: 32px;
   background: #121212;
   box-shadow:
@@ -81,6 +97,26 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  cursor: grab;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.controllerFrame .analogStickHousing {
+  touch-action: none;
+}
+
+.analogStickHousing:focus-visible {
+  outline: 2px solid #63e6dc;
+  outline-offset: 3px;
+}
+
+.analogStickHousing:active {
+  cursor: grabbing;
+}
+
+.analogStickHousing:disabled {
+  cursor: default;
+  opacity: 0.45;
 }
 
 .analogStickCap {
@@ -94,6 +130,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  transform: translate(var(--stick-x, 0%), var(--stick-y, 0%));
+  pointer-events: none;
 }
 
 .analogStickCore {
@@ -102,6 +140,12 @@
   border-radius: 999px;
   border: 1px solid rgba(255, 255, 255, 0.06);
   background: linear-gradient(to bottom right, rgba(255, 255, 255, 0.06), transparent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(186, 201, 204, 0.55);
+  font-family: "Space Grotesk", sans-serif;
+  font-size: 10px;
 }
 
 .directionPadShell {
@@ -531,13 +575,13 @@
     width: 100%;
     height: 100%;
     display: grid;
-    grid-template-rows: auto auto;
+    grid-template-rows: auto minmax(0, auto) auto;
     align-items: start;
     justify-items: center;
     justify-content: center;
     align-content: center;
-    gap: 24px;
-    padding: 8px 0;
+    gap: clamp(4px, 0.8dvh, 8px);
+    padding: 2px 0;
   }
 
   .controllerSplitMain {
@@ -573,11 +617,11 @@
   }
 
   .controllerSplitMainDpad .directionPadShell {
-    width: clamp(120px, 29vw, 140px);
+    width: clamp(64px, calc(22dvh - 70px), 124px);
   }
 
   .controllerSplitMainAction .actionPadShell {
-    --pad-size: clamp(120px, 29vw, 140px);
+    --pad-size: clamp(64px, calc(22dvh - 70px), 124px);
     transform: none;
   }
 
@@ -594,8 +638,8 @@
   }
 
   .actionButton {
-    width: 36%;
-    height: 36%;
+    width: 40%;
+    height: 40%;
   }
 
   .controllerFrameSplitRight .actionButtonLabel {
@@ -604,7 +648,10 @@
   }
 
   .analogStickHousing {
-    display: none;
+    display: flex;
+    width: clamp(44px, 8dvh, 64px);
+    padding: 7px;
+    border-radius: 18px;
   }
 
   .utilityButtonGroupSplit {
@@ -645,15 +692,15 @@
 
 @media (max-height: 600px) and (max-width: 900px) and (orientation: portrait) {
   .controllerBodySplit {
-    gap: 8px;
+    gap: 4px;
     padding: 2px 0;
   }
 
   .controllerSplitMainDpad .directionPadShell {
-    width: 110px;
+    width: 64px;
   }
 
   .controllerSplitMainAction .actionPadShell {
-    --pad-size: 110px;
+    --pad-size: 64px;
   }
 }

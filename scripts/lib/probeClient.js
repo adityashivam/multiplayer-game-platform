@@ -51,16 +51,16 @@ const PROBE_FAILURE = Object.freeze({
  */
 
 /**
- * Alternate a game's first two controls while preserving its other defaults.
+ * Alternate a game's first two boolean controls while preserving numeric defaults.
  * The template is never mutated and no game-specific input keys are introduced.
  * @template {string} InputKey
- * @param {Record<InputKey, boolean>} inputTemplate
+ * @param {Record<InputKey, boolean | number>} inputTemplate
  * @param {number} elapsedMs
- * @returns {Record<InputKey, boolean>} Fresh captured input for one command.
+ * @returns {Record<InputKey, boolean | number>} Fresh captured input for one command.
  */
 export function createProbeInputState(inputTemplate, elapsedMs) {
   const capturedInput = { ...inputTemplate };
-  const inputKeys = /** @type {InputKey[]} */ (Object.keys(inputTemplate));
+  const inputKeys = /** @type {InputKey[]} */ (Object.keys(inputTemplate).filter((inputKey) => typeof inputTemplate[inputKey] === "boolean"));
   const alternateDirection = Math.floor(elapsedMs / INPUT_DIRECTION_INTERVAL_MS) % 2 === 0;
   if (inputKeys.length === 1) {
     capturedInput[inputKeys[0]] = alternateDirection;

@@ -29,6 +29,40 @@ function createRegistry(plugins) {
   return engine.createGameRegistry(plugins);
 }
 
+test("registry advertises owned bounded numeric input capabilities", () => {
+  const plugin = createSyntheticPlugin();
+  plugin.meta.networking.inputTemplate = { drive: 0, tool: 1, boost: false };
+  plugin.meta.networking.numericInputs = {
+    drive: { min: -1, max: 1 }, tool: { min: 0, max: 3, integer: true },
+  };
+  const registry = createRegistry([plugin]);
+  plugin.meta.networking.numericInputs.drive.max = 9;
+
+  const catalogGame = registry.getGame("relay");
+  assert.deepEqual(catalogGame.networking.inputTemplate, { drive: 0, tool: 1, boost: false });
+  assert.deepEqual(catalogGame.networking.numericInputs, {
+    drive: { min: -1, max: 1 }, tool: { min: 0, max: 3, integer: true },
+  });
+  catalogGame.networking.numericInputs.tool.max = 99;
+  assert.equal(registry.getGame("relay").networking.numericInputs.tool.max, 3);
+});
+
+test("registry rejects numeric capabilities with missing ranges, invalid defaults or passive protocols", () => {
+  for (const networking of [
+    { inputTemplate: { drive: 0 } },
+    { inputTemplate: { drive: 0 }, numericInputs: { drive: { min: -1, max: NaN } } },
+    { inputTemplate: { drive: 2 }, numericInputs: { drive: { min: -1, max: 1 } } },
+    { inputTemplate: { tool: 0.5 }, numericInputs: { tool: { min: 0, max: 3, integer: true } } },
+    { inputTemplate: { drive: 0 }, numericInputs: { drive: { min: -1, max: 1, unknown: true } } },
+    { inputTemplate: { boost: false }, numericInputs: { missing: { min: 0, max: 1 } } },
+    { inputProtocol: null, inputTemplate: null, numericInputs: { drive: { min: -1, max: 1 } } },
+  ]) {
+    const plugin = createSyntheticPlugin();
+    Object.assign(plugin.meta.networking, networking);
+    assert.throws(() => createRegistry([plugin]), { name: "TypeError" });
+  }
+});
+
 test("registry preserves optional game-owned library presentation", () => {
   const plugin = createSyntheticPlugin();
   plugin.meta.presentation = {

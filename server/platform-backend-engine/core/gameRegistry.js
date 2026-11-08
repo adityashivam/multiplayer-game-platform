@@ -1,5 +1,6 @@
 import { isSupportedPlayerSlotId } from "../../../public/platform/shared/gameIdentifiers.js";
 import { validateGamePresentation } from "../../../public/platform/shared/gamePresentation.js";
+import { createInputSchema } from "../../../public/platform/shared/inputSchema.js";
 
 /** The trusted, in-process game package contract supported by this engine. */
 export const GAME_PLUGIN_API_VERSION = 1;
@@ -9,7 +10,8 @@ export const GAME_PLUGIN_API_VERSION = 1;
  * @property {string} namespace
  * @property {number} tickRateHz
  * @property {1|2|null} [inputProtocol]
- * @property {Record<string, boolean>|null} [inputTemplate] Game-defined input keys.
+ * @property {Record<string, boolean | number>|null} [inputTemplate] Game-defined neutral input state.
+ * @property {import("../../../public/platform/shared/inputSchema.js").NumericInputConfiguration<string>} [numericInputs] Explicit bounds for numeric fields.
  */
 
 /**
@@ -81,13 +83,14 @@ function validateNetworkingMetadata(gameMetadata) {
     throw new TypeError(`Game ${gameMetadata.id} has an unsupported input protocol`);
   }
   if (networking.inputProtocol == null) {
-    if (networking.inputTemplate != null) {
+    if (networking.inputTemplate != null || networking.numericInputs !== undefined) {
       throw new TypeError(`Passive game ${gameMetadata.id} cannot advertise an input template`);
     }
-  } else if (!isMetadataObject(networking.inputTemplate) ||
-      Object.keys(networking.inputTemplate).length === 0 ||
-      Object.values(networking.inputTemplate).some((value) => typeof value !== "boolean")) {
-    throw new TypeError(`Game ${gameMetadata.id} requires a nonempty boolean input template`);
+  } else {
+    if (!isMetadataObject(networking.inputTemplate) || Object.keys(networking.inputTemplate).length === 0) {
+      throw new TypeError(`Game ${gameMetadata.id} requires a nonempty input template`);
+    }
+    createInputSchema(networking.inputTemplate, networking.numericInputs);
   }
 }
 

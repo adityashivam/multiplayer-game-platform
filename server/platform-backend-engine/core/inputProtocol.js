@@ -4,11 +4,12 @@ import {
   INPUT_PROTOCOL,
   NETWORK_TIMING,
 } from "../../../public/platform/shared/networkProtocol.js";
+import { isValidGameInputState, isValidNumericInputValue } from "../../../public/platform/shared/inputSchema.js";
 
 /**
  * Input keys belong to the registered game rather than the reusable protocol.
  * @template {string} InputKey
- * @typedef {Record<InputKey, boolean>} GameInputState
+ * @typedef {Record<InputKey, boolean | number>} GameInputState
  */
 
 /**
@@ -93,6 +94,7 @@ export function ensurePlayerInputState(player, inputTemplate = {}) {
  * @param {PlayerInputState<InputKey>} options.player Mutated in place.
  * @param {InputPacket<InputKey>} options.payload
  * @param {GameInputState<InputKey>} [options.inputTemplate]
+ * @param {import("../../../public/platform/shared/inputSchema.js").NumericInputConfiguration<InputKey>} [options.numericInputs]
  * @param {(player: PlayerInputState<InputKey>, inputState: GameInputState<InputKey>) => void} [options.applyInputState]
  * @param {(player: PlayerInputState<InputKey>, inputType: string, value: boolean) => boolean} [options.applyDiscreteInput]
  * @returns {boolean} Whether this packet was recognized.
@@ -101,6 +103,7 @@ export function applySequencedInput({
   player,
   payload,
   inputTemplate = {},
+  numericInputs = {},
   applyInputState,
   applyDiscreteInput,
 }) {
@@ -117,6 +120,9 @@ export function applySequencedInput({
 
   if (inputType === INPUT_MESSAGE_TYPE.FRAME) {
     const inputState = payload?.state;
+    if (Object.keys(numericInputs).length > 0 && !isValidGameInputState(inputState, inputTemplate, numericInputs)) {
+      return false;
+    }
     if (!isPlainObject(inputState)) {
       return true;
     }
@@ -128,8 +134,16 @@ export function applySequencedInput({
 
     const inputKeys = /** @type {InputKey[]} */ (Object.keys(inputTemplate));
     for (const inputKey of inputKeys) {
-      player.input[inputKey] = Boolean(inputState[inputKey]);
+      player.input[inputKey] = Object.hasOwn(numericInputs, inputKey) ? inputState[inputKey] : Boolean(inputState[inputKey]);
     }
+    return true;
+  }
+
+  if (Object.hasOwn(numericInputs, inputType)) {
+    if (!isValidNumericInputValue(payload?.value, numericInputs[inputType])) {
+      return false;
+    }
+    player.input[inputType] = payload.value;
     return true;
   }
 
@@ -169,9 +183,10 @@ function getPlayerInputBuffer(player) {
  * @param {PlayerInputState<InputKey>} options.player Mutated in place.
  * @param {InputPacket<InputKey>} options.payload
  * @param {GameInputState<InputKey>} [options.inputTemplate]
+ * @param {import("../../../public/platform/shared/inputSchema.js").NumericInputConfiguration<InputKey>} [options.numericInputs]
  * @returns {boolean} False for malformed, stale, wrong-epoch, or overflow frames.
  */
-export function enqueueInputFrame({ player, payload, inputTemplate = {} }) {
+export function enqueueInputFrame({ player, payload, inputTemplate = {}, numericInputs = {} }) {
   if (!player || typeof player !== "object") {
     return false;
   }
@@ -191,11 +206,7 @@ export function enqueueInputFrame({ player, payload, inputTemplate = {} }) {
   }
 
   const inputKeys = /** @type {InputKey[]} */ (Object.keys(inputTemplate));
-  const hasInvalidInputValues = inputKeys.some((inputKey) => typeof payload.state[inputKey] !== "boolean");
-  if (
-    hasInvalidInputValues ||
-    Object.keys(payload.state).some((inputKey) => !Object.hasOwn(inputTemplate, inputKey))
-  ) {
+  if (!isValidGameInputState(payload.state, inputTemplate, numericInputs)) {
     return false;
   }
 
@@ -337,9 +348,10 @@ export function consumeInputFrames({
  * The game owns epoch/protocol resets and performs them separately.
  * @template {string} InputKey
  * @param {PlayerInputState<InputKey>} player
+ * @param {GameInputState<InputKey>} [inputTemplate] Restore exact neutral defaults when provided.
  * @returns {void}
  */
-export function resetInputBuffer(player) {
+export function resetInputBuffer(player, inputTemplate) {
   if (!player || typeof player !== "object") {
     return;
   }
@@ -350,7 +362,14 @@ export function resetInputBuffer(player) {
   if (isPlainObject(player.input)) {
     const inputKeys = /** @type {InputKey[]} */ (Object.keys(player.input));
     for (const inputKey of inputKeys) {
-      player.input[inputKey] = false;
+      if (inputTemplate && !Object.hasOwn(inputTemplate, inputKey)) {
+        delete player.input[inputKey];
+      } else {
+        player.input[inputKey] = inputTemplate ? inputTemplate[inputKey] : false;
+      }
+    }
+    if (inputTemplate) {
+      Object.assign(player.input, inputTemplate);
     }
   }
 }

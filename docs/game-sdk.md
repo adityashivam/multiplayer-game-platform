@@ -149,7 +149,40 @@ const networkSession = createNetworkedGameSession({
 });
 ```
 
-`socket` is the `getGameSocket(namespace)` facade. `localPlayerId` comes from its `gameJoined` event; game UI may also need that ID for labels and scoring. `interpolator` is created with `createWorkerInterpolator({extractPositions,extractVelocities?,interpDelayMs?,maxBufferSize?})`, using selectors appropriate to the game's snapshot shape. `controls` can use `createInputLatch(template,{edgeKeys})` so short action presses survive between captures.
+`socket` is the `getGameSocket(namespace)` facade. `localPlayerId` comes from its `gameJoined` event; game UI may also need that ID for labels and scoring. `interpolator` is created with `createWorkerInterpolator({extractPositions,extractVelocities?,interpDelayMs?,maxBufferSize?})`, using selectors appropriate to the game's snapshot shape. `controls` can use `createInputLatch(template,{edgeKeys,numericInputs})` so short boolean action presses survive between captures while numeric controls retain their magnitudes.
+
+### Numeric controls and platform analog sticks
+
+Declare every numeric field with `{min,max,integer?}`. Templates contain the neutral state restored on reset, including nonzero numbers such as an initial weapon selection. Reuse the same template/ranges in the browser latch, authoritative session, and `meta.networking.inputTemplate` / `meta.networking.numericInputs` so advertised capabilities agree with command validation.
+
+```js
+const inputTemplate = { moveX: 0, moveZ: 0, yaw: 0, tool: 1, fire: false, jump: false };
+const numericInputs = {
+  moveX: { min: -1, max: 1 },
+  moveZ: { min: -1, max: 1 },
+  yaw: { min: -Math.PI, max: Math.PI },
+  tool: { min: 0, max: 4, integer: true },
+};
+const inputLatch = createInputLatch(inputTemplate, { numericInputs, edgeKeys: ["jump"] });
+const platformControls = getGameControls();
+const unsubscribeMovement = platformControls.sticks.left.onChange(({ x, y }) => {
+  inputLatch.set("moveX", x);
+  inputLatch.set("moveZ", -y);
+});
+const authoritativeInput = createAuthoritativeInputSession({
+  inputTemplate, numericInputs, edgeKeys: ["jump"], fixedDtSec: 1 / 60,
+});
+
+// On runtime disposal, alongside the game's other input/network cleanup:
+unsubscribeMovement();
+inputLatch.reset();
+```
+
+Import `createInputLatch` from `/platform/frontend-engine/inputTimeline.js` and `getGameControls` from `/platform/frontend-engine/gameDom.js`; the server session is exported by the backend SDK. Each `sticks.left` / `sticks.right` control provides `getState()` and `onChange(handler)`, which returns an unsubscribe function. Reads and notifications are owned `{x,y}` copies. X is positive right; Y is positive down. Axes use a rescaled circular deadzone of 0.14 and unit maximum magnitude, including diagonals. A game maps these axes to its own movement/camera units and combines them with keyboard or pointer input.
+
+Sticks capture one pointer each, allowing simultaneous movement and looking. Focus a labeled stick button and hold arrow keys for keyboard interaction. Release, cancellation, lost pointer capture, focus loss, hidden pages, resize, platform disabling, and unmount return that stick to neutral. The shell updates stick visuals directly without high-frequency React state changes. Games must unsubscribe on disposal and reset their own combined input when opening game-owned dialogs.
+
+Numeric fields require finite numbers inside their configured bounds; integer fields reject fractional values. Unknown/missing queued-state keys and invalid booleans are rejected. Numeric-enabled legacy frames use the same complete-state validation. Invalid local numeric latch updates are ignored, never clamped or converted to booleans. Only boolean fields may be `edgeKeys`; constructor validation rejects numeric action edges. Existing boolean-only legacy adapters keep their coercion/acknowledgement behavior.
 
 Keep the `rejoinToken` returned by `gameJoined`, scoped to the room and namespace, and include it when joining after a reconnect or reload:
 
@@ -174,7 +207,7 @@ Omit `prediction` and `readAuthority` for interpolation-only games. Games with e
 
 ## Connect authoritative simulation
 
-`createAuthoritativeInputSession({inputTemplate,edgeKeys?,fixedDtSec?,starvationMs?})` provides:
+`createAuthoritativeInputSession({inputTemplate,numericInputs?,edgeKeys?,fixedDtSec?,starvationMs?})` provides:
 
 - `receiveInput(player,payload,nowMs?)`: validate and queue input; queued frames acknowledge after simulation.
 - `simulateRoom({state,dtSec,simulate})`: step all game-defined players while the SDK manages room timing, command budgets and recovery. The callback receives `(player,inputState,fixedDtSec,playerId,inputFrame)`.
@@ -183,11 +216,13 @@ Omit `prediction` and `readAuthority` for interpolation-only games. Games with e
 
 Call these from the standard `registerGame()` or `registerPluggableGame()` callbacks. Game rules use the supplied step duration; the SDK owns room-clock fields and recovery. Include `inputProtocol` in snapshots and spread `getPlayerSnapshotMetadata(player)` alongside each player's prediction state. The existing Fight and Pong adapters provide complete examples. `simulatePlayer()` remains available as a lower-level hook for custom schedulers.
 
-The current queued input validator accepts game-defined boolean control keys. Custom message/input schemes can use registration's `handleInput` callback; they must define and validate their own contract. Game-specific combat, ball outcomes, scoring and wins remain authoritative.
+The queued input validator accepts game-defined booleans and explicitly bounded numeric controls. The SDK owns its template/range copies, queued-state copies, resets, acknowledgements, and ownership recovery. Custom message/input schemes can use registration's `handleInput` callback; they must define and validate their own contract. Game-specific combat, ball outcomes, scoring and wins remain authoritative.
 
 ## Current coverage and verification
 
-Fight and Pong use the high-level client session, the shared authoritative input session and configurable platform mechanics. Mario, Mario Touch and Road Rash retain their existing input adapters and inherit shared transport/interpolation/scheduler fixes; their full prediction migrations remain separate work. Draw uses its event-driven state path. The WebGL sample is single-player.
+Fight and Pong use the high-level client session, the shared authoritative input session and configurable platform mechanics. Dead Shift uses those same sessions with bounded numeric movement/aim/weapon inputs, game-owned 3D movement prediction, server-owned combat, and a Three.js renderer. Its shared `roundId` distinguishes rematches from snapshot recovery so reconnects do not replay old visual effects. See [its controls and integration](../public/games/dead-shift/README.md).
+
+Mario, Mario Touch and Road Rash retain their existing input adapters and inherit shared transport/interpolation/scheduler fixes; their full prediction migrations remain separate work. Draw uses its event-driven state path. The WebGL sample is single-player.
 
 ```sh
 npm test
@@ -195,4 +230,4 @@ npm run build
 npm run net:probe -- --url http://localhost:3000 --game pong --seconds 30
 ```
 
-The probe reads the selected game's public capabilities. Set `inputProtocol` and `inputTemplate` to null for snapshot/RTT-only diagnostics; continuous input is not forced on other game types. Probe limits bound a single diagnostic match. Tests also verify arbitrary player slots, configurable cadence, SDK lifecycle/ownership, alternate controller bindings and that platform runtime bundles have no concrete game-package dependencies.
+The probe reads the selected game's public capabilities. It alternates the first two boolean controls and preserves every numeric template value; use a game-owned diagnostic for a specific analog movement pattern. Set `inputProtocol` and `inputTemplate` to null and omit `numericInputs` for snapshot/RTT-only diagnostics; continuous input is not forced on other game types. Probe limits bound a single diagnostic match. Tests also verify arbitrary player slots, configurable cadence, SDK lifecycle/ownership, alternate controller bindings and that platform runtime bundles have no concrete game-package dependencies.

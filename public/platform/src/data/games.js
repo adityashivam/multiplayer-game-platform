@@ -5,8 +5,10 @@ import { marioPresentation } from "../../../games/mario/catalog.js";
 import { marioTouchPresentation } from "../../../games/mario-touch/catalog.js";
 import { drawPresentation } from "../../../games/draw/catalog.js";
 import { webglSamplePresentation } from "../../../games/webgl-sample/catalog.js";
+import { deadShiftPresentation } from "../../../games/dead-shift/catalog.js";
 
 export const gameTitles = {
+  "dead-shift": "Dead Shift",
   fight: "Kaboom Fight",
   pong: "Kaboom Pong",
   roadrash: "Road Rash Online",
@@ -37,6 +39,24 @@ function makeWebglRuntime(id) {
 }
 
 export const fallbackGames = [
+  {
+    id: "dead-shift",
+    name: "Dead Shift",
+    presentation: deadShiftPresentation,
+    description: "Two survivors. One shared horde. Race for the most zombie kills in a 90-second containment breach.",
+    path: "/games/dead-shift",
+    engine: "webgl",
+    runtime: {
+      kind: "module",
+      mount: "canvas",
+      entryUrl: "/games/dead-shift/dist/main.js",
+      socketIo: true,
+      kaboom: false,
+    },
+    tags: ["Shooter", "2 players", "Horror", "3D"],
+    startInLandscape: true,
+    platformControlButtons: true,
+  },
   {
     id: "fight",
     presentation: fightPresentation,

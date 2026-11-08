@@ -1,0 +1,128 @@
+.ds-hud {
+  --ds-amber: #efbb76;
+  --ds-ivory: #eee9da;
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  overflow: hidden;
+  pointer-events: none;
+  color: var(--ds-ivory);
+  font: 11px "Manrope", sans-serif;
+  container-type: size;
+  text-shadow: 0 2px 8px #0009;
+}
+.ds-hud *, .ds-hud *::before, .ds-hud *::after { box-sizing: border-box; }
+.ds-hud button { font: inherit; color: inherit; cursor: pointer; pointer-events: auto; }
+.ds-hud button:focus-visible { outline: 2px solid #00cee6; outline-offset: 3px; }
+.ds-hud button:disabled { cursor: default; }
+.ds-grain { position: absolute; inset: 0; background: radial-gradient(ellipse at center, transparent 40%, #040c0b99); }
+.ds-match-strip { position: absolute; top: max(56px, 7.5cqh); left: 2.5%; right: 2.5%; display: flex; align-items: start; justify-content: space-between; gap: 12px; }
+.ds-brand { display: flex; align-items: center; gap: 10px; font: 700 clamp(10px, 1.4cqw, 15px) "Space Grotesk", sans-serif; letter-spacing: .08em; }
+.ds-brand-mark { font-size: clamp(18px, 2.8cqw, 31px); letter-spacing: -.12em; }
+.ds-brand-mark > span { color: var(--ds-amber); margin: 0 2px; }
+.ds-brand small { display: block; margin-top: 3px; font-size: 7px; color: #c4cabd; letter-spacing: .17em; }
+.ds-scoreboard { position: absolute; left: 50%; transform: translateX(-50%); display: flex; gap: clamp(16px, 3cqw, 36px); padding: 5px 16px 12px; background: linear-gradient(#071511bb, #07151100); text-align: center; }
+.ds-scoreboard small { display: block; font-size: 7px; letter-spacing: .18em; color: #c1c9bb; white-space: nowrap; }
+.ds-scoreboard strong { font: 600 clamp(23px, 3.5cqw, 37px) "Space Grotesk", sans-serif; font-variant-numeric: tabular-nums; }
+.ds-score-self strong { color: var(--ds-amber); }
+.ds-clock { border-inline: 1px solid #dce9df33; padding-inline: clamp(12px, 2cqw, 24px); }
+.ds-clock strong { letter-spacing: -.06em; }
+.ds-final-seconds .ds-clock strong { color: #ff9074; }
+.ds-mute { border: 0; background: #09201c88; padding: 8px; font-size: 7px !important; letter-spacing: .12em; border-radius: 3px; }
+.ds-feed { position: absolute; top: 19%; right: 3%; color: var(--ds-amber); font-size: 9px; letter-spacing: .1em; max-width: 45%; text-align: right; }
+.ds-crosshair { position: absolute; top: 50%; left: 50%; width: 24px; height: 24px; transform: translate(-50%, -50%); opacity: .85; }
+.ds-crosshair i { position: absolute; display: block; background: #fff6d3; box-shadow: 0 0 3px #000; }
+.ds-crosshair i:nth-child(1) { width: 1px; height: 5px; top: 0; left: 11px; }
+.ds-crosshair i:nth-child(2) { width: 1px; height: 5px; bottom: 0; left: 11px; }
+.ds-crosshair i:nth-child(3) { height: 1px; width: 5px; top: 11px; left: 0; }
+.ds-crosshair i:nth-child(4) { height: 1px; width: 5px; top: 11px; right: 0; }
+.ds-crosshair span { position: absolute; width: 2px; height: 2px; background: #fff; left: 10.5px; top: 10.5px; }
+.ds-hitmarker { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 36px; font-weight: 300; opacity: 0; color: var(--ds-amber); transition: opacity 80ms; }
+.ds-hit .ds-hitmarker { opacity: 1; }
+.ds-damage { position: absolute; inset: 0; opacity: 0; box-shadow: inset 0 0 100px 25px #b32c25aa; transition: opacity 180ms; }
+.ds-hurt .ds-damage { opacity: 1; }
+.ds-center-status { position: absolute; left: 20%; right: 20%; top: 30%; white-space: pre-line; text-align: center; font: 600 clamp(13px, 2cqw, 23px)/1.8 "Space Grotesk", sans-serif; letter-spacing: .09em; }
+.ds-intro { position: absolute; inset: 0; display: flex; align-items: center; padding: 6%; background: linear-gradient(90deg, #041310ed, #04131088 38%, transparent 72%); transition: opacity 200ms; }
+.ds-intro-copy { max-width: 50%; animation: ds-enter 550ms ease-out both; }
+.ds-eyebrow { color: var(--ds-amber); font-size: clamp(7px, 1cqw, 10px); letter-spacing: .3em; }
+.ds-intro h1 { font: 700 clamp(38px, 8cqw, 92px)/.83 "Space Grotesk", sans-serif; letter-spacing: -.055em; margin: 20px 0; }
+.ds-intro h1 > span { display: block; color: var(--ds-amber); }
+.ds-intro-description { color: #d0d8c9; font-size: clamp(10px, 1.3cqw, 15px); line-height: 1.8; }
+.ds-enter { margin-top: 15px; border: 1px solid #edc48a77; background: var(--ds-amber); border-radius: 3px; color: #14211b !important; font-weight: 800 !important; padding: 13px 18px; display: flex; align-items: center; justify-content: space-between; min-width: 170px; text-shadow: none; transition: background 140ms, transform 140ms; }
+.ds-enter:hover { background: #ffce92; transform: translateY(-1px); }
+.ds-enter > span { margin-left: 24px; font-size: 18px; }
+.ds-intro-controls { color: #9daea2; font-size: 8px; line-height: 1.8; margin-top: 14px; }
+.ds-entered .ds-intro { opacity: 0; visibility: hidden; pointer-events: none; }
+.ds-entered .ds-intro button { pointer-events: none; }
+.ds-hud:not(.ds-entered) .ds-center-status, .ds-hud:not(.ds-entered) .ds-crosshair { opacity: 0; }
+.ds-player-strip { position: absolute; left: 3%; right: 3%; bottom: max(62px, 12cqh); display: flex; align-items: end; justify-content: space-between; gap: 20px; }
+.ds-vitals { min-width: min(180px, 28%); }
+.ds-vitals > div:first-child { display: flex; align-items: baseline; gap: 8px; }
+.ds-health-icon { color: var(--ds-amber); font-size: 24px; }
+.ds-vitals strong { font: 500 clamp(24px, 4cqw, 42px) "Space Grotesk", sans-serif; font-variant-numeric: tabular-nums; }
+.ds-vitals small { letter-spacing: .18em; font-size: 7px; color: #a8bcb0; }
+.ds-health-track { height: 3px; background: #7b9f902e; width: 100%; margin-top: 4px; }
+.ds-health-track i { display: block; height: 100%; background: var(--ds-amber); transform-origin: left; transition: transform 160ms; }
+.ds-low-health .ds-health-track i { background: #ff7568; }
+.ds-room-status { font-size: 8px; color: #b2bfb4; display: block; margin-top: 8px; }
+.ds-weapon-status { text-align: right; }
+.ds-weapon-name { font-size: 9px; letter-spacing: .17em; color: #cfdbcf; }
+.ds-weapon-status > div { display: flex; gap: 8px; align-items: baseline; justify-content: end; }
+.ds-weapon-status strong { font: 500 clamp(29px, 4.5cqw, 50px) "Space Grotesk", sans-serif; font-variant-numeric: tabular-nums; }
+.ds-weapon-status > div > span { color: #c3cbbf; font-size: 14px; }
+.ds-weapon-status small { font-size: 7px; letter-spacing: .12em; }
+.ds-weapon-status > div small { display: block; text-align: right; font-size: 6px; }
+.ds-reload-label { color: var(--ds-amber); }
+.ds-weapons { position: absolute; left: 50%; transform: translateX(-50%); bottom: max(14px, 2.7cqh); display: flex; justify-content: center; gap: 3px; }
+.ds-weapons button { position: relative; display: grid; grid-template-columns: 12px 1fr; align-items: center; gap: 5px; min-width: clamp(45px, 7.2cqw, 81px); padding: 9px 8px 7px; border: 0; border-top: 2px solid #a5c2b12b; background: #061c17aa; color: #a5b9aa; border-radius: 0; transition: background 120ms; }
+.ds-weapons button[aria-pressed="true"] { border-color: var(--ds-amber); background: #725a363b; color: var(--ds-ivory); }
+.ds-weapons button > span { font-size: 8px; opacity: .6; }
+.ds-weapons button i { display: block; width: 28px; height: 5px; background: currentColor; clip-path: polygon(0 20%,80% 20%,80% 0,100% 0,100% 55%,70% 55%,67% 100%,53% 100%,53% 55%,30% 55%,25% 100%,15% 100%,15% 55%,0 55%); }
+.ds-weapons button[data-weapon="1"] i { width: 23px; height: 7px; }
+.ds-weapons button[data-weapon="2"] i { width: 34px; height: 5px; }
+.ds-weapons button[data-weapon="3"] i { width: 27px; height: 9px; }
+.ds-weapons button[data-weapon="4"] i { width: 34px; height: 8px; clip-path: polygon(0 20%,15% 20%,15% 0,85% 0,85% 20%,100% 20%,100% 80%,85% 80%,85% 100%,15% 100%,15% 80%,0 80%); }
+.ds-weapons button small { grid-column: 1 / -1; letter-spacing: .08em; font-size: 6px; }
+.ds-control-hint { position: absolute; bottom: 5px; left: 0; right: 0; color: #aac0ad; text-align: center; font-size: 6px; letter-spacing: .08em; }
+.ds-control-hint > span { opacity: .4; margin: 0 5px; }
+.ds-error { position: absolute; inset: 25% 15%; border: 1px solid #d0b18b55; padding: 24px; background: #0d1f1bf5; border-radius: 8px; pointer-events: auto; display: grid; place-content: center; text-align: center; }
+.ds-error[hidden] { display: none; }
+.ds-error strong { font: 600 20px "Space Grotesk", sans-serif; }
+.ds-error p { color: #bdc9be; }
+.ds-error button { justify-self: center; padding: 10px 20px; border: 0; border-radius: 4px; background: #00cce3; color: #041b20; }
+.ds-blocked { visibility: hidden; }
+@keyframes ds-enter { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+@container (max-width: 580px) {
+  .ds-brand > span:last-child { display: none; }
+  .ds-scoreboard { gap: 12px; }
+  .ds-scoreboard small { font-size: 6px; }
+  .ds-scoreboard strong { font-size: 25px; }
+  .ds-match-strip { top: 53px; }
+  .ds-mute { font-size: 6px !important; padding: 6px; }
+  .ds-weapons button { min-width: 47px; padding-inline: 5px; }
+  .ds-weapons button i { max-width: 25px; }
+  .ds-weapons button small { font-size: 5px; }
+  .ds-vitals { min-width: 105px; }
+  .ds-room-status { max-width: 150px; line-height: 1.5; font-size: 7px; }
+  .ds-weapon-status > div > span { font-size: 11px; }
+  .ds-weapon-name { font-size: 7px; }
+  .ds-intro-copy { max-width: 80%; }
+  .ds-intro h1 { font-size: 58px; }
+  .ds-intro-description { font-size: 11px; }
+  .ds-enter { min-width: 155px; padding: 11px 14px; }
+  .ds-error { inset: 20% 5%; padding: 16px; }
+}
+@container (max-height: 350px) {
+  .ds-intro h1 { font-size: 43px; margin: 10px 0; }
+  .ds-intro-description { font-size: 9px; margin-block: 8px; }
+  .ds-intro-controls { display: none; }
+  .ds-enter { margin-top: 5px; min-width: 145px; padding: 8px 12px; }
+  .ds-player-strip { bottom: 56px; }
+  .ds-weapons { bottom: 12px; }
+  .ds-vitals strong { font-size: 24px; }
+  .ds-weapon-status strong { font-size: 28px; }
+  .ds-room-status { font-size: 7px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ds-hud *, .ds-hud *::before, .ds-hud *::after { animation: none !important; transition: none !important; }
+}

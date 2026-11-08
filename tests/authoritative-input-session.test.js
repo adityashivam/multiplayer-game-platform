@@ -4,6 +4,105 @@ import { createAuthoritativeInputSession } from "../server/platform-backend-engi
 
 const INPUT_TEMPLATE = { drift: false, ignite: false };
 
+const ANALOG_INPUT_TEMPLATE = { axis: 0, heading: 0.5, tool: 2, fire: false, jump: false };
+const NUMERIC_INPUTS = {
+  axis: { min: -1, max: 1 },
+  heading: { min: -3.2, max: 3.2 },
+  tool: { min: 0, max: 4, integer: true },
+};
+
+test("mixed numeric and boolean commands survive queueing, held simulation and recovery", () => {
+  const session = createAuthoritativeInputSession({
+    inputTemplate: ANALOG_INPUT_TEMPLATE, numericInputs: NUMERIC_INPUTS, edgeKeys: ["jump"],
+  });
+  const playerState = {};
+  session.resetPlayer(playerState);
+  assert.deepEqual(playerState.input, ANALOG_INPUT_TEMPLATE);
+  const inputState = { axis: -0.4, heading: 1.25, tool: 3, fire: true, jump: true };
+  const inputFrame = {
+    type: "inputFrame", protocol: 2, epoch: playerState.inputEpoch, seq: 1, state: inputState,
+  };
+  assert.equal(session.receiveInput(playerState, inputFrame, 100), true);
+  inputState.axis = 0.9;
+  const simulatedInputs = [];
+  session.simulatePlayer({ player: playerState, dtSec: 1 / 60, nowMs: 100,
+    simulate: (capturedInput) => simulatedInputs.push(capturedInput),
+  });
+  session.simulatePlayer({ player: playerState, dtSec: 1 / 60, nowMs: 120,
+    simulate: (capturedInput) => simulatedInputs.push(capturedInput),
+  });
+  assert.deepEqual(simulatedInputs, [
+    { axis: -0.4, heading: 1.25, tool: 3, fire: true, jump: true },
+    { axis: -0.4, heading: 1.25, tool: 3, fire: true, jump: true },
+  ]);
+  assert.equal(playerState.lastInputSeqAck, 1);
+  session.simulatePlayer({ player: playerState, dtSec: 1 / 60, nowMs: 1000, simulate() {} });
+  assert.deepEqual(playerState.input, ANALOG_INPUT_TEMPLATE);
+  assert.equal(playerState.inputEpoch, 2);
+});
+
+test("mixed input rejects malformed numeric frames without taking ownership or extending receipt time", () => {
+  const session = createAuthoritativeInputSession({
+    inputTemplate: ANALOG_INPUT_TEMPLATE, numericInputs: NUMERIC_INPUTS,
+  });
+  const playerState = {};
+  session.resetPlayer(playerState);
+  const invalidStates = [
+    ...[NaN, Infinity, -Infinity, -1.001, 1.001, "0.5", true].map((axis) => ({ ...ANALOG_INPUT_TEMPLATE, axis })),
+    { ...ANALOG_INPUT_TEMPLATE, tool: 1.5 },
+    { ...ANALOG_INPUT_TEMPLATE, tool: 5 },
+    { ...ANALOG_INPUT_TEMPLATE, fire: 1 },
+    { ...ANALOG_INPUT_TEMPLATE, hidden: 0 },
+    { axis: 0, heading: 0, fire: false, jump: false },
+  ];
+  for (const state of invalidStates) {
+    assert.equal(session.receiveInput(playerState, {
+      type: "inputFrame", protocol: 2, epoch: playerState.inputEpoch, seq: 1, state,
+    }, 100), false);
+  }
+  assert.equal(playerState.inputProtocol, null);
+  assert.equal(playerState.__lastInputReceiptMs, null);
+  assert.equal(playerState.lastInputSeqAck, 0);
+  assert.deepEqual(playerState.input, ANALOG_INPUT_TEMPLATE);
+});
+
+test("mixed legacy frames preserve numeric values while rejecting invalid complete states", () => {
+  const session = createAuthoritativeInputSession({
+    inputTemplate: ANALOG_INPUT_TEMPLATE, numericInputs: NUMERIC_INPUTS,
+  });
+  const playerState = {};
+  session.resetPlayer(playerState);
+  assert.equal(session.receiveInput(playerState, {
+    type: "inputFrame", seq: 1, state: { ...ANALOG_INPUT_TEMPLATE, axis: -0.25, tool: 4 },
+  }), true);
+  assert.equal(playerState.input.axis, -0.25);
+  assert.equal(playerState.input.tool, 4);
+  assert.equal(session.receiveInput(playerState, { type: "axis", value: 0.75, seq: 2 }), true);
+  assert.equal(playerState.input.axis, 0.75);
+  assert.equal(session.receiveInput(playerState, { type: "axis", value: Infinity, seq: 3 }), false);
+  assert.equal(playerState.input.axis, 0.75);
+  assert.equal(session.receiveInput(playerState, {
+    type: "inputFrame", seq: 4, state: { ...ANALOG_INPUT_TEMPLATE, axis: NaN },
+  }), false);
+  assert.equal(playerState.input.axis, 0.75);
+});
+
+test("authoritative numeric schema rejects invalid ranges, defaults and numeric edge keys", () => {
+  const invalidOptions = [
+    { inputTemplate: { axis: 0 } },
+    { inputTemplate: { axis: 0 }, numericInputs: { axis: { min: 1, max: -1 } } },
+    { inputTemplate: { axis: 0 }, numericInputs: { axis: { min: -1, max: Infinity } } },
+    { inputTemplate: { axis: 2 }, numericInputs: { axis: { min: -1, max: 1 } } },
+    { inputTemplate: { axis: 0.5 }, numericInputs: { axis: { min: 0, max: 4, integer: true } } },
+    { inputTemplate: { fire: false }, numericInputs: { fire: { min: 0, max: 1 } } },
+    { inputTemplate: { fire: false }, numericInputs: { unknown: { min: 0, max: 1 } } },
+    { inputTemplate: { axis: 0 }, numericInputs: { axis: { min: -1, max: 1 } }, edgeKeys: ["axis"] },
+  ];
+  for (const sessionOptions of invalidOptions) {
+    assert.throws(() => createAuthoritativeInputSession(sessionOptions), { name: "TypeError" });
+  }
+});
+
 function createSession(options = {}) {
   return createAuthoritativeInputSession({
     inputTemplate: INPUT_TEMPLATE,

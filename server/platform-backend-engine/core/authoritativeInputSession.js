@@ -11,6 +11,7 @@ import {
   INPUT_PROTOCOL,
   NETWORK_TIMING,
 } from "../../../public/platform/shared/networkProtocol.js";
+import { createInputSchema } from "../../../public/platform/shared/inputSchema.js";
 
 /**
  * Networking state owned by the SDK, added to a game's player state in place.
@@ -50,6 +51,7 @@ import {
  * @template {string} InputKey
  * @param {object} options
  * @param {import("./inputProtocol.js").GameInputState<InputKey>} options.inputTemplate
+ * @param {import("../../../public/platform/shared/inputSchema.js").NumericInputConfiguration<InputKey>} [options.numericInputs]
  * @param {ReadonlyArray<InputKey>} [options.edgeKeys]
  * @param {number} [options.fixedDtSec] Duration of one queued simulation step.
  * @param {number} [options.starvationMs] Maximum gap before queued input resets.
@@ -75,6 +77,7 @@ import {
  */
 export function createAuthoritativeInputSession({
   inputTemplate,
+  numericInputs = {},
   edgeKeys = [],
   fixedDtSec = NETWORK_TIMING.FIXED_DT_SEC,
   starvationMs = NETWORK_TIMING.INPUT_STARVATION_MS,
@@ -85,6 +88,10 @@ export function createAuthoritativeInputSession({
   if (!Number.isFinite(starvationMs) || starvationMs < 0) {
     throw new TypeError("Authoritative input session starvationMs must be nonnegative and finite.");
   }
+  const inputSchema = createInputSchema(inputTemplate, numericInputs, edgeKeys);
+  inputTemplate = inputSchema.inputTemplate;
+  numericInputs = inputSchema.numericInputs;
+  edgeKeys = [...edgeKeys];
 
   /**
    * Clear held/queued input and advance ownership without changing game fields.
@@ -96,7 +103,7 @@ export function createAuthoritativeInputSession({
       return;
     }
     ensurePlayerInputState(player, inputTemplate);
-    resetInputBuffer(player);
+    resetInputBuffer(player, inputTemplate);
     player.inputEpoch = (Number.isSafeInteger(player.inputEpoch) ? player.inputEpoch : 0) + 1;
     player.inputProtocol = null;
     player.__lastInputReceiptMs = null;
@@ -118,7 +125,7 @@ export function createAuthoritativeInputSession({
     }
 
     if (payload?.type === INPUT_MESSAGE_TYPE.FRAME && payload.protocol === INPUT_PROTOCOL.QUEUED) {
-      const acceptedFrame = enqueueInputFrame({ player, payload, inputTemplate });
+      const acceptedFrame = enqueueInputFrame({ player, payload, inputTemplate, numericInputs });
       if (acceptedFrame) {
         player.inputProtocol = INPUT_PROTOCOL.QUEUED;
         player.__lastInputReceiptMs = nowMs;
@@ -129,7 +136,7 @@ export function createAuthoritativeInputSession({
       return false;
     }
 
-    return applySequencedInput({ player, payload, inputTemplate });
+    return applySequencedInput({ player, payload, inputTemplate, numericInputs });
   }
 
   /**

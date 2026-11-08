@@ -3,6 +3,7 @@ import {
   URL_PROTOCOL,
 } from "../../public/platform/shared/networkProtocol.js";
 import { isSupportedPlayerSlotId } from "../../public/platform/shared/gameIdentifiers.js";
+import { createInputSchema } from "../../public/platform/shared/inputSchema.js";
 
 const DEFAULT_DURATION_SECONDS = 30;
 const MAX_DURATION_SECONDS = 120;
@@ -20,7 +21,7 @@ export const PROBE_USAGE_MESSAGE = "Usage: node scripts/network-probe.mjs --url 
 /** @typedef {"--url"|"--seconds"|"--game"} ProbeOptionName */
 /**
  * Input keys are supplied by the selected game, rather than by the diagnostic.
- * @typedef {Record<string, boolean>} ProbeInputState
+ * @typedef {Record<string, boolean | number>} ProbeInputState
  */
 /**
  * @typedef {object} ProbeGameConfig
@@ -31,6 +32,7 @@ export const PROBE_USAGE_MESSAGE = "Usage: node scripts/network-probe.mjs --url 
  * @property {number} tickRateHz
  * @property {1|2|null} inputProtocol Null selects snapshots and RTT without input.
  * @property {ProbeInputState|null} inputTemplate First two controls alternate; others retain template values.
+ * @property {import("../../public/platform/shared/inputSchema.js").NumericInputConfiguration<string>} [numericInputs]
  */
 
 /** @param {unknown} configValue @returns {configValue is Record<string, unknown>} */
@@ -121,7 +123,7 @@ export function validateProbeGameConfig(probeConfig) {
   const inputProtocol = probeConfig.inputProtocol;
   const inputTemplate = probeConfig.inputTemplate;
   if (inputProtocol === null) {
-    if (inputTemplate !== null) {
+    if (inputTemplate !== null || probeConfig.numericInputs !== undefined) {
       throw new Error("Snapshots-only probe input template must be null");
     }
   } else {
@@ -129,16 +131,17 @@ export function validateProbeGameConfig(probeConfig) {
       throw new Error("Unsupported probe input protocol");
     }
     if (!isConfigRecord(inputTemplate)) {
-      throw new Error("Probe input template must contain boolean controls");
+      throw new Error("Probe input template must contain named controls");
     }
 
     const inputKeys = Object.keys(inputTemplate);
     if (
       inputKeys.length === 0 || inputKeys.length > MAX_PROBE_INPUT_KEYS ||
-      inputKeys.some((inputKey) => !isProbeIdentifier(inputKey) || typeof inputTemplate[inputKey] !== "boolean")
+      inputKeys.some((inputKey) => !isProbeIdentifier(inputKey))
     ) {
-      throw new Error(`Probe input template must contain 1-${MAX_PROBE_INPUT_KEYS} named boolean controls`);
+      throw new Error(`Probe input template must contain 1-${MAX_PROBE_INPUT_KEYS} named controls`);
     }
+    createInputSchema(/** @type {ProbeInputState} */ (inputTemplate), probeConfig.numericInputs);
   }
 
   return {
@@ -149,6 +152,7 @@ export function validateProbeGameConfig(probeConfig) {
     tickRateHz: probeConfig.tickRateHz,
     inputProtocol,
     inputTemplate: inputTemplate === null ? null : /** @type {ProbeInputState} */ ({ ...inputTemplate }),
+    ...(probeConfig.numericInputs === undefined ? {} : { numericInputs: structuredClone(probeConfig.numericInputs) }),
   };
 }
 
@@ -194,5 +198,6 @@ export function resolveProbeGameConfig(catalogResponse, gameId) {
     tickRateHz: networking.tickRateHz,
     inputProtocol: networking.inputProtocol ?? null,
     inputTemplate: networking.inputTemplate ?? null,
+    ...(networking.numericInputs === undefined ? {} : { numericInputs: networking.numericInputs }),
   });
 }

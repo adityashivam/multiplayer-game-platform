@@ -1,4 +1,5 @@
 import { INPUT_LIMITS, NETWORK_TIMING } from "../shared/networkProtocol.js";
+import { createInputSchema, isValidNumericInputValue } from "../shared/inputSchema.js";
 
 const DEFAULT_MIN_INPUT_DT_SEC = 1 / 120;
 const DEFAULT_MAX_INPUT_DT_SEC = 1 / 15;
@@ -36,30 +37,39 @@ function clampNumber(value, min, max) {
  * template is copied; capture returns a new object and consumes pending edges.
  *
  * @template {string} InputKey
- * @param {Record<InputKey, boolean>} inputTemplate Supported game input keys.
- * @param {{ edgeKeys?: InputKey[] }} [options]
+ * @param {Record<InputKey, boolean | number>} inputTemplate Supported keys and neutral values.
+ * @param {{ edgeKeys?: ReadonlyArray<InputKey>, numericInputs?: import("../shared/inputSchema.js").NumericInputConfiguration<InputKey> }} [options]
+ * @throws {TypeError} For invalid numeric ranges/defaults or nonboolean edge keys.
  */
-export function createInputLatch(inputTemplate, { edgeKeys = [] } = {}) {
-  const heldInput = { ...inputTemplate };
+export function createInputLatch(inputTemplate, { edgeKeys = [], numericInputs = {} } = {}) {
+  const inputSchema = createInputSchema(inputTemplate, numericInputs, edgeKeys);
+  const heldInput = { ...inputSchema.inputTemplate };
   const actionEdgeKeys = new Set(edgeKeys);
   const pendingActionEdges = new Set();
 
   return {
     /**
      * @param {keyof typeof heldInput} inputKey
-     * @param {boolean} active
+     * @param {boolean | number} inputValue Numeric values are validated; invalid values are ignored.
      */
-    set(inputKey, active) {
+    set(inputKey, inputValue) {
       if (!Object.hasOwn(heldInput, inputKey)) {
         return;
       }
 
-      if (active && !heldInput[inputKey] && actionEdgeKeys.has(inputKey)) {
+      if (Object.hasOwn(inputSchema.numericInputs, inputKey)) {
+        if (isValidNumericInputValue(inputValue, inputSchema.numericInputs[inputKey])) {
+          heldInput[inputKey] = inputValue;
+        }
+        return;
+      }
+
+      if (inputValue && !heldInput[inputKey] && actionEdgeKeys.has(inputKey)) {
         pendingActionEdges.add(inputKey);
       }
-      heldInput[inputKey] = Boolean(active);
+      heldInput[inputKey] = Boolean(inputValue);
     },
-    /** @returns {Record<InputKey, boolean>} */
+    /** @returns {Record<InputKey, boolean | number>} */
     capture() {
       const capturedInput = { ...heldInput };
       for (const inputKey of pendingActionEdges) {
@@ -70,7 +80,7 @@ export function createInputLatch(inputTemplate, { edgeKeys = [] } = {}) {
     },
     reset() {
       for (const inputKey of Object.keys(heldInput)) {
-        heldInput[inputKey] = false;
+        heldInput[inputKey] = inputSchema.inputTemplate[inputKey];
       }
       pendingActionEdges.clear();
     },

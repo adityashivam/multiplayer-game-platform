@@ -1,4 +1,5 @@
-import React from "react";
+import React, { useEffect, useRef } from "react";
+import { bindAnalogStick } from "../../../../frontend-engine/analogStick.js";
 import classNames from "../../../utils/classNames.js";
 import ControllerActionPad from "./ControllerActionPad.jsx";
 import ControllerDirectionalPad from "./ControllerDirectionalPad.jsx";
@@ -15,13 +16,29 @@ function renderPrimaryCluster(primaryCluster, sharedProps) {
   return <ControllerDirectionalPad onDirectional={sharedProps.onDirectional} disabled={sharedProps.disabled} />;
 }
 
-function AnalogStick() {
+function AnalogStick({ side, disabled }) {
+  const stickElement = useRef(null);
+  useEffect(() => {
+    const stickBinding = bindAnalogStick(stickElement.current, { disabled });
+    return () => stickBinding.dispose();
+  }, [disabled]);
+
+  const stickLabel = `${side === "left" ? "Left" : "Right"} analog stick`;
   return (
-    <div className={styles.analogStickHousing} aria-hidden="true">
-      <div className={styles.analogStickCap}>
-        <div className={styles.analogStickCore} />
-      </div>
-    </div>
+    <button
+      ref={stickElement}
+      type="button"
+      className={styles.analogStickHousing}
+      data-stick={side}
+      disabled={disabled}
+      aria-label={stickLabel}
+      aria-keyshortcuts="ArrowUp ArrowDown ArrowLeft ArrowRight"
+      title={`${stickLabel}. Focus and use arrow keys, or drag to move.`}
+    >
+      <span className={styles.analogStickCap} aria-hidden="true">
+        <span className={styles.analogStickCore}>{side === "left" ? "L" : "R"}</span>
+      </span>
+    </button>
   );
 }
 
@@ -48,7 +65,7 @@ export default function PlatformController({
             alignment={layout.utilityAlignment}
           />
 
-          {!isActionSide && <AnalogStick />}
+          {!isActionSide && <AnalogStick side="left" disabled={disabled} />}
 
           <div
             className={classNames(
@@ -59,7 +76,7 @@ export default function PlatformController({
             {renderPrimaryCluster(layout.primaryCluster, sharedProps)}
           </div>
 
-          {isActionSide && <AnalogStick />}
+          {isActionSide && <AnalogStick side="right" disabled={disabled} />}
         </div>
       </ControllerFrame>
     );
@@ -68,9 +85,15 @@ export default function PlatformController({
   return (
     <ControllerFrame>
       <div className={styles.controllerBody}>
-        <ControllerDirectionalPad onDirectional={onDirectional} disabled={disabled} />
+        <div className={styles.controllerFullCluster}>
+          <ControllerDirectionalPad onDirectional={onDirectional} disabled={disabled} />
+          <AnalogStick side="left" disabled={disabled} />
+        </div>
         <ControllerUtilityButtons buttons={layout.utilityButtons} onAction={onAction} disabled={disabled} />
-        <ControllerActionPad onAction={onAction} disabled={disabled} />
+        <div className={styles.controllerFullCluster}>
+          <ControllerActionPad onAction={onAction} disabled={disabled} />
+          <AnalogStick side="right" disabled={disabled} />
+        </div>
       </div>
     </ControllerFrame>
   );

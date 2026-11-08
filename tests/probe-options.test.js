@@ -218,3 +218,43 @@ test("generic probe input alternates only supplied controls without mutating the
   assert.deepEqual(createProbeInputState({ pulse: false }, 0), { pulse: true });
   assert.deepEqual(createProbeInputState({ pulse: false }, 2000), { pulse: false });
 });
+
+test("numeric probe capabilities retain their bounds and numeric defaults during sampling", () => {
+  const gameCatalog = { games: [{
+    id: "analog", name: "Analog", namespace: "/analog", room: { playerIds: ["pilot"] },
+    networking: {
+      namespace: "/analog", tickRateHz: 60, inputProtocol: 2,
+      inputTemplate: { axis: 0, heading: 0.5, tool: 2, boost: false, brake: false },
+      numericInputs: {
+        axis: { min: -1, max: 1 }, heading: { min: -3.2, max: 3.2 }, tool: { min: 0, max: 4, integer: true },
+      },
+    },
+  }] };
+  const probeGameConfig = resolveProbeGameConfig(gameCatalog, "analog");
+  assert.deepEqual(probeGameConfig.numericInputs, {
+    axis: { min: -1, max: 1 }, heading: { min: -3.2, max: 3.2 }, tool: { min: 0, max: 4, integer: true },
+  });
+  assert.deepEqual(createProbeInputState(probeGameConfig.inputTemplate, 0), {
+    axis: 0, heading: 0.5, tool: 2, boost: false, brake: true,
+  });
+  assert.deepEqual(createProbeInputState(probeGameConfig.inputTemplate, 2000), {
+    axis: 0, heading: 0.5, tool: 2, boost: true, brake: false,
+  });
+  assert.deepEqual(createProbeInputState({ axis: 0.25 }, 0), { axis: 0.25 });
+  probeGameConfig.numericInputs.axis.max = 100;
+  assert.equal(gameCatalog.games[0].networking.numericInputs.axis.max, 1);
+});
+
+test("probe rejects malformed numeric ranges and invalid numeric defaults", () => {
+  for (const networking of [
+    { inputTemplate: { axis: 0 }, numericInputs: { axis: { min: -1, max: Infinity } } },
+    { inputTemplate: { axis: 3 }, numericInputs: { axis: { min: -1, max: 1 } } },
+    { inputTemplate: { tool: 0.5 }, numericInputs: { tool: { min: 0, max: 3, integer: true } } },
+    { inputProtocol: null, inputTemplate: null, numericInputs: { axis: { min: -1, max: 1 } } },
+  ]) {
+    assert.throws(() => resolveProbeGameConfig({ games: [{
+      id: "analog", namespace: "/analog", room: { playerIds: ["pilot"] },
+      networking: { namespace: "/analog", tickRateHz: 60, inputProtocol: 2, ...networking },
+    }] }, "analog"), /input|numeric|probe/i);
+  }
+});
