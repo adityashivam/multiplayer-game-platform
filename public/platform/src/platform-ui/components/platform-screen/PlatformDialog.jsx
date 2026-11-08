@@ -6,7 +6,7 @@ import styles from "./PlatformDialog.module.scss";
  * @typedef {object} PlatformDialogProps
  * @property {string} label Accessible dialog name, independent of changing result titles.
  * @property {string} title
- * @property {string} description
+ * @property {React.ReactNode} description
  * @property {string} [eyebrow]
  * @property {string} [icon]
  * @property {() => void} [onClose] Omit for results that require an explicit action.

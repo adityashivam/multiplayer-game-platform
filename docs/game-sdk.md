@@ -158,6 +158,12 @@ The shell's `TouchControlSurface` owns the DOM binding. Custom platform surfaces
 
 Games default to an expanded play area with the console hidden on desktop and touch devices. A current profile can explicitly restore the console; changing the control visibility mode does not shrink the play area. Selecting a preset or editing button positions does not request browser fullscreen, lock orientation or remount the game. Returning to the library restores the console presentation and releases platform-owned fullscreen.
 
+## Room voice chat
+
+Registered multiplayer games share platform-owned voice controls; no game-specific WebRTC or audio forwarding code is required. Voice uses the existing room connection for bounded setup messages and browser WebRTC for media, independently of inputs and authoritative snapshots. Players explicitly join or listen only, then control microphone mute, incoming-audio mute and volume. The browser requests noise suppression, echo cancellation and automatic gain control, with mono Opus speech targeted at 24 kbps per outgoing peer.
+
+The current topology supports at most four participants. Production coverage across restrictive/mobile networks requires a configured TURN relay; HTTPS is required for capture outside trusted localhost. See [voice setup, SDK usage, bandwidth limits and verification](voice-chat.md). Voice failures must never stop gameplay or affect authoritative outcomes.
+
 ## Browse large catalogs
 
 The browser library requests bounded pages with `GET /api/games?page=1&pageSize=24&q=&genre=all&sort=name-asc`. The default page size is 24 and the maximum is 60. Supported sort values are `name-asc` and `name-desc`. Search matches titles, descriptions, and tags across the entire registered catalog. Genre options are global facets, not just tags from the visible page.
@@ -485,6 +491,8 @@ Mario and Mario Touch now use the same sessions and shared acceleration, gravity
 
 Draw stays event-driven: local strokes appear immediately, ordered revisioned events update both clients, and `syncBoard` requests bounded `drawBoard` history on join/recovery. Periodic state packets contain lifecycle and board revision instead of repeating the full canvas. Local echoes cannot rewind points, clear acknowledgements are owner-specific, and drawing waits for authoritative start plus history hydration. The WebGL Drift sample is single-player.
 
+[Ludo Table](../public/games/ludo/README.md) uses another event-driven contract: revision/round-bound roll and move commands, complete fixed-shape board snapshots at 10 Hz, and server-only cryptographic dice. Shared pure rules derive legal-piece highlights from authoritative tokens/die, while visual hops and dice rolls run at render cadence. Reconnect resets the command baseline and preserves board progress; rematches retain room voice. The registered mode has two human seats.
+
 Deterministic tests cover all continuous multiplayer games at **150, 300 and 500 ms RTT**, using half that delay in each direction, jitter and ordered delivery stalls. Coverage includes short actions, bounded queues, stopping/convergence, ownership recovery, respawns and new serves. Shared SDK tests also exercise alternate input schemas/rates, rendering at 120/144 Hz and a 1.3 second starvation/recovery. These are correctness scenarios, not global capacity or latency guarantees.
 
 ```sh
@@ -496,7 +504,7 @@ npm run test:multiplayer:browser
 
 The probe reads the selected game's public capabilities. It alternates the first two boolean controls and preserves every numeric template value; use a game-owned diagnostic for a specific analog movement pattern. Set `inputProtocol` and `inputTemplate` to null and omit `numericInputs` for snapshot/RTT-only diagnostics; continuous input is not forced on other game types. Probe limits bound a single diagnostic match. Tests also verify arbitrary player slots, configurable cadence, SDK lifecycle/ownership, alternate controller bindings and that platform runtime bundles have no concrete game-package dependencies.
 
-The multiplayer browser suite runs two clients for each networked game through a loopback WebSocket proxy with 500 ms RTT, deterministic jitter and periodic 200 ms stalls. HTTP assets and protocol handshakes remain unthrottled. Set `PLATFORM_TEST_RTT_MS=300` or `PLATFORM_TEST_GAMES=fight,pong` to select a scenario; set `CHROME_PATH` if Chrome is not installed at the existing macOS default. It checks actual browser inputs, queued acknowledgements, opponent updates, a seat-preserving reload and Draw history recovery. RTT uses acknowledged application probes; Engine.IO heartbeat receipt/response events are not round-trip measurements.
+The multiplayer browser suite runs two clients for continuous games and Draw through a loopback WebSocket proxy with 500 ms RTT, deterministic jitter and periodic 200 ms stalls. HTTP assets and protocol handshakes remain unthrottled. Set `PLATFORM_TEST_RTT_MS=300` or `PLATFORM_TEST_GAMES=fight,pong` to select a scenario; set `CHROME_PATH` if Chrome is not installed at the existing macOS default. It checks actual browser inputs, queued acknowledgements, opponent updates, a seat-preserving reload and Draw history recovery. Ludo's separate `npm run test:ludo:browser` exercises its discrete authoritative contract; `LUDO_TEST_RTT_MS=500` selects impaired delivery. RTT uses acknowledged application probes; Engine.IO heartbeat receipt/response events are not round-trip measurements.
 
 High RTT still delays opponent information and server-confirmed damage, scoring and contacts. Prediction cannot make an unknown opponent action immediate. Socket.IO delivers ordered messages over a reliable transport; a stalled connection can hold newer updates behind older messages, and reconnect history needs explicit application recovery. See [delivery guarantees](https://socket.io/docs/v4/delivery-guarantees/) and the [snapshot interpolation reference](https://gafferongames.com/post/snapshot_interpolation/). Test real devices and the deployed host separately; these local correctness checks are not a server capacity benchmark.
 

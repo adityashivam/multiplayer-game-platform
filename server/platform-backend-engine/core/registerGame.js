@@ -2,6 +2,7 @@ import { getGamesStore } from "./gameStore.js";
 import { tickGames } from "./gameLoop.js";
 import { handleJoinGame, handlePlayerDisconnect } from "./rooms.js";
 import { registerSocketHandlers } from "./socketHandlers.js";
+import { createVoiceSignaling } from "./voiceSignaling.js";
 import { NETWORK_TIMING, SOCKET_EVENT } from "../../../public/platform/shared/networkProtocol.js";
 
 /**
@@ -79,6 +80,7 @@ export function registerGame({
 
   const nsp = io.of(meta.namespace);
   const games = getGamesStore(nsp);
+  const voiceSignaling = createVoiceSignaling({ nsp, games, playerIds });
   let lastTickInvocationMs = performance.now();
 
   startMonotonicInterval(
@@ -114,9 +116,11 @@ export function registerGame({
         onPlayerConnected,
         onPlayerDisconnect: handleDisconnect,
         playerIds,
+        voiceSignaling,
       }),
       input: createInputHandler({ socket, games, handleInput }),
-      disconnect: createDisconnectHandler({ socket, games, handleDisconnect }),
+      disconnect: createDisconnectHandler({ socket, games, handleDisconnect, voiceSignaling }),
+      ...voiceSignaling.createSocketHandlers(socket),
     };
 
     if (handleRematch) {
@@ -136,20 +140,30 @@ function createJoinHandler({
   onPlayerConnected,
   onPlayerDisconnect,
   playerIds,
+  voiceSignaling,
 }) {
-  return ({ gameId, rejoinToken }) =>
-    handleJoinGame({
-      nsp,
-      socket,
-      games,
-      gameId,
-      createState,
-      onStateCreated,
-      onPlayerConnected,
-      onPlayerDisconnect,
-      playerIds,
-      rejoinToken,
-    });
+  return ({ gameId, rejoinToken }) => {
+    if (gameId && gameId !== socket.data.gameId) {
+      voiceSignaling.leave(socket);
+    }
+
+    try {
+      handleJoinGame({
+        nsp,
+        socket,
+        games,
+        gameId,
+        createState,
+        onStateCreated,
+        onPlayerConnected,
+        onPlayerDisconnect,
+        playerIds,
+        rejoinToken,
+      });
+    } finally {
+      voiceSignaling.reconcileSocket(socket);
+    }
+  };
 }
 
 function createInputHandler({ socket, games, handleInput }) {
@@ -166,13 +180,15 @@ function createInputHandler({ socket, games, handleInput }) {
   };
 }
 
-function createDisconnectHandler({ socket, games, handleDisconnect }) {
-  return () =>
+function createDisconnectHandler({ socket, games, handleDisconnect, voiceSignaling }) {
+  return () => {
+    voiceSignaling.leave(socket);
     handlePlayerDisconnect({
       socket,
       games,
       onPlayerDisconnect: handleDisconnect,
     });
+  };
 }
 
 function createRematchHandler({ socket, games, nsp, handleRematch }) {

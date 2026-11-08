@@ -18,6 +18,8 @@ export default defineConfig({
         "/platform/frontend-engine/endGameBridge.js",
         "/platform/frontend-engine/connectionBridge.js",
         "/platform/frontend-engine/roomLifecycleBridge.js",
+        "/platform/frontend-engine/gameSocket.js",
+        "/platform/frontend-engine/voiceChatSession.js",
       ],
     },
   },

@@ -3,8 +3,13 @@ import PlatformDialog from "./PlatformDialog.jsx";
 import dialogStyles from "./PlatformDialog.module.scss";
 import styles from "./RoomStartOverlay.module.scss";
 
-/** Present server-owned readiness without changing the runtime or shell geometry. */
-export default function RoomStartOverlay({ room, gameName, isCreatorEntry, onInvite, onLeave }) {
+/**
+ * Present server-owned readiness without changing the runtime or shell geometry.
+ * Voice settings can temporarily replace persistent waiting; countdowns keep focus.
+ * @param {{room:import("../../../../frontend-engine/roomLifecycleClient.js").RoomLifecyclePresentation,gameName?:string,isCreatorEntry?:boolean,onInvite?:()=>void,onLeave:()=>void,onOpenVoice?:()=>void}} props
+ * @returns {React.ReactElement|null}
+ */
+export default function RoomStartOverlay({ room, gameName, isCreatorEntry, onInvite, onLeave, onOpenVoice }) {
   const playing = room.phase === "playing";
   const countingDown = room.phase === "countdown";
   const countdownFocusRef = useRef(null);
@@ -53,6 +58,10 @@ export default function RoomStartOverlay({ room, gameName, isCreatorEntry, onInv
         {countingDown && <p className={styles.startHint}>Your controls unlock when the game starts.</p>}
         <div className={dialogStyles.actions}>
           {!failed && !countingDown && !connecting && onInvite && <button type="button" className={dialogStyles.primaryAction} onClick={onInvite}>Invite players</button>}
+          {!failed && !countingDown && onOpenVoice && <button type="button" className={dialogStyles.secondaryAction} onClick={onOpenVoice} aria-label="Open room voice settings" aria-haspopup="dialog">
+            <span className="material-symbols-outlined" aria-hidden="true">headset_mic</span>
+            Voice chat
+          </button>}
           <button type="button" className={failed ? dialogStyles.primaryAction : dialogStyles.secondaryAction} onClick={onLeave}>{failed ? "Back to library" : "Leave room"}</button>
         </div>
       </PlatformDialog>

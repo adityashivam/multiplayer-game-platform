@@ -3,11 +3,15 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
-/** An isolated browser profile; never attaches to or closes a user's Chrome. */
-export async function createBrowserTestSession(prefix) {
+/**
+ * Create an isolated browser profile; never attach to or close a user's Chrome.
+ * @param {string} prefix Temporary artifact/profile name prefix.
+ * @param {{extraArgs?:string[]}} [options] Test-only flags, such as synthetic media devices.
+ */
+export async function createBrowserTestSession(prefix, { extraArgs = [] } = {}) {
   const profile = await mkdtemp(path.join(tmpdir(), `${prefix}-chrome-`));
   const executable = process.env.CHROME_PATH || "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
-  const chrome = spawn(executable, ["--headless", "--no-first-run", "--no-default-browser-check", "--disable-background-networking", "--disable-renderer-backgrounding", "--disable-background-timer-throttling", "--disable-backgrounding-occluded-windows", "--remote-debugging-pipe", `--user-data-dir=${profile}`, "about:blank"], { stdio: ["ignore", "ignore", "pipe", "pipe", "pipe"] });
+  const chrome = spawn(executable, ["--headless", "--no-first-run", "--no-default-browser-check", "--disable-background-networking", "--disable-renderer-backgrounding", "--disable-background-timer-throttling", "--disable-backgrounding-occluded-windows", "--remote-debugging-pipe", ...extraArgs, `--user-data-dir=${profile}`, "about:blank"], { stdio: ["ignore", "ignore", "pipe", "pipe", "pipe"] });
   const closed = new Promise((resolve) => { chrome.once("exit", resolve); chrome.once("error", resolve); });
   const pending = new Map();
   const exceptions = [];

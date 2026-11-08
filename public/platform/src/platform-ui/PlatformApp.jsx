@@ -33,6 +33,7 @@ export default function App() {
   const [cardZoomIndex, setCardZoomIndex] = useState(1);
   const [catalogQuery, setCatalogQuery] = useState({ page: 1, q: "", genre: "all", sort: "name-asc" });
   const [touchEditorOpen, setTouchEditorOpen] = useState(false);
+  const [voiceDialogOpen, setVoiceDialogOpen] = useState(false);
   const [configDialogOpen, setConfigDialogOpen] = useState(false);
   const [roomCreatorEntry, setRoomCreatorEntry] = useState(false);
   const roomInvitePolicyRef = useRef(createRoomInvitePolicy());
@@ -174,6 +175,7 @@ export default function App() {
   const returnToLobby = useCallback(() => {
     setExitConfirmOpen(false);
     setTouchEditorOpen(false);
+    setVoiceDialogOpen(false);
     endGamePresentation();
     if (route?.gameId) {
       disposeGameSession(route.gameId);
@@ -336,7 +338,7 @@ export default function App() {
       onDirectional={handleDirectionalInput}
       onAction={handleActionInput}
       immersive={isGameView && touchSettings.expanded}
-      controllerDisabled={Boolean(gameOrientation.needsLandscape || roomStartBlocking || touchEditorOpen || configDialogOpen || shareOpen || exitConfirmOpen || endGameState.open)}
+      controllerDisabled={Boolean(gameOrientation.needsLandscape || roomStartBlocking || touchEditorOpen || voiceDialogOpen || configDialogOpen || shareOpen || exitConfirmOpen || endGameState.open)}
     >
       {!isGameView && activeTab !== "config" && (
         <LobbyHeader
@@ -398,6 +400,7 @@ export default function App() {
           touchProfileStatus={touchSettings.status}
           touchEditorOpen={touchEditorOpen}
           onTouchEditorChange={setTouchEditorOpen}
+          onVoiceDialogChange={setVoiceDialogOpen}
           onOpenInvite={showShareInvite ? () => setShareModal(true) : undefined}
           onRequestHome={() => handleActionInput("home")}
           shareOpen={showShareInvite && shareOpen}

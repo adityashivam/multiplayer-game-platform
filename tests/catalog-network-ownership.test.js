@@ -51,7 +51,7 @@ function connectCatalogPlayer(namespace, socketId) {
 test("all continuous multiplayer catalog entries advertise their queued schema and shared cadence", () => {
   const { registry } = registerCatalogTestNamespaces();
   const games = registry.listGames();
-  const movementGames = games.filter((game) => game.networked !== false && game.id !== "draw");
+  const movementGames = games.filter((game) => game.networked !== false && game.networking?.inputProtocol != null);
   assert.equal(movementGames.length, 8);
   for (const game of movementGames) {
     assert.equal(game.networking.inputProtocol, 2, game.id);
@@ -59,6 +59,7 @@ test("all continuous multiplayer catalog entries advertise their queued schema a
     assert.equal(game.networking.tickRateHz, 60, game.id);
   }
   assert.equal(games.find((game) => game.id === "draw").networking.inputProtocol, null);
+  assert.equal(games.find((game) => game.id === "ludo").networking.inputProtocol, null);
   assert.equal(games.find((game) => game.id === "webgl-sample").networked, false);
 });
 

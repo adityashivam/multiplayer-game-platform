@@ -1,0 +1,145 @@
+.audioButtons {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.audioButton,
+.settingsButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px solid var(--platform-border);
+  border-radius: var(--platform-radius);
+  background: var(--platform-surface-inset);
+  color: var(--platform-text-muted);
+  font-family: var(--platform-font-body);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+  cursor: pointer;
+  pointer-events: auto;
+  transition: background 140ms ease, color 140ms ease;
+
+  &:hover:not(:disabled) {
+    background: var(--platform-surface);
+    color: var(--platform-text);
+  }
+
+  &[aria-pressed="true"] {
+    color: var(--platform-accent);
+    background: #00daf30b;
+
+    &:hover:not(:disabled) {
+      color: var(--platform-accent);
+    }
+  }
+
+  &:disabled {
+    opacity: .5;
+    cursor: not-allowed;
+  }
+
+  &:focus-visible {
+    position: relative;
+    z-index: 1;
+    outline: 2px solid var(--platform-focus);
+    outline-offset: 2px;
+  }
+}
+
+.audioButton {
+  flex-direction: column;
+  min-height: 82px;
+  padding: 12px;
+
+  > :global(.material-symbols-outlined) {
+    font-size: 25px;
+  }
+}
+
+.toolbarControls {
+  display: flex;
+  align-items: stretch;
+  flex-shrink: 0;
+  border: 1px solid var(--platform-border);
+  border-radius: var(--platform-radius);
+  background: rgba(17, 28, 35, .94);
+}
+
+.compact {
+  display: flex;
+  gap: 0;
+  margin: 0;
+
+  .audioButton {
+    flex-direction: row;
+    min-height: 34px;
+    padding: 0 10px;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    font-size: 11px;
+    white-space: nowrap;
+
+    > :global(.material-symbols-outlined) {
+      font-size: 18px;
+    }
+
+    &:first-child {
+      border-radius: var(--platform-radius) 0 0 var(--platform-radius);
+    }
+
+    & + .audioButton {
+      border-left: 1px solid var(--platform-border);
+    }
+  }
+}
+
+.settingsButton {
+  min-width: 32px;
+  min-height: 34px;
+  padding: 0 6px;
+  border: 0;
+  border-left: 1px solid var(--platform-border);
+  border-radius: 0 var(--platform-radius) var(--platform-radius) 0;
+  background: transparent;
+
+  > span {
+    font-size: 18px;
+  }
+}
+
+.settingsError {
+  color: var(--platform-warning);
+}
+
+@media (max-width: 720px) {
+  .compact .audioButton,
+  .settingsButton {
+    min-width: 38px;
+    min-height: 38px;
+    padding: 0;
+  }
+
+  .compact .buttonLabel {
+    display: none;
+  }
+}
+
+@media (pointer: coarse) {
+  .compact .audioButton,
+  .settingsButton {
+    min-width: 42px;
+    min-height: 42px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .audioButton,
+  .settingsButton {
+    transition: none;
+  }
+}

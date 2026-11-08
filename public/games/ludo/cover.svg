@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="750" viewBox="0 0 1200 750">
+  <defs>
+    <radialGradient id="table"><stop stop-color="#244c60"/><stop offset="1" stop-color="#0b1b2c"/></radialGradient>
+    <linearGradient id="ivory" x2="0" y2="1"><stop stop-color="#fffaf0"/><stop offset="1" stop-color="#e6d8bb"/></linearGradient>
+    <linearGradient id="red" x2="1" y2="1"><stop stop-color="#ff9b94"/><stop offset=".5" stop-color="#fa5b6a"/><stop offset="1" stop-color="#ac294b"/></linearGradient>
+    <linearGradient id="gold" x2="1" y2="1"><stop stop-color="#fff3a6"/><stop offset=".5" stop-color="#ffc447"/><stop offset="1" stop-color="#df8d24"/></linearGradient>
+    <linearGradient id="die" x2="1" y2="1"><stop stop-color="#fff"/><stop offset="1" stop-color="#e5e7e6"/></linearGradient>
+    <filter id="shadow" x="-40%" y="-50%" width="180%" height="220%"><feGaussianBlur stdDeviation="20"/></filter>
+    <g id="pawn"><ellipse cy="22" rx="21" ry="9" fill="#0c1a2b" opacity=".25"/><path d="M-18 13Q-20 23 0 24Q20 23 18 13L9-11H-9Z"/><ellipse cy="13" rx="19" ry="7" fill="inherit"/><circle cy="-24" r="15"/><ellipse cx="-5" cy="-29" rx="5" ry="8" fill="#fff" opacity=".35"/><path d="M-16 15Q0 22 16 15" fill="none" stroke="#ffe6a6" stroke-width="3"/></g>
+    <pattern id="grid" width="26" height="26" patternUnits="userSpaceOnUse"><rect width="25" height="25" rx="3" fill="#f7eedc"/><path d="M3 24H22" stroke="#d6c7aa"/></pattern>
+  </defs>
+  <rect width="1200" height="750" fill="url(#table)"/>
+  <ellipse cx="600" cy="568" rx="366" ry="95" fill="#030d19" opacity=".65" filter="url(#shadow)"/>
+  <circle cx="1045" cy="147" r="138" fill="#36d4b5" opacity=".055"/>
+  <circle cx="166" cy="607" r="190" fill="#ffc447" opacity=".035"/>
+  <g transform="translate(790 275) matrix(.98 .48 -.98 .48 0 0)">
+    <rect x="-213" y="-24" width="426" height="426" rx="22" fill="#061727" transform="translate(0 22)"/>
+    <rect x="-213" y="-24" width="426" height="426" rx="22" fill="#284259" stroke="#45647a" stroke-width="3"/>
+    <rect x="-199" y="-10" width="398" height="398" rx="12" fill="url(#ivory)"/>
+    <g transform="translate(-195 -6)">
+      <rect width="390" height="390" fill="url(#grid)" rx="10"/>
+      <rect width="156" height="156" rx="10" fill="#fa5b6a"/>
+      <rect x="234" width="156" height="156" rx="10" fill="#24caa2"/>
+      <rect x="234" y="234" width="156" height="156" rx="10" fill="#ffc447"/>
+      <rect y="234" width="156" height="156" rx="10" fill="#5b9ef5"/>
+      <g fill="#fff8ed"><rect x="25" y="25" width="106" height="106" rx="24"/><rect x="259" y="25" width="106" height="106" rx="24"/><rect x="259" y="259" width="106" height="106" rx="24"/><rect x="25" y="259" width="106" height="106" rx="24"/></g>
+      <g fill="#fbbdc1"><circle cx="57" cy="57" r="18"/><circle cx="99" cy="57" r="18"/><circle cx="57" cy="99" r="18"/><circle cx="99" cy="99" r="18"/></g>
+      <g fill="#b2ebd9"><circle cx="291" cy="57" r="18"/><circle cx="333" cy="57" r="18"/><circle cx="291" cy="99" r="18"/><circle cx="333" cy="99" r="18"/></g>
+      <g fill="#f7dfa0"><circle cx="291" cy="291" r="18"/><circle cx="333" cy="291" r="18"/><circle cx="291" cy="333" r="18"/><circle cx="333" cy="333" r="18"/></g>
+      <g fill="#b8d1f6"><circle cx="57" cy="291" r="18"/><circle cx="99" cy="291" r="18"/><circle cx="57" cy="333" r="18"/><circle cx="99" cy="333" r="18"/></g>
+      <path d="M26 182H156V208H26Z" fill="#fa5b6a"/><path d="M182 26H208V156H182Z" fill="#24caa2"/><path d="M234 182H364V208H234Z" fill="#ffc447"/><path d="M182 234H208V364H182Z" fill="#5b9ef5"/>
+      <path d="M156 156L195 195L156 234Z" fill="#fa5b6a"/><path d="M156 156L195 195L234 156Z" fill="#24caa2"/><path d="M234 156L195 195L234 234Z" fill="#ffc447"/><path d="M156 234L195 195L234 234Z" fill="#5b9ef5"/>
+    </g>
+  </g>
+  <g fill="url(#red)"><use href="#pawn" x="605" y="204"/><use href="#pawn" x="661" y="231"/><use href="#pawn" x="549" y="231"/><use href="#pawn" x="605" y="259"/></g>
+  <g fill="url(#gold)"><use href="#pawn" x="605" y="404"/><use href="#pawn" x="661" y="431"/><use href="#pawn" x="549" y="431"/><use href="#pawn" x="605" y="459"/></g>
+  <ellipse cx="612" cy="369" rx="64" ry="21" fill="#071324" opacity=".25"/>
+  <g transform="translate(595 261) rotate(12)">
+    <path d="M-44-22L8-52L59-22L8 9Z" fill="#fff"/><path d="M-44-22L8 9V69L-44 38Z" fill="#d7dde0"/><path d="M8 9L59-22V38L8 69Z" fill="#f1f3f1"/>
+    <ellipse cx="8" cy="-22" rx="8" ry="5" fill="#183047"/><g fill="#183047"><ellipse cx="-29" cy="-2" rx="5" ry="8"/><ellipse cx="-8" cy="17" rx="5" ry="8"/><ellipse cx="-29" cy="24" rx="5" ry="8"/><ellipse cx="-8" cy="43" rx="5" ry="8"/><ellipse cx="25" cy="17" rx="5" ry="8"/><ellipse cx="43" cy="4" rx="5" ry="8"/><ellipse cx="25" cy="43" rx="5" ry="8"/><ellipse cx="43" cy="30" rx="5" ry="8"/></g>
+  </g>
+  <g fill="#ffd774"><circle cx="770" cy="211" r="4"/><circle cx="744" cy="197" r="2"/><path d="M420 417l4 10 10 4-10 4-4 10-4-10-10-4 10-4Z"/></g>
+</svg>

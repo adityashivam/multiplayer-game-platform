@@ -6,6 +6,8 @@ import ExitConfirmModal from "./ExitConfirmModal.jsx";
 import ShareModal from "./ShareModal.jsx";
 import RoomStartOverlay from "./RoomStartOverlay.jsx";
 import GameOrientationPrompt from "./GameOrientationPrompt.jsx";
+import VoiceChatDialog from "./VoiceChatDialog.jsx";
+import useVoiceChat from "../../hooks/useVoiceChat.js";
 import { TOGGLE_NETWORK_PANEL_EVENT } from "../../constants/events.js";
 import styles from "../../PlatformApp.module.scss";
 import { TouchControlSurface, TouchLayoutEditor } from "../touch-controls/index.js";
@@ -31,6 +33,12 @@ function quantileFromSamples(samples, q) {
   return sorted[lower] + (sorted[upper] - sorted[lower]) * t;
 }
 
+/**
+ * Keep game runtime mounts stable while platform overlays manage input and focus.
+ * @param {object} props
+ * @param {(open:boolean)=>void} [props.onVoiceDialogChange] Notify the shell when voice contains controller focus.
+ * @returns {React.ReactElement}
+ */
 export default function GameView({
   gameOrientation,
   roomLifecycle,
@@ -45,6 +53,7 @@ export default function GameView({
   touchProfileStatus = "",
   touchEditorOpen = false,
   onTouchEditorChange,
+  onVoiceDialogChange,
   onOpenInvite,
   onRequestHome,
   shareOpen,
@@ -72,13 +81,70 @@ export default function GameView({
   icons,
 }) {
   const [networkPanelOpen, setNetworkPanelOpen] = useState(false);
+  const [voiceDialogOpen, setVoiceDialogOpen] = useState(false);
+  const [quickVoiceJoinPending, setQuickVoiceJoinPending] = useState(false);
   const [touchNotice, setTouchNotice] = useState("");
   const networkButtonRef = useRef(null);
   const roomStartBlocking = Boolean(roomLifecycle && !["playing", "finished"].includes(roomLifecycle.phase));
   const roomStartHasPriority = roomLifecycle?.phase === "countdown" || roomLifecycle?.phase === "error";
   const landscapePromptOpen = Boolean(gameOrientation?.needsLandscape && !gameLoadError);
-  const platformDialogOpen = landscapePromptOpen || roomStartBlocking || shareOpen || endGameOpen || exitConfirmOpen || touchEditorOpen;
+  const higherPriorityDialogOpen = Boolean(landscapePromptOpen || roomStartHasPriority || shareOpen || exitConfirmOpen || touchEditorOpen || gameLoadError);
+  const voice = useVoiceChat({ game, roomLifecycle, enabled: Boolean(showNetworkUi && !gameLoadError) });
+  const visibleVoiceDialogOpen = voiceDialogOpen && voice.available && !higherPriorityDialogOpen;
+  const platformDialogOpen = higherPriorityDialogOpen || roomStartBlocking || endGameOpen || visibleVoiceDialogOpen;
   const allowTouchCustomization = Boolean(game?.touchControls?.customizable && touchProfile);
+
+  /** Open settings from gameplay, persistent waiting, or results without ending the call. */
+  const openVoiceDialog = () => {
+    setNetworkPanelOpen(false);
+    setVoiceDialogOpen(true);
+  };
+
+  /**
+   * Surface failed quick actions in settings; successful actions keep gameplay visible.
+   * @param {() => Promise<import("../../hooks/useVoiceChat.js").VoiceActionOutcome>} voiceAction
+   * @returns {Promise<void>}
+   */
+  const performQuickVoiceAction = async (voiceAction) => {
+    const actionOutcome = await voiceAction();
+    if (actionOutcome === "failed") openVoiceDialog();
+  };
+
+  /** Capture completes before room setup; keep observing a pending join for setup errors. */
+  const joinVoiceFromToolbar = async () => {
+    setQuickVoiceJoinPending(true);
+    const actionOutcome = await voice.join();
+    if (actionOutcome === "failed") {
+      setQuickVoiceJoinPending(false);
+      openVoiceDialog();
+    }
+  };
+
+  useEffect(() => {
+    if (!quickVoiceJoinPending) return;
+    if (voice.state.status === "error" || voice.state.status === "unsupported") {
+      setQuickVoiceJoinPending(false);
+      setNetworkPanelOpen(false);
+      setVoiceDialogOpen(true);
+    } else if (voice.state.status !== "joining") {
+      setQuickVoiceJoinPending(false);
+    }
+  }, [quickVoiceJoinPending, voice.state.status]);
+
+  useEffect(() => {
+    if (higherPriorityDialogOpen || !voice.available) {
+      setQuickVoiceJoinPending(false);
+      setVoiceDialogOpen(false);
+    }
+  }, [higherPriorityDialogOpen, voice.available]);
+
+  useEffect(() => {
+    onVoiceDialogChange?.(visibleVoiceDialogOpen);
+    if (visibleVoiceDialogOpen && document.pointerLockElement) document.exitPointerLock?.();
+  }, [onVoiceDialogChange, visibleVoiceDialogOpen]);
+
+  useEffect(() => () => onVoiceDialogChange?.(false), [onVoiceDialogChange]);
+
   useEffect(() => {
     if (touchEditorOpen || !touchProfileStatus) return undefined;
     setTouchNotice(touchProfileStatus);
@@ -417,7 +483,26 @@ export default function GameView({
           expandedPlayArea={expandedPlayArea}
           onHome={onRequestHome}
           onInvite={onOpenInvite}
+          voiceState={voice.state}
+          voiceAvailable={voice.available}
+          voiceDialogOpen={visibleVoiceDialogOpen}
+          voiceUnavailableReason={voice.unavailableReason}
+          onOpenVoice={openVoiceDialog}
+          onJoinVoice={joinVoiceFromToolbar}
+          onMicrophoneMutedChange={(muted) => performQuickVoiceAction(() => voice.setMicrophoneMuted(muted))}
+          onDeafenedChange={voice.setDeafened}
+          onResumeVoicePlayback={() => performQuickVoiceAction(voice.resumePlayback)}
         />
+        {visibleVoiceDialogOpen && <VoiceChatDialog
+          state={voice.state}
+          onClose={() => setVoiceDialogOpen(false)}
+          onJoin={voice.join}
+          onMicrophoneMutedChange={voice.setMicrophoneMuted}
+          onDeafenedChange={voice.setDeafened}
+          onVolumeChange={voice.setVolume}
+          onResumePlayback={voice.resumePlayback}
+          onLeave={voice.leave}
+        />}
         {showNetworkUi && networkPanelOpen && (
           <NetworkPanel rows={networkRows} onClose={() => {
             setNetworkPanelOpen(false);
@@ -433,7 +518,7 @@ export default function GameView({
           onSave={(nextProfile, orientation) => { onSaveTouchProfile?.(nextProfile, orientation); onTouchEditorChange?.(false); }}
         />}
         {!touchEditorOpen && touchNotice && <div className={styles.touchProfileFeedback} role="status">{touchNotice}</div>}
-        {endGameOpen && !exitConfirmOpen && (
+        {endGameOpen && !exitConfirmOpen && !visibleVoiceDialogOpen && (
           <EndGameModal
             title={endGameTitle}
             subtitle={endGameSubtitle}
@@ -443,10 +528,18 @@ export default function GameView({
             onBack={onBackHome}
             rematchDisabled={rematchDisabled}
             icons={icons?.endGame}
+            onOpenVoice={voice.available ? openVoiceDialog : undefined}
           />
         )}
-        {roomLifecycle && !landscapePromptOpen && (!shareOpen || roomStartHasPriority) && !endGameOpen && !exitConfirmOpen && !touchEditorOpen && !gameLoadError && (
-          <RoomStartOverlay room={roomLifecycle} gameName={game?.name} isCreatorEntry={roomCreatorEntry} onInvite={onOpenInvite} onLeave={roomLifecycle.phase === "error" ? onBackHome : onRequestHome} />
+        {roomLifecycle && !landscapePromptOpen && (!shareOpen || roomStartHasPriority) && !endGameOpen && !exitConfirmOpen && !touchEditorOpen && !gameLoadError && !visibleVoiceDialogOpen && (
+          <RoomStartOverlay
+            room={roomLifecycle}
+            gameName={game?.name}
+            isCreatorEntry={roomCreatorEntry}
+            onInvite={onOpenInvite}
+            onLeave={roomLifecycle.phase === "error" ? onBackHome : onRequestHome}
+            onOpenVoice={voice.available ? openVoiceDialog : undefined}
+          />
         )}
         {shareOpen && !landscapePromptOpen && !endGameOpen && !exitConfirmOpen && !roomStartHasPriority && (
           <ShareModal

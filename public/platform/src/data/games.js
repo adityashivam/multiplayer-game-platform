@@ -8,8 +8,10 @@ import { webglSamplePresentation, webglSampleTouchControls } from "../../../game
 import { deadShiftPresentation, deadShiftTouchControls } from "../../../games/dead-shift/catalog.js";
 import { skyDashPresentation, skyDashTouchControls } from "../../../games/sky-dash/catalog.js";
 import { riftballPresentation, riftballTouchControls } from "../../../games/riftball/catalog.js";
+import { ludoPresentation, ludoTouchControls } from "../../../games/ludo/catalog.js";
 
 export const gameTitles = {
+  ludo: "Ludo Table",
   riftball: "Riftball Duel",
   "sky-dash": "Sky Dash",
   "dead-shift": "Dead Shift",
@@ -43,6 +45,19 @@ function makeWebglRuntime(id) {
 }
 
 export const fallbackGames = [
+  {
+    id: "ludo",
+    name: "Ludo Table",
+    description: "A colorful 3D Ludo table for two friends. Roll, capture, race home and talk through shared room voice.",
+    presentation: ludoPresentation,
+    touchControls: ludoTouchControls,
+    path: "/games/ludo",
+    namespace: "/ludo",
+    engine: "webgl",
+    runtime: { kind: "module", mount: "canvas", entryUrl: "/games/ludo/dist/main.js", socketIo: true, kaboom: false },
+    tags: ["Board", "2 players", "3D", "Strategy"],
+    platformControlButtons: true,
+  },
   {
     id: "riftball",
     name: "Riftball Duel",

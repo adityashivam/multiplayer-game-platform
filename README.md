@@ -17,6 +17,10 @@ Open `http://localhost:3000` in two browser tabs to play.
 
 Fight's attack, guard, dash and special controls are documented in [the gameplay guide](docs/fight-gameplay.md).
 
+Multiplayer rooms share a **Voice chat** toolbar control with optional microphone, Listen only, mute and volume controls. See [voice chat setup](docs/voice-chat.md) for HTTPS/TURN configuration, noise suppression, bandwidth and browser tests.
+
+[Ludo Table](public/games/ludo/README.md) adds two-player board play with a 3D die, animated pieces, server-owned rules and the same platform voice controls.
+
 ---
 
 ## Project Structure

@@ -1,0 +1,125 @@
+.errorMessage {
+  color: var(--platform-warning);
+}
+
+.options {
+  margin-top: 12px;
+
+  summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    min-height: 44px;
+    color: var(--platform-text-muted);
+    font-size: 11px;
+    cursor: pointer;
+    list-style: none;
+
+    &::-webkit-details-marker {
+      display: none;
+    }
+
+    > span {
+      font-size: 18px;
+      transition: transform 140ms ease;
+    }
+
+    &:hover {
+      color: var(--platform-text);
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--platform-focus);
+      outline-offset: 2px;
+      border-radius: var(--platform-radius);
+    }
+  }
+
+  &[open] > summary > span {
+    transform: rotate(180deg);
+  }
+}
+
+.volumeControl {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-block: 8px 12px;
+  font-size: 11px;
+
+  > span {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  output {
+    color: var(--platform-text-muted);
+    font-variant-numeric: tabular-nums;
+  }
+
+  input {
+    width: 100%;
+    height: 28px;
+    margin: 0;
+    accent-color: var(--platform-accent);
+    cursor: pointer;
+  }
+
+  input:focus-visible {
+    outline: 2px solid var(--platform-focus);
+    outline-offset: 3px;
+    border-radius: var(--platform-radius);
+  }
+}
+
+.participants {
+  margin-top: 12px;
+
+  h3 {
+    margin: 0 0 6px;
+    color: var(--platform-text-muted);
+    font-size: 10px;
+    font-weight: 600;
+  }
+
+  ul {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  li {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding-block: 7px;
+    font-size: 12px;
+
+    > span:first-child {
+      min-width: 0;
+      overflow-wrap: anywhere;
+    }
+  }
+}
+
+.participantState {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
+  color: var(--platform-text-muted);
+  font-size: 10px;
+
+  > :global(.material-symbols-outlined) {
+    font-size: 15px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .options summary > span {
+    transition: none;
+  }
+}

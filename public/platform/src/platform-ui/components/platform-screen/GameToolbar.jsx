@@ -1,10 +1,39 @@
 import React from "react";
 import ConnectionIndicator from "./ConnectionIndicator.jsx";
+import VoiceChatControls from "./VoiceChatControls.jsx";
 import styles from "./GameChrome.module.scss";
 
 /**
+ * @typedef {object} GameToolbarProps
+ * @property {boolean} showNetworkUi
+ * @property {{status?:string,ping?:number}} [connection]
+ * @property {boolean} networkPanelOpen
+ * @property {React.RefObject<HTMLButtonElement|null>} networkButtonRef
+ * @property {() => void} onToggleNetwork
+ * @property {boolean} isFullscreen
+ * @property {() => void} onToggleFullscreen
+ * @property {string} fullscreenIcon
+ * @property {{connected?:string,connecting?:string,reconnecting?:string,disconnected?:string}} [connectionIcons]
+ * @property {boolean} [allowTouchCustomization]
+ * @property {() => void} [onEditControls]
+ * @property {boolean} [disabled]
+ * @property {boolean} [expandedPlayArea]
+ * @property {() => void} [onHome]
+ * @property {() => void} [onInvite]
+ * @property {import("../../../../shared/voiceProtocol.js").VoiceChatState} voiceState
+ * @property {boolean} voiceAvailable
+ * @property {boolean} voiceDialogOpen
+ * @property {string} voiceUnavailableReason
+ * @property {() => void} onOpenVoice
+ * @property {() => Promise<void>} onJoinVoice
+ * @property {(muted:boolean) => Promise<void>} onMicrophoneMutedChange
+ * @property {(deafened:boolean) => void} onDeafenedChange
+ * @property {() => Promise<void>} onResumeVoicePlayback
+ */
+
+/**
  * Keep platform controls separate from the renderer and its game-owned HUD.
- * @param {{showNetworkUi: boolean, connection?: {status?: string, ping?: number}, networkPanelOpen: boolean, networkButtonRef: React.RefObject<HTMLButtonElement|null>, onToggleNetwork: () => void, isFullscreen: boolean, onToggleFullscreen: () => void, fullscreenIcon: string, connectionIcons?: {connected?: string, connecting?: string, reconnecting?: string, disconnected?: string}}} props
+ * @param {GameToolbarProps} props
  * @returns {React.ReactElement}
  */
 export default function GameToolbar({
@@ -12,6 +41,8 @@ export default function GameToolbar({
   isFullscreen, onToggleFullscreen, fullscreenIcon, connectionIcons,
   allowTouchCustomization = false, onEditControls, disabled = false,
   expandedPlayArea = false, onHome, onInvite,
+  voiceState, voiceAvailable, voiceDialogOpen, voiceUnavailableReason, onOpenVoice,
+  onJoinVoice, onMicrophoneMutedChange, onDeafenedChange, onResumeVoicePlayback,
 }) {
   return (
     <div className={styles.toolbar} role="group" aria-label="Game session controls">
@@ -29,6 +60,18 @@ export default function GameToolbar({
           <span className="material-symbols-outlined" aria-hidden="true">tune</span>
           <span className={styles.controlLabel}>Controls</span>
         </button>}
+        {showNetworkUi && <VoiceChatControls
+          state={voiceState}
+          available={voiceAvailable}
+          dialogOpen={voiceDialogOpen}
+          unavailableReason={voiceUnavailableReason}
+          onOpen={onOpenVoice}
+          onJoin={onJoinVoice}
+          onMicrophoneMutedChange={onMicrophoneMutedChange}
+          onDeafenedChange={onDeafenedChange}
+          onResumePlayback={onResumeVoicePlayback}
+          disabled={disabled}
+        />}
         {showNetworkUi && (
           <button
             type="button"

@@ -231,7 +231,9 @@ test("Sky Dash rematches clear actions and results, preserve tokens, and increme
   assert.equal(state.players.p1.dashCooldownSec, 0);
 });
 
-test("Sky Dash packed snapshots keep actor, action and standing leaves stable through full and delta delivery", () => {
+test("Sky Dash packed snapshots keep actor, action and standing leaves stable through full and delta delivery", (testContext) => {
+  // Snapshot assertions must not advance physics when the test process is busy.
+  testContext.mock.method(performance, "now", () => 100);
   const session = createSkyDashTestSession();
   const client = session.connectPlayer();
   session.connectPlayer();

@@ -11,6 +11,8 @@
     "test:config:browser": "node tests/browser/config-layout.mjs",
     "test:orientation:browser": "node tests/browser/game-orientation.mjs",
     "test:presentation:browser": "node tests/browser/game-presentation.mjs",
+    "test:voice:browser": "node tests/browser/voice-chat.mjs",
+    "test:ludo:browser": "node tests/browser/ludo.mjs",
     "test:sky-dash:browser": "node tests/browser/sky-dash.mjs",
     "test:riftball:browser": "node tests/browser/riftball.mjs",
     "test:room-start:browser": "node tests/browser/room-start.mjs",
@@ -25,7 +27,8 @@
     "build:dead-shift": "esbuild public/games/dead-shift/main.js --bundle --format=esm --target=es2020 --external:/platform/* --outfile=public/games/dead-shift/dist/main.js --minify",
     "build:sky-dash": "esbuild public/games/sky-dash/main.js --bundle --format=esm --target=es2020 --external:/platform/* --outfile=public/games/sky-dash/dist/main.js --minify",
     "build:riftball": "esbuild public/games/riftball/main.js --bundle --format=esm --target=es2020 --external:/platform/* --outfile=public/games/riftball/dist/main.js --minify",
-    "build": "npm run build:msgpack && npm run build:dead-shift && npm run build:sky-dash && npm run build:riftball && npm run platform:build",
+    "build:ludo": "esbuild public/games/ludo/main.js --bundle --format=esm --target=es2020 --external:/platform/* --outfile=public/games/ludo/dist/main.js --minify",
+    "build": "npm run build:msgpack && npm run build:dead-shift && npm run build:sky-dash && npm run build:riftball && npm run build:ludo && npm run platform:build",
     "postinstall": "npm run build"
   },
   "engines": {

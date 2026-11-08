@@ -15,10 +15,12 @@
 
 .toolbarActions {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
+  justify-content: flex-end;
   gap: 6px;
   margin-left: auto;
-  flex-shrink: 0;
+  min-width: 0;
 }
 
 .connectionIndicator,
@@ -80,7 +82,7 @@
     font-size: 18px;
   }
 
-  &:hover {
+  &:hover:not(:disabled) {
     background: var(--platform-surface);
     border-color: #58707c;
   }
@@ -90,6 +92,11 @@
     border-color: var(--platform-accent);
     color: var(--platform-accent);
     background: var(--platform-surface);
+  }
+
+  &:disabled {
+    cursor: not-allowed;
+    opacity: .5;
   }
 }
 

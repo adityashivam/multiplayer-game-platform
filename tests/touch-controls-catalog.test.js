@@ -90,8 +90,8 @@ test("catalog page and direct lookup advertise owned optional touch metadata", (
 test("every bundled catalog entry advertises its supported customizable touch controls", () => {
   const registry = createBuiltInGameRegistry();
   const games = registry.listGames();
-  assert.equal(games.length, 10);
-  assert.equal(createGameCatalog(games).query({ customizable: true }).total, 10);
+  assert.equal(games.length, 11);
+  assert.equal(createGameCatalog(games).query({ customizable: true }).total, 11);
   for (const game of games) {
     assert.equal(game.touchControls?.customizable, true, `${game.id} must support touch layout editing`);
     assert.equal(game.touchControls.apiVersion, 1);
@@ -102,6 +102,7 @@ test("every bundled catalog entry advertises its supported customizable touch co
   }
 
   const expectedBindings = {
+    ludo: ["a"],
     fight: ["horizontal", "up", "down", "a", "x", "b", "y"],
     pong: ["vertical"],
     mario: ["horizontal", "a", "b"],

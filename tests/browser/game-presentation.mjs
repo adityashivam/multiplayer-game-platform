@@ -66,15 +66,15 @@ async function openTouchGame(game, roomId) {
   return page;
 }
 
-async function attachAuthority(page, gameId) {
+async function attachAuthority(page, game) {
   await evaluate(page, `
     const {getGameSocket}=await import('/platform/frontend-engine/gameSocket.js');
-    window.presentationSocket=getGameSocket(${JSON.stringify(gameId)});
+    window.presentationSocket=getGameSocket(${JSON.stringify(game.networking?.namespace || game.namespace || game.id)});
     window.presentationState=null;
     presentationSocket.onEvent('state',state=>presentationState=state);
   `);
   await waitFor(page, "presentationState");
-  if (gameId !== "draw") await waitFor(page, "presentationState.players[presentationPlayerId].inputSeqAck>5");
+  if (game.networking?.inputProtocol != null) await waitFor(page, "presentationState.players[presentationPlayerId].inputSeqAck>5");
 }
 
 async function controlPoint(page, selector, id) {
@@ -131,7 +131,7 @@ try {
       opponent = await newPage(`${baseUrl}/games/${game.id}/${roomId}`);
       pages.push(opponent);
       await waitFor(player, "!document.querySelector('[aria-modal=true]')&&document.querySelector('[data-platform-touch-game][data-disabled=false]')", 25000);
-      await attachAuthority(player, game.id);
+      await attachAuthority(player, game);
     }
     const controls = await evaluate(player, `return [...document.querySelectorAll('[data-platform-touch-game] button[data-touch-control-id]')].map(button=>({id:button.dataset.touchControlId,type:button.dataset.controlType,opacity:Number(getComputedStyle(button.querySelector('[aria-hidden=true]')).opacity),width:button.getBoundingClientRect().width}));`);
     assert.ok(controls.length > 0 && controls.every((control) => control.width >= 40 && control.opacity > 0 && control.opacity <= 0.45), `${game.id} controls remain visible and translucent`);
