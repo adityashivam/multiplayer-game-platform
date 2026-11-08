@@ -43,6 +43,7 @@ function prepareBoardFixture(roomState, fixtureKind) {
     player.tokens = [-1, -1, -1, -1];
     player.finished = 0;
     player.captures = 0;
+    player.entryMisses = 0;
   }
   Object.assign(roomState, {
     started: true,

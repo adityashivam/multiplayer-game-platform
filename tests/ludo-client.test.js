@@ -216,5 +216,23 @@ test("Ludo HUD offers movement guidance once a piece has left the yard", () => {
   assert.equal(getLudoTurnPresentation(view).description, "Roll to move a piece.");
   serverSnapshot.players.p1.tokens = [-1, -1, -1, -1];
   clientState.recordSnapshot(serverSnapshot, 1);
-  assert.equal(getLudoTurnPresentation({ ...view, ...clientState.getView(1) }).description, "Roll a six to leave your yard.");
+  assert.equal(getLudoTurnPresentation({ ...view, ...clientState.getView(1) }).description, "Quick entry: a six within 3 rolls.");
+});
+
+test("Ludo HUD explains the entry countdown and announces a guaranteed next six", () => {
+  const clientState = createLudoClientState();
+  clientState.recordJoined("p1");
+  const snapshot = createChoiceSnapshot({ phase: "roll", diceValue: 0 });
+  snapshot.players.p1.tokens = [-1, -1, -1, -1];
+  const descriptions = ["Quick entry: a six within 3 rolls.", "Quick entry: a six within 2 rolls.", "Quick entry: your next roll is 6."];
+  for (const [entryMisses, description] of descriptions.entries()) {
+    snapshot.players.p1.entryMisses = entryMisses;
+    clientState.recordSnapshot(snapshot, entryMisses);
+    const view = { ...clientState.getView(entryMisses), connectionStatus: "connected", errorMessage: null };
+    assert.equal(getLudoTurnPresentation(view).description, description);
+  }
+  snapshot.currentPlayerId = "p2";
+  clientState.recordSnapshot(snapshot, 4);
+  const opponentTurn = { ...clientState.getView(4), connectionStatus: "connected", errorMessage: null };
+  assert.equal(getLudoTurnPresentation(opponentTurn).description, "Your next roll is guaranteed to be 6.");
 });

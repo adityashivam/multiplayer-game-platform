@@ -21,6 +21,7 @@ The platform's optional translucent touch button can be repositioned, resized or
 Ludo has regional variants; these are the rules implemented here:
 
 - Each player has four pieces. Roll six to release one from its yard onto its colored start square.
+- **Quick entry:** when you have no unfinished pieces on the board, a six is guaranteed within three rolls. Two accepted non-six rolls make your next roll six. The same rule applies to both players, including after all active pieces are captured; finished pieces do not prevent assistance. Timeouts do not count as rolls. HUD guidance shows how many rolls remain.
 - Pieces follow the clockwise outer track, then their own colored home lane. An exact roll is required to finish.
 - The eight starred safe squares allow shared occupancy without capture.
 - Landing on a lone opponent outside a safe square sends that piece back to its yard. Two same-color pieces form a blockade that opponents cannot pass or land on. Own stacks outside safe squares contain at most two pieces.
@@ -42,9 +43,9 @@ Traditional rule context: [Masters Traditional Games' Ludo guide](https://www.ma
 | `rendering/` | Procedural materials/geometry, canonical dice faces, animation identities, picking and resource ownership |
 | `main.js` | Compose existing SDK room/socket, game input, renderer, performance settings and results bridge |
 
-The authoritative server uses `crypto.randomInt(1,7)` for dice. Clients submit only `{type,roundId,revision,tokenIndex?}` and cannot choose a roll. Wrong players, invalid phases, illegal pieces and stale/duplicate actions are rejected before consuming randomness. There is no client movement prediction for board turns.
+The authoritative server uses `crypto.randomInt(1,7)` for natural dice. Shared game rules apply the disclosed quick-entry guarantee when eligible; all rolls with an active track/home-lane piece keep their natural result. This house rule is not a uniformly random die on assisted rolls and does not depend on which player is ahead. Clients submit only `{type,roundId,revision,tokenIndex?}` and cannot choose a roll or edit the entry wait. Wrong players, invalid phases, illegal pieces and stale/duplicate actions are rejected before consuming randomness. There is no client movement prediction for board turns.
 
-Room snapshots run at 10 Hz, independently of rendering FPS. Token progress arrays have exactly four entries and action records have fixed fields. Legal-piece highlights are derived from authoritative token/die state using the same pure rules; redundant variable-length legal-choice arrays are omitted from the packed wire schema. Reconnect acquires a fresh authoritative baseline, including when a fully abandoned room has been recreated. Server-only rejoin tokens and pause metadata never enter public snapshots.
+Room snapshots run at 10 Hz, independently of rendering FPS. Token progress arrays have exactly four entries and action records have fixed fields. The numeric `entryMisses` field exists for every seat from creation, stays bounded to 0..2, survives pause/rejoin and resets on a natural/assisted six or rematch. Legal-piece highlights are derived from authoritative token/die state using the same pure rules; redundant variable-length legal-choice arrays are omitted from the packed wire schema. Reconnect acquires a fresh authoritative baseline, including when a fully abandoned room has been recreated. Server-only rejoin tokens and pause metadata never enter public snapshots.
 
 Disconnecting pauses decision/animation deadlines without changing the board. Rejoining uses the platform seat-recovery contract and countdown. Rematches require both connected players and reset the board under a new round identity while retaining series results, room ownership and shared voice membership.
 

@@ -245,3 +245,83 @@ test("Ludo bounded deterministic playthroughs finish with conserved tokens and l
     assert.equal(state.players[state.winner].finished, 4);
   }
 });
+
+test("Ludo quick entry guarantees the third yard roll equally for every configured seat", () => {
+  for (const playerIds of [["p1", "p2"], ["p1", "p2", "p3"], ["p1", "p2", "p3", "p4"]]) {
+    const state = createPlayingRound({ playerIds });
+    let nowMs = 1000;
+    for (let attempt = 1; attempt <= 2; attempt += 1) {
+      for (const playerId of playerIds) {
+        assert.equal(state.currentPlayerId, playerId);
+        assert.equal(applyLudoRoll(state, playerId, 4, nowMs), true);
+        assert.equal(state.diceValue, 4);
+        assert.equal(state.players[playerId].entryMisses, attempt);
+        advanceLudoRound(state, state.phaseEndsAtMs);
+        assert.equal(state.phase, "pass");
+        nowMs = state.phaseEndsAtMs;
+        advanceLudoRound(state, nowMs);
+        nowMs += 1;
+      }
+    }
+
+    for (const playerId of playerIds) {
+      assert.equal(state.currentPlayerId, playerId);
+      assert.equal(applyLudoRoll(state, playerId, 1, nowMs), true);
+      assert.equal(state.diceValue, 6, "two entry misses guarantee a six regardless of the next natural face");
+      assert.equal(state.lastAction.diceValue, 6);
+      assert.equal(state.players[playerId].entryMisses, 0);
+      advanceLudoRound(state, state.phaseEndsAtMs);
+      assert.deepEqual(state.legalTokenIndices, [0, 1, 2, 3]);
+      nowMs = state.turnEndsAtMs - 1;
+      assert.equal(applyLudoMove(state, playerId, 0, nowMs), true);
+      nowMs = state.phaseEndsAtMs;
+      advanceLudoRound(state, nowMs);
+      assert.equal(state.currentPlayerId, playerId, "the released six keeps the usual bonus roll");
+
+      nowMs = rollAndChoose(state, 2, nowMs + 1);
+      assert.equal(state.diceValue, 2, "the bonus roll uses its natural result once a piece is out");
+      assert.equal(applyLudoMove(state, playerId, 0, nowMs), true);
+      nowMs = state.phaseEndsAtMs;
+      advanceLudoRound(state, nowMs);
+      nowMs += 1;
+    }
+  }
+});
+
+test("Ludo entry assistance leaves every natural face unchanged on active track and home-lane turns", () => {
+  for (const progress of [0, 25, 51, 55]) {
+    for (let diceValue = 1; diceValue <= 6; diceValue += 1) {
+      const state = createPlayingRound();
+      state.players.p1.tokens = [progress, -1, -1, 56];
+      state.players.p1.entryMisses = 2;
+      assert.equal(applyLudoRoll(state, "p1", diceValue, 1000), true);
+      assert.equal(state.diceValue, diceValue);
+      assert.equal(state.players.p1.entryMisses, 0);
+    }
+  }
+
+  const strandedPlayerRound = createPlayingRound();
+  strandedPlayerRound.players.p1.tokens = [-1, 56, 56, 56];
+  strandedPlayerRound.players.p1.entryMisses = 2;
+  assert.equal(applyLudoRoll(strandedPlayerRound, "p1", 3, 1000), true);
+  assert.equal(strandedPlayerRound.diceValue, 6, "finished pieces do not block assistance for the remaining yard piece");
+});
+
+test("Ludo entry misses count accepted rolls only and natural sixes reset the wait", () => {
+  const state = createPlayingRound();
+  rollAndChoose(state, 2);
+  advanceLudoRound(state, state.phaseEndsAtMs);
+  assert.equal(state.players.p1.entryMisses, 1);
+  for (let timeoutIndex = 0; timeoutIndex < 3; timeoutIndex += 1) {
+    advanceLudoRound(state, state.turnEndsAtMs);
+    advanceLudoRound(state, state.phaseEndsAtMs);
+  }
+  assert.equal(state.players.p1.entryMisses, 1);
+  assert.equal(state.players.p2.entryMisses, 0);
+  const currentPlayerId = state.currentPlayerId;
+  const waitingPlayerId = currentPlayerId === "p1" ? "p2" : "p1";
+  assert.equal(applyLudoRoll(state, waitingPlayerId, 6, state.turnEndsAtMs - 1), false, "wrong actors cannot affect entry progress");
+  assert.equal(applyLudoRoll(state, currentPlayerId, 6, state.turnEndsAtMs - 1), true);
+  assert.equal(state.players[currentPlayerId].entryMisses, 0);
+  assert.equal(createLudoRound().players.p1.entryMisses, 0);
+});

@@ -39,7 +39,7 @@ import {
 /**
  * Clock and die injection support deterministic server tests; clients cannot set them.
  * @typedef {object} LudoServerOptions
- * @property {() => number} [rollDie] Defaults to cryptographically generated integers 1..6.
+ * @property {() => number} [rollDie] Natural 1..6 sampler; shared quick-entry rules may award six.
  * @property {() => number} [nowFn] Defaults to the server wall clock.
  */
 /**
@@ -86,7 +86,7 @@ export const ludoGameMeta = {
   platformControlButtons: true,
 };
 
-/** @returns {number} Authoritative, unbiased die result; no client entropy is used. */
+/** @returns {number} Unbiased natural roll before quick-entry rules; no client entropy is used. */
 function rollServerLudoDie() {
   return randomInt(1, 7);
 }
@@ -133,6 +133,7 @@ export function serializeLudoState(state) {
       finished: playerState.finished,
       captures: playerState.captures,
       seriesWins: playerState.seriesWins,
+      entryMisses: playerState.entryMisses,
     };
   }
 

@@ -92,6 +92,8 @@ export async function createBrowserTestSession(prefix, { extraArgs = [] } = {}) 
       chrome.kill("SIGTERM");
       await Promise.race([closed, delay(3000)]);
       if (chrome.exitCode === null && chrome.signalCode === null) { chrome.kill("SIGKILL"); await closed; }
+      // Detached updater/crash helpers can retain the browser's stderr pipe.
+      chrome.stderr.destroy();
       await rm(profile, { recursive: true, force: true });
     },
   };

@@ -148,6 +148,37 @@ try {
   assert.equal(await evaluate(first, "return ludoProbe.snapshot.players.p1.tokens[0];"), 0, "a duplicate old move cannot advance the piece twice");
   await capture(first, `rtt-${roundTripMs}-release`);
 
+  await installFixture(roomId, "yard");
+  await fixtureServer.request({ type: "dice", values: [2, 3, 4, 5, 1, 2, 4] });
+  for (let attempt = 1; attempt <= 2; attempt += 1) {
+    for (const [page, playerId] of [[first, "p1"], [second, "p2"]]) {
+      await waitFor(page, "!document.querySelector('[aria-label=\"Roll dice\"]').disabled");
+      await click(page, '[aria-label="Roll dice"]');
+      for (const observer of pages) {
+        await waitFor(observer, `ludoProbe.snapshot.players.${playerId}.entryMisses === ${attempt} && ludoProbe.snapshot.phase === 'roll' && ludoProbe.snapshot.currentPlayerId !== '${playerId}'`);
+      }
+    }
+  }
+  await waitFor(first, "document.querySelector('[data-ludo-hud]').textContent.includes('Quick entry: your next roll is 6.')");
+  await capture(first, `rtt-${roundTripMs}-quick-entry`);
+  await send("Page.reload", { ignoreCache: true }, second);
+  await observeLudo(second);
+  for (const page of pages) {
+    await waitForTurnInput(page);
+    assert.equal(await evaluate(page, "return ludoProbe.snapshot.players.p1.entryMisses;"), 2);
+    assert.equal(await evaluate(page, "return ludoProbe.snapshot.players.p2.entryMisses;"), 2);
+  }
+  assert.equal((await rollAndChoose(first)).diceValue, 6, "the third entry roll overrides the natural one with six");
+  await movePiece(first, 0);
+  await waitForSharedPosition("p1", 0, 0);
+  assert.equal((await rollAndChoose(first)).diceValue, 2, "active pieces keep their natural roll");
+  await movePiece(first, 0);
+  await waitForSharedPosition("p1", 0, 2);
+  assert.equal((await rollAndChoose(second)).diceValue, 6, "the other player receives the identical entry guarantee");
+  await movePiece(second, 0);
+  await waitForSharedPosition("p2", 0, 0);
+  console.log("QUICK ENTRY / SEAT SYMMETRY / REJOIN COUNTERS / NATURAL ACTIVE ROLLS PASSED", { roundTripMs });
+
   await installFixture(roomId, "yard", 4);
   await click(first, '[aria-label="Roll dice"]');
   for (const page of pages) {
