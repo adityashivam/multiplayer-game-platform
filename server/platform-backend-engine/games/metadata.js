@@ -1,4 +1,8 @@
 import { FIGHT_INPUT_TEMPLATE } from "../../../public/games/fight/shared/simulation.js";
+import { PONG_FIXED_DT_SEC, PONG_INPUT_TEMPLATE } from "../../../public/games/pong/shared/simulation.js";
+import { MARIO_FIXED_DT_SEC, MARIO_INPUT_TEMPLATE } from "../../../public/games/mario/shared/config.js";
+import { ROAD_RASH_FIXED_DT_SEC, ROAD_RASH_INPUT_TEMPLATE } from "../../../public/games/roadrash/shared/simulation.js";
+import { INPUT_PROTOCOL } from "../../../public/platform/shared/networkProtocol.js";
 import { fightPresentation } from "../../../public/games/fight/catalog.js";
 import { pongPresentation } from "../../../public/games/pong/catalog.js";
 import { roadRashPresentation } from "../../../public/games/roadrash/catalog.js";
@@ -10,28 +14,25 @@ import { webglSamplePresentation } from "../../../public/games/webgl-sample/cata
 const BUNDLED_GAME_TICK_RATE_HZ = 60;
 const BUNDLED_PLAYER_IDS = Object.freeze(["p1", "p2"]);
 
-/**
- * @typedef {import("../../../public/games/fight/shared/simulation.js").FightInputState} FightInputTemplate
- * @typedef {{up: boolean, down: boolean}} PongInputTemplate
- */
-
 /** @returns {{playerIds: string[]}} Each game owns its room metadata. */
 function makeTwoPlayerRoomMetadata() {
   return { playerIds: [...BUNDLED_PLAYER_IDS] };
 }
 
 /**
- * Only games accepting inputFrame advertise continuous diagnostic input.
- * Other bundled games expose snapshot and RTT sampling through their namespace.
+ * Advertise the same input schema/cadence used by the game's shared simulation.
+ * Event-driven games leave continuous input null and still expose RTT/snapshots.
+ * @template {object} InputTemplate
  * @param {string} namespace
- * @param {FightInputTemplate|PongInputTemplate|null} [inputTemplate]
- * @returns {{namespace: string, tickRateHz: number, inputProtocol: 2|null, inputTemplate: FightInputTemplate|PongInputTemplate|null}}
+ * @param {InputTemplate|null} [inputTemplate]
+ * @param {number} [fixedDtSec]
+ * @returns {{namespace: string, tickRateHz: number, inputProtocol: 2|null, inputTemplate: InputTemplate|null}}
  */
-function makeNetworkingMetadata(namespace, inputTemplate = null) {
+function makeNetworkingMetadata(namespace, inputTemplate = null, fixedDtSec = 1 / BUNDLED_GAME_TICK_RATE_HZ) {
   return {
     namespace,
-    tickRateHz: BUNDLED_GAME_TICK_RATE_HZ,
-    inputProtocol: inputTemplate === null ? null : 2,
+    tickRateHz: 1 / fixedDtSec,
+    inputProtocol: inputTemplate === null ? null : INPUT_PROTOCOL.QUEUED,
     inputTemplate,
   };
 }
@@ -79,7 +80,7 @@ export const pongGameMeta = {
   description: "One ball. Two paddles. Keep the rally alive and find your winning angle.",
   namespace: "/pong",
   room: makeTwoPlayerRoomMetadata(),
-  networking: makeNetworkingMetadata("/pong", { up: false, down: false }),
+  networking: makeNetworkingMetadata("/pong", PONG_INPUT_TEMPLATE, PONG_FIXED_DT_SEC),
   path: "/games/pong",
   engine: "kaboom",
   runtime: makeKaboomRuntime("pong"),
@@ -95,7 +96,7 @@ export const roadRashGameMeta = {
   description: "Road Rash-inspired 2-player race with kicking, traffic, and real-time multiplayer.",
   namespace: "/roadrash",
   room: makeTwoPlayerRoomMetadata(),
-  networking: makeNetworkingMetadata("/roadrash"),
+  networking: makeNetworkingMetadata("/roadrash", ROAD_RASH_INPUT_TEMPLATE, ROAD_RASH_FIXED_DT_SEC),
   path: "/games/roadrash",
   engine: "kaboom",
   runtime: makeKaboomRuntime("roadrash"),
@@ -111,7 +112,7 @@ export const marioGameMeta = {
   description: "Head-to-head 2-player Mario platform race. Reach the flag first to win.",
   namespace: "/mario",
   room: makeTwoPlayerRoomMetadata(),
-  networking: makeNetworkingMetadata("/mario"),
+  networking: makeNetworkingMetadata("/mario", MARIO_INPUT_TEMPLATE, MARIO_FIXED_DT_SEC),
   path: "/games/mario",
   engine: "kaboom",
   runtime: makeKaboomRuntime("mario"),
@@ -127,7 +128,7 @@ export const marioTouchGameMeta = {
   description: "Head-to-head Mario race tuned for fullscreen landscape and touch controls.",
   namespace: "/mario-touch",
   room: makeTwoPlayerRoomMetadata(),
-  networking: makeNetworkingMetadata("/mario-touch"),
+  networking: makeNetworkingMetadata("/mario-touch", MARIO_INPUT_TEMPLATE, MARIO_FIXED_DT_SEC),
   path: "/games/mario-touch",
   engine: "kaboom",
   runtime: makeKaboomRuntime("mario-touch"),

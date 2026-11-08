@@ -7,6 +7,7 @@ const MIN_SAMPLE_SPACING_MS = 0.01;
 const DEFAULT_MAX_BUFFER_SIZE = 32;
 const MIN_BUFFERED_SNAPSHOT_INTERVALS = 2;
 const MAX_PLAYBACK_CORRECTION_RATIO = 0.25;
+const MAX_MONOTONE_TANGENT_RATIO = 3;
 
 /**
  * @typedef {object} InterpolationRuntimeOptions
@@ -60,6 +61,10 @@ const MAX_PLAYBACK_CORRECTION_RATIO = 0.25;
  * @property {boolean} [adaptive=true]
  * @property {() => InterpolationConnectionMetrics} [connectionProvider]
  * @property {(serverState: State) => (Record<PoseKey, number> | null)} [extractVelocities]
+ * @property {(serverState: State) => (Partial<Record<PoseKey, string|number>> | null)} [extractContinuityKeys]
+ *   Per-field game identities. Changed known identities select the newer endpoint
+ *   and disable finite-difference extrapolation across that boundary. Missing
+ *   identities retain ordinary interpolation. Numeric pose fields are never inferred.
  */
 
 /**
@@ -68,6 +73,7 @@ const MAX_PLAYBACK_CORRECTION_RATIO = 0.25;
  * @property {number} timestamp Server sample mapped to the local clock.
  * @property {number} arrivalMs Local arrival time; sample spacing ignores jitter.
  * @property {State} serverState Retained by reference without mutation.
+ * @property {Record<string, string|number>|null} continuityKeys Owned identity map.
  */
 
 function lerp(a, b, t) {
@@ -75,9 +81,9 @@ function lerp(a, b, t) {
 }
 
 /**
- * Cubic Hermite spline interpolation (C1-continuous).
- * Produces smooth velocity transitions between snapshots — the same technique
- * used by Source Engine, Unreal, and Unity for networked entity interpolation.
+ * Interpolate snapshot endpoints with shape-preserving Hermite tangents.
+ * Limit contradictory or excessive velocities before sampling: clamping only
+ * the resulting position can still reverse motion inside the endpoint range.
  *
  * @param {number} p0  Position at start
  * @param {number} v0  Velocity at start (units/sec)
@@ -87,6 +93,20 @@ function lerp(a, b, t) {
  * @param {number} dt  Time span between snapshots (seconds)
  */
 function hermite(p0, v0, p1, v1, t, dt) {
+  const intervalVelocity = (p1 - p0) / dt;
+  if (intervalVelocity === 0) {
+    return p0;
+  }
+
+  const startVelocityRatio = Math.max(0, v0 / intervalVelocity);
+  const endVelocityRatio = Math.max(0, v1 / intervalVelocity);
+  const velocityRatioMagnitude = Math.hypot(startVelocityRatio, endVelocityRatio);
+  const tangentScale = velocityRatioMagnitude > MAX_MONOTONE_TANGENT_RATIO
+    ? MAX_MONOTONE_TANGENT_RATIO / velocityRatioMagnitude
+    : 1;
+  v0 = startVelocityRatio * tangentScale * intervalVelocity;
+  v1 = endVelocityRatio * tangentScale * intervalVelocity;
+
   const t2 = t * t;
   const t3 = t2 * t;
   return (2 * t3 - 3 * t2 + 1) * p0
@@ -101,6 +121,23 @@ function clamp(val, min, max) {
 
 function toFiniteNumber(value) {
   return Number.isFinite(value) ? value : null;
+}
+
+/**
+ * Compare only declared identities; absence keeps existing pose behavior.
+ * @param {SnapshotSample<unknown>} previousSample
+ * @param {SnapshotSample<unknown>} currentSample
+ * @param {string} poseKey
+ * @returns {boolean}
+ */
+function hasPoseContinuityChanged(previousSample, currentSample, poseKey) {
+  const previousKey = previousSample.continuityKeys?.[poseKey];
+  const currentKey = currentSample.continuityKeys?.[poseKey];
+  const hasPreviousKey = typeof previousKey === "string" ||
+    (typeof previousKey === "number" && Number.isFinite(previousKey));
+  const hasCurrentKey = typeof currentKey === "string" ||
+    (typeof currentKey === "number" && Number.isFinite(currentKey));
+  return hasPreviousKey && hasCurrentKey && previousKey !== currentKey;
 }
 
 function createStateMetrics() {
@@ -290,6 +327,9 @@ export function createInterpolator(config = {}) {
   const extractVelocities = typeof config.extractVelocities === "function"
     ? config.extractVelocities
     : null;
+  const extractContinuityKeys = typeof config.extractContinuityKeys === "function"
+    ? config.extractContinuityKeys
+    : null;
   const metrics = createStateMetrics();
   /** @type {SnapshotSample<State>[]} */
   const buffer = [];
@@ -346,7 +386,13 @@ export function createInterpolator(config = {}) {
       }
     }
 
-    buffer.push({ timestamp: sampleTimestampMs, arrivalMs: nowMs, serverState: state });
+    const continuityKeys = extractContinuityKeys?.(state);
+    buffer.push({
+      timestamp: sampleTimestampMs,
+      arrivalMs: nowMs,
+      serverState: state,
+      continuityKeys: continuityKeys ? { ...continuityKeys } : null,
+    });
     metrics.record(state, nowMs);
     if (buffer.length > maxBufferSize) {
       buffer.splice(0, buffer.length - maxBufferSize);
@@ -494,7 +540,9 @@ export function createInterpolator(config = {}) {
               const prevPositions = extractPositions(prev.serverState);
               for (let i = 0; i < poseKeys.length; i++) {
                 const key = poseKeys[i];
-                const velocity = (latestPositions[key] - prevPositions[key]) / range;
+                const velocity = hasPoseContinuityChanged(prev, latest, key)
+                  ? 0
+                  : (latestPositions[key] - prevPositions[key]) / range;
                 interpolatedPositions[key] = latestPositions[key] + velocity * lead;
               }
               latestPositions = interpolatedPositions;
@@ -526,7 +574,9 @@ export function createInterpolator(config = {}) {
 
     for (let i = 0; i < poseKeys.length; i++) {
       const key = poseKeys[i];
-      if (
+      if (hasPoseContinuityChanged(stateA, stateB, key)) {
+        interpolatedPositions[key] = posB[key];
+      } else if (
         velA && velB &&
         key in velA && key in velB &&
         Number.isFinite(velA[key]) && Number.isFinite(velB[key]) &&

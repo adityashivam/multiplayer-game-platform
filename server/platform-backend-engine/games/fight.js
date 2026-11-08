@@ -298,7 +298,7 @@ function receiveFightPlayerInput({ state, playerId, payload }) {
 function disconnectFightPlayer(state, playerId) {
   const playerState = state.players[playerId];
   playerState.connected = false;
-  fightInputSession.resetPlayer(playerState);
+  for (const ownerState of Object.values(state.players)) fightInputSession.resetPlayer(ownerState);
 
   const opponentId = playerId === "p1" ? "p2" : "p1";
   const bothDisconnected = !state.players[opponentId].connected;

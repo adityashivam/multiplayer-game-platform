@@ -3,81 +3,21 @@ import { getGameSocket } from "/platform/frontend-engine/gameSocket.js";
 import { hideEndGameModal, registerRematchHandler } from "/platform/frontend-engine/endGameBridge.js";
 import { openShareModal } from "/platform/frontend-engine/shareModalBridge.js";
 import { updateConnectionState } from "/platform/frontend-engine/connectionBridge.js";
+import { createGameRoomConnection } from "/platform/frontend-engine/gameRoomConnection.js";
+import { SOCKET_EVENT } from "/platform/shared/networkProtocol.js";
+import { createDrawBoard } from "./client/drawBoard.js";
+import { DRAW_EVENT, DRAW_SYNC_INPUT, DRAW_PLAYER_COLORS, normalizeDrawPoint, normalizeDrawSize } from "./shared/drawing.js";
 
 const GAME_SLUG = "draw";
-const ROOM_READY_EVENT = "kaboom:room-ready";
 const OPPONENT_JOIN_EVENT = "kaboom:opponent-joined";
 const DISPOSE_GAME_EVENT = "kaboom:dispose-game";
 
 const CANVAS_WIDTH = 1280;
 const CANVAS_HEIGHT = 720;
-const MAX_RENDER_STROKES = 220;
-const MAX_RENDER_POINTS_PER_STROKE = 900;
-const POINT_EPSILON = 0.0008;
 const ROOM_STATUS_TTL_MS = 2200;
-
-const PLAYER_COLORS = {
-  p1: "#38bdf8",
-  p2: "#f97316",
-};
-
-function clamp(value, min, max) {
-  return Math.max(min, Math.min(max, value));
-}
-
-function quantize(value) {
-  return Math.round(value * 10000) / 10000;
-}
-
-function normalizePoint(raw) {
-  const x = Number(raw?.x);
-  const y = Number(raw?.y);
-  if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
-  return {
-    x: quantize(clamp(x, 0, 1)),
-    y: quantize(clamp(y, 0, 1)),
-  };
-}
-
-function normalizeSize(size) {
-  const parsed = Number(size);
-  if (!Number.isFinite(parsed)) return 4;
-  return quantize(clamp(parsed, 1, 24));
-}
-
-function sanitizeStroke(rawStroke, fallbackOwner = "p1") {
-  if (!rawStroke || typeof rawStroke !== "object") return null;
-
-  const id = typeof rawStroke.id === "string" && rawStroke.id.trim()
-    ? rawStroke.id.trim().slice(0, 64)
-    : null;
-  if (!id) return null;
-
-  const owner = rawStroke.owner === "p2" ? "p2" : fallbackOwner;
-  const color =
-    typeof rawStroke.color === "string" && /^#[0-9a-fA-F]{3,8}$/.test(rawStroke.color.trim())
-      ? rawStroke.color.trim()
-      : PLAYER_COLORS[owner] || "#ffffff";
-
-  const points = [];
-  const rawPoints = Array.isArray(rawStroke.points) ? rawStroke.points : [];
-  for (let i = 0; i < rawPoints.length && points.length < MAX_RENDER_POINTS_PER_STROKE; i += 1) {
-    const point = normalizePoint(rawPoints[i]);
-    if (!point) continue;
-    points.push(point);
-  }
-
-  if (points.length === 0) return null;
-
-  return {
-    id,
-    owner,
-    color,
-    size: normalizeSize(rawStroke.size),
-    completed: Boolean(rawStroke.completed),
-    points,
-  };
-}
+const PLAYER_COLORS = DRAW_PLAYER_COLORS;
+const normalizePoint = normalizeDrawPoint;
+const normalizeSize = normalizeDrawSize;
 
 const { canvas } = getGameDomRefs();
 const { menu, actions } = getGameControls();
@@ -108,18 +48,15 @@ const unsubscribeConnection = socket.onConnectionChange((snapshot) => {
   updateConnectionState(snapshot);
 });
 
-let roomUrl = "";
-let gameId = null;
-let hasJoined = false;
 let myPlayerId = null;
-let myRejoinToken = null;
 let readyToPlay = false;
 let disposed = false;
 let animationFrameId = 0;
 let opponentJoined = false;
-let currentRoomId = null;
-let hasHydratedState = false;
-let clearVersion = 0;
+let latestSnapshot = null;
+let syncRequested = false;
+const board = createDrawBoard();
+const strokes = board.getStrokes();
 
 let statusMessage = "Joining room...";
 let statusUntilMs = Date.now() + 2500;
@@ -127,232 +64,42 @@ let statusUntilMs = Date.now() + 2500;
 let activePointerId = null;
 let activeStrokeId = null;
 
-const strokes = [];
-const strokeById = new Map();
-
 function setStatus(message, ttlMs = ROOM_STATUS_TTL_MS) {
   statusMessage = message;
   statusUntilMs = Date.now() + ttlMs;
 }
 
 function getMyColor() {
-  if (myPlayerId === "p2") return PLAYER_COLORS.p2;
-  return PLAYER_COLORS.p1;
+  return PLAYER_COLORS[myPlayerId === "p2" ? "p2" : "p1"];
 }
 
-function rebuildStrokeIndex() {
-  strokeById.clear();
-  for (let i = 0; i < strokes.length; i += 1) {
-    strokeById.set(strokes[i].id, strokes[i]);
-  }
-}
-
-function trimRenderStrokes() {
-  while (strokes.length > MAX_RENDER_STROKES) {
-    const removed = strokes.shift();
-    if (removed?.id) {
-      strokeById.delete(removed.id);
-    }
-  }
-}
-
-function replaceStrokesFromServer(snapshotStrokes) {
-  strokes.length = 0;
-  strokeById.clear();
-
-  const list = Array.isArray(snapshotStrokes) ? snapshotStrokes : [];
-  for (let i = 0; i < list.length && strokes.length < MAX_RENDER_STROKES; i += 1) {
-    const stroke = sanitizeStroke(list[i], "p1");
-    if (!stroke) continue;
-    strokes.push(stroke);
-    strokeById.set(stroke.id, stroke);
-  }
-
-  hasHydratedState = true;
-}
-
-function createLocalStroke(strokeId, owner, color, size, firstPoint) {
-  const stroke = {
-    id: strokeId,
-    owner,
-    color,
-    size: normalizeSize(size),
-    completed: false,
-    points: [firstPoint],
-  };
-  strokes.push(stroke);
-  strokeById.set(strokeId, stroke);
-  trimRenderStrokes();
-  return stroke;
-}
-
-function appendPointToStroke(stroke, point) {
-  if (!stroke || !point) return false;
-  if (!Array.isArray(stroke.points) || stroke.points.length === 0) {
-    stroke.points = [point];
-    return true;
-  }
-
-  if (stroke.points.length >= MAX_RENDER_POINTS_PER_STROKE) {
-    return false;
-  }
-
-  const previous = stroke.points[stroke.points.length - 1];
-  if (Math.abs(previous.x - point.x) < POINT_EPSILON && Math.abs(previous.y - point.y) < POINT_EPSILON) {
-    return false;
-  }
-
-  stroke.points.push(point);
-  return true;
-}
-
-function clearLocalBoard(nextClearVersion = null) {
-  strokes.length = 0;
-  strokeById.clear();
-  activeStrokeId = null;
+function cancelActiveStroke() {
+  if (activeStrokeId) board.endStroke(activeStrokeId);
   activePointerId = null;
-  if (Number.isFinite(nextClearVersion)) {
-    clearVersion = nextClearVersion;
-  } else {
-    clearVersion += 1;
-  }
+  activeStrokeId = null;
 }
 
-function applyDrawEvent(eventPayload) {
-  if (!eventPayload || typeof eventPayload !== "object") return;
-
-  const action = eventPayload.action;
-  if (action === "clear") {
-    const nextVersion = Number(eventPayload.clearVersion);
-    clearLocalBoard(Number.isFinite(nextVersion) ? nextVersion : null);
-    return;
-  }
-
-  const strokeId = typeof eventPayload.strokeId === "string" ? eventPayload.strokeId : null;
-  const owner = eventPayload.owner === "p2" ? "p2" : "p1";
-
-  if (action === "start") {
-    const point = normalizePoint(eventPayload.point);
-    if (!strokeId || !point) return;
-
-    const existing = strokeById.get(strokeId);
-    if (existing) {
-      existing.owner = owner;
-      existing.color =
-        typeof eventPayload.color === "string" && /^#[0-9a-fA-F]{3,8}$/.test(eventPayload.color.trim())
-          ? eventPayload.color.trim()
-          : PLAYER_COLORS[owner];
-      existing.size = normalizeSize(eventPayload.size);
-      existing.points = [point];
-      existing.completed = false;
-      return;
-    }
-
-    createLocalStroke(
-      strokeId,
-      owner,
-      typeof eventPayload.color === "string" ? eventPayload.color : PLAYER_COLORS[owner],
-      eventPayload.size,
-      point,
-    );
-    return;
-  }
-
-  if (!strokeId) return;
-  const stroke = strokeById.get(strokeId);
-  if (!stroke) return;
-
-  if (action === "move") {
-    const point = normalizePoint(eventPayload.point);
-    if (!point) return;
-    appendPointToStroke(stroke, point);
-    return;
-  }
-
-  if (action === "end") {
-    stroke.completed = true;
-  }
+function refreshDrawingReadiness() {
+  readyToPlay = Boolean(myPlayerId && socket.isConnected() && !syncRequested && board.isHydrated() && !board.isWaitingForClear() &&
+    latestSnapshot?.started && !latestSnapshot.gameOver && latestSnapshot.players.p1?.connected && latestSnapshot.players.p2?.connected);
 }
 
-function buildRoomUrl(roomId) {
-  return `${window.location.origin}/games/${GAME_SLUG}/${roomId}`;
-}
-
-function setRoomLink(url) {
-  roomUrl = url;
-}
-
-function announceRoomReady(roomId) {
-  if (!roomId) return;
-  if (roomId !== currentRoomId) {
-    currentRoomId = roomId;
-    opponentJoined = false;
-    window.__kaboomOpponentJoined = null;
-  }
-  window.dispatchEvent(
-    new CustomEvent(ROOM_READY_EVENT, { detail: { gameId: GAME_SLUG, roomId } }),
-  );
+function requestBoardRecovery() {
+  if (disposed || syncRequested || !myPlayerId || !socket.isConnected()) return;
+  syncRequested = true;
+  readyToPlay = false;
+  socket.send(SOCKET_EVENT.INPUT, { type: DRAW_SYNC_INPUT });
 }
 
 function announceOpponentJoined() {
-  if (!gameId) return;
-  window.__kaboomOpponentJoined = { gameId: GAME_SLUG, roomId: gameId };
-  window.dispatchEvent(
-    new CustomEvent(OPPONENT_JOIN_EVENT, { detail: { gameId: GAME_SLUG, roomId: gameId } }),
-  );
-}
-
-function getRoomIdFromPath() {
-  const match = window.location.pathname.match(new RegExp(`/games/${GAME_SLUG}/([a-z0-9]+)`, "i"));
-  return match && match[1] ? match[1] : null;
-}
-
-async function ensureRoomId() {
-  const existing = getRoomIdFromPath();
-  if (existing) {
-    setRoomLink(buildRoomUrl(existing));
-    announceRoomReady(existing);
-    return existing;
-  }
-
-  try {
-    const response = await fetch(`/api/games/${GAME_SLUG}/new-room`);
-    if (!response.ok) throw new Error("Failed to create room");
-    const data = await response.json();
-    const roomId = data?.roomId || Math.random().toString(36).slice(2, 8);
-    const url = data?.url || buildRoomUrl(roomId);
-    window.history.replaceState({}, "", `/games/${GAME_SLUG}/${roomId}`);
-    setRoomLink(url);
-    announceRoomReady(roomId);
-    return roomId;
-  } catch {
-    const fallback = Math.random().toString(36).slice(2, 8);
-    window.history.replaceState({}, "", `/games/${GAME_SLUG}/${fallback}`);
-    setRoomLink(buildRoomUrl(fallback));
-    announceRoomReady(fallback);
-    return fallback;
-  }
-}
-
-function tryJoinGame() {
-  if (!socket.isConnected() || !gameId || hasJoined) return;
-
-  let token = myRejoinToken;
-  if (!token) {
-    try {
-      token = sessionStorage.getItem(`rejoinToken:${GAME_SLUG}:${gameId}`);
-    } catch {
-      // Ignore sessionStorage failures.
-    }
-  }
-
-  socket.send("joinGame", { gameId, rejoinToken: token || undefined });
-  hasJoined = true;
+  const roomId = roomConnection.getRoomId();
+  if (!roomId) return;
+  window.__kaboomOpponentJoined = { gameId: GAME_SLUG, roomId };
+  window.dispatchEvent(new CustomEvent(OPPONENT_JOIN_EVENT, { detail: { gameId: GAME_SLUG, roomId } }));
 }
 
 function sendInput(type, payload = {}) {
-  if (!readyToPlay) return;
-  socket.send("input", { type, ...payload });
+  if (readyToPlay && socket.isConnected()) socket.send(SOCKET_EVENT.INPUT, { type, ...payload });
 }
 
 function createStrokeId() {
@@ -368,7 +115,7 @@ function toNormalizedCanvasPoint(event) {
 }
 
 function beginDrawing(event) {
-  if (!readyToPlay || activePointerId != null) return;
+  if (!readyToPlay || activePointerId != null || document.hidden || document.querySelector('[aria-modal="true"], dialog[open]')) return;
   const point = toNormalizedCanvasPoint(event);
   if (!point) return;
 
@@ -377,7 +124,7 @@ function beginDrawing(event) {
   const color = getMyColor();
   const size = 4;
 
-  createLocalStroke(strokeId, owner, color, size, point);
+  board.startStroke({ id: strokeId, owner, color, size, points: [point] });
   activePointerId = event.pointerId;
   activeStrokeId = strokeId;
 
@@ -394,13 +141,13 @@ function beginDrawing(event) {
 
 function moveDrawing(event) {
   if (!readyToPlay || activePointerId == null || event.pointerId !== activePointerId) return;
-  const stroke = activeStrokeId ? strokeById.get(activeStrokeId) : null;
+  const stroke = activeStrokeId ? board.getStroke(activeStrokeId) : null;
   if (!stroke) return;
 
   const point = toNormalizedCanvasPoint(event);
   if (!point) return;
 
-  const appended = appendPointToStroke(stroke, point);
+  const appended = board.appendPoint(stroke.id, point);
   if (!appended) return;
 
   sendInput("strokeMove", {
@@ -413,9 +160,9 @@ function endDrawing(event) {
   if (activePointerId == null) return;
   if (event && event.pointerId !== activePointerId) return;
 
-  const stroke = activeStrokeId ? strokeById.get(activeStrokeId) : null;
+  const stroke = activeStrokeId ? board.getStroke(activeStrokeId) : null;
   if (stroke) {
-    stroke.completed = true;
+    board.endStroke(stroke.id);
     sendInput("strokeEnd", { strokeId: stroke.id });
   }
 
@@ -424,9 +171,12 @@ function endDrawing(event) {
 }
 
 function clearBoardAndBroadcast() {
-  clearLocalBoard(null);
+  if (!readyToPlay || document.hidden || document.querySelector('[aria-modal="true"], dialog[open]')) return;
   sendInput("clear");
-  setStatus("Board cleared", 1500);
+  cancelActiveStroke();
+  board.clearOptimistically(myPlayerId);
+  refreshDrawingReadiness();
+  setStatus("Clearing board...", 1500);
 }
 
 function handlePointerDown(event) {
@@ -554,11 +304,7 @@ function renderFrame() {
 }
 
 function onStartAction() {
-  if (roomUrl) {
-    openShareModal();
-    return;
-  }
-  ensureRoomId().finally(() => openShareModal());
+  if (roomConnection.getRoomId()) openShareModal();
 }
 
 function initControllerBindings() {
@@ -576,6 +322,7 @@ function initControllerBindings() {
 
 function initKeyboardBindings() {
   const onKeyDown = (event) => {
+    if (document.querySelector('[aria-modal="true"], dialog[open]')) return;
     const tag = event.target?.tagName?.toLowerCase();
     if (tag === "input" || tag === "textarea" || tag === "select") return;
 
@@ -600,89 +347,70 @@ function initKeyboardBindings() {
 registerRematchHandler(null);
 hideEndGameModal();
 
-socket.onEvent("connect", () => {
-  hasHydratedState = false;
-  hasJoined = false;
-  const pathRoomId = getRoomIdFromPath();
-  if (pathRoomId && gameId && pathRoomId !== gameId) {
-    gameId = null;
-    myRejoinToken = null;
-  }
-
-  if (gameId) {
-    tryJoinGame();
-  } else {
-    ensureRoomId().then((id) => {
-      gameId = id;
-      tryJoinGame();
-    });
-  }
-});
-
-socket.onEvent("roomFull", () => {
-  setStatus("Room is full", 3500);
-});
-
-socket.onEvent("gameJoined", ({ playerId, gameId: joinedGameId, rejoinToken }) => {
-  clearLocalBoard(0);
-  hasHydratedState = false;
-  myPlayerId = playerId;
-  myRejoinToken = rejoinToken || null;
-  readyToPlay = true;
-  gameId = gameId || joinedGameId;
-
-  if (rejoinToken && gameId) {
-    try {
-      sessionStorage.setItem(`rejoinToken:${GAME_SLUG}:${gameId}`, rejoinToken);
-    } catch {
-      // Ignore sessionStorage failures.
-    }
-  }
-
-  setRoomLink(buildRoomUrl(gameId));
-  announceRoomReady(gameId);
-  setStatus(`Joined as ${playerId.toUpperCase()}`);
-});
-
-socket.onEvent("playerJoined", ({ playerId }) => {
-  if (playerId !== myPlayerId) {
-    setStatus("Rival joined");
-    if (!opponentJoined) {
-      opponentJoined = true;
-      announceOpponentJoined();
-    }
-  }
-});
-
-socket.onEvent("playerLeft", ({ playerId }) => {
-  if (playerId !== myPlayerId) {
+const socketCleanups = [
+  socket.onEvent(SOCKET_EVENT.DISCONNECT, () => {
+    readyToPlay = false;
+    syncRequested = false;
+    latestSnapshot = null;
+    cancelActiveStroke();
+    board.reset();
+    setStatus("Reconnecting...", 10000);
+  }),
+  socket.onEvent(SOCKET_EVENT.PLAYER_JOINED, ({ playerId }) => {
+    if (playerId !== myPlayerId) setStatus("Rival joined");
+  }),
+  socket.onEvent(SOCKET_EVENT.PLAYER_LEFT, ({ playerId }) => {
+    if (playerId === myPlayerId) return;
+    readyToPlay = false;
+    latestSnapshot = null;
+    cancelActiveStroke();
+    board.cancelPendingClear();
+    requestBoardRecovery();
     setStatus("Rival disconnected", 3200);
     opponentJoined = false;
     window.__kaboomOpponentJoined = null;
-  }
-});
-
-socket.onEvent("drawEvent", (payload) => {
-  applyDrawEvent(payload);
-});
-
-socket.onEvent("state", (state) => {
-  if (!state || !state.players) return;
-
-  const incomingClearVersion = Number(state.clearVersion);
-  const clearChanged = Number.isFinite(incomingClearVersion) && incomingClearVersion !== clearVersion;
-
-  if (!hasHydratedState || clearChanged) {
-    replaceStrokesFromServer(state.strokes);
-    if (Number.isFinite(incomingClearVersion)) {
-      clearVersion = incomingClearVersion;
+  }),
+  socket.onEvent(DRAW_EVENT.STROKE, (drawingEvent) => {
+    const previousClearVersion = board.getClearVersion();
+    board.receiveEvent(drawingEvent, myPlayerId);
+    if (board.getClearVersion() !== previousClearVersion) cancelActiveStroke();
+    refreshDrawingReadiness();
+  }),
+  socket.onEvent(DRAW_EVENT.BOARD, (boardSnapshot) => {
+    syncRequested = false;
+    if (!board.isHydrated()) cancelActiveStroke();
+    board.receiveBoard(boardSnapshot);
+    refreshDrawingReadiness();
+  }),
+  socket.onEvent(SOCKET_EVENT.STATE, (snapshot) => {
+    if (!snapshot?.players) return;
+    latestSnapshot = snapshot;
+    if (!board.isHydrated() || snapshot.revision > board.getRevision()) requestBoardRecovery();
+    refreshDrawingReadiness();
+    if (!opponentJoined && snapshot.players.p1?.connected && snapshot.players.p2?.connected) {
+      opponentJoined = true;
+      announceOpponentJoined();
     }
-  }
-
-  if (!opponentJoined && state.players.p1?.connected && state.players.p2?.connected) {
-    opponentJoined = true;
-    announceOpponentJoined();
-  }
+  }),
+];
+const roomConnection = createGameRoomConnection({
+  gameId: GAME_SLUG,
+  socket,
+  onJoined({ playerId }) {
+    myPlayerId = playerId;
+    latestSnapshot = null;
+    readyToPlay = false;
+    syncRequested = false;
+    cancelActiveStroke();
+    board.reset();
+    requestBoardRecovery();
+    setStatus(`Joined as ${playerId.toUpperCase()}`);
+  },
+  onError(message) {
+    readyToPlay = false;
+    cancelActiveStroke();
+    setStatus(message, 15000);
+  },
 });
 
 const cleanupControllerBindings = initControllerBindings();
@@ -715,13 +443,8 @@ function disposeGameRuntime() {
   unsubscribeConnection?.();
   updateConnectionState({ status: "disconnected", ping: null });
 
-  socket.offEvent("connect");
-  socket.offEvent("roomFull");
-  socket.offEvent("gameJoined");
-  socket.offEvent("playerJoined");
-  socket.offEvent("playerLeft");
-  socket.offEvent("drawEvent");
-  socket.offEvent("state");
+  roomConnection.dispose();
+  socketCleanups.forEach((unsubscribe) => unsubscribe());
   socket.destroy?.();
 
   window.removeEventListener(DISPOSE_GAME_EVENT, handleDisposeEvent);
@@ -736,10 +459,4 @@ function handleDisposeEvent(event) {
 
 window.addEventListener(DISPOSE_GAME_EVENT, handleDisposeEvent);
 
-ensureRoomId().then((id) => {
-  gameId = id;
-  tryJoinGame();
-});
-
-rebuildStrokeIndex();
 renderFrame();

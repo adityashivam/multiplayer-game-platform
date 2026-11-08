@@ -5,6 +5,11 @@ import TouchControlVisual, { TOUCH_PRESET_LABELS, TouchLookZone } from "./TouchC
 import { createTouchControlStyle } from "./touchLayoutGeometry.js";
 import styles from "./TouchControls.module.scss";
 
+const PREVIEW_REFERENCE_DIMENSIONS = Object.freeze({
+  landscape: Object.freeze({ width: 844, height: 390 }),
+  portrait: Object.freeze({ width: 390, height: 700 }),
+});
+
 /**
  * Show a passive, proportionally scaled layout using game-owned artwork.
  * This component never binds input or changes the runtime host's geometry.
@@ -13,8 +18,7 @@ import styles from "./TouchControls.module.scss";
  */
 export default function TouchLayoutPreview({ game, profile, orientation }) {
   const canvasRef = useRef(null);
-  const previewRef = useRef(null);
-  const legendRef = useRef(null);
+  const referenceDimensions = PREVIEW_REFERENCE_DIMENSIONS[orientation];
   const descriptor = game?.touchControls;
   const layout = useMemo(
     () => descriptor ? resolveTouchLayout(descriptor, profile, orientation) : [],
@@ -23,37 +27,32 @@ export default function TouchLayoutPreview({ game, profile, orientation }) {
 
   useEffect(() => {
     const previewCanvas = canvasRef.current;
-    const previewFigure = previewRef.current;
-    if (!previewCanvas || !previewFigure) {
+    if (!previewCanvas) {
       return undefined;
     }
 
     const resizePreviewControls = () => {
-      const referenceWidth = orientation === "portrait" ? 390 : 844;
-      const referenceHeight = orientation === "portrait" ? 700 : 390;
-      const availableHeight = Math.max(1, previewFigure.clientHeight - (legendRef.current?.clientHeight || 16) - 8);
-      const previewScale = Math.min(1, previewFigure.clientWidth / referenceWidth, availableHeight / referenceHeight);
-      previewCanvas.style.width = `${referenceWidth * previewScale}px`;
-      previewCanvas.style.height = `${referenceHeight * previewScale}px`;
+      const previewScale = Math.min(1, previewCanvas.clientWidth / referenceDimensions.width);
       previewCanvas.style.setProperty("--touch-layout-scale", String(previewScale));
     };
     resizePreviewControls();
 
     const resizeObserver = new ResizeObserver(resizePreviewControls);
-    resizeObserver.observe(previewFigure);
+    resizeObserver.observe(previewCanvas);
 
     return () => resizeObserver.disconnect();
-  }, [orientation, game?.id]);
+  }, [referenceDimensions, game?.id]);
 
   if (!descriptor) {
     return null;
   }
 
   return (
-    <figure className={styles.preview} ref={previewRef}>
+    <figure className={styles.preview} data-orientation={orientation}>
       <div
         className={styles.previewCanvas}
         data-orientation={orientation}
+        style={{ aspectRatio: `${referenceDimensions.width} / ${referenceDimensions.height}` }}
         ref={canvasRef}
         role="img"
         aria-label={`${game.name}, ${TOUCH_PRESET_LABELS[profile.presetId]} touch layout, ${orientation}`}
@@ -77,7 +76,7 @@ export default function TouchLayoutPreview({ game, profile, orientation }) {
           </span>
         ))}
       </div>
-      <figcaption className={styles.previewLegend} ref={legendRef}>
+      <figcaption className={styles.previewLegend}>
         <span>{TOUCH_PRESET_LABELS[profile.presetId]}</span>
         <span>{orientation === "portrait" ? "Portrait" : "Landscape"} · This device</span>
       </figcaption>

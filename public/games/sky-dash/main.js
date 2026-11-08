@@ -1,5 +1,5 @@
 import { getGameDomRefs, getGameControls } from "/platform/frontend-engine/gameDom.js";
-import { createPluggablePoseRuntime } from "/platform/frontend-engine/pluggablePoseRuntime.js";
+import { createNetworkedGameRuntime } from "/platform/frontend-engine/networkedGameRuntime.js";
 import { getRuntimePerformanceProfile, subscribeRuntimePerformanceProfile } from "/platform/frontend-engine/performanceSettings.js";
 import { isPlatformTouchControlsActive } from "/platform/frontend-engine/touchControlSurface.js";
 import { openShareModal } from "/platform/frontend-engine/shareModalBridge.js";
@@ -77,12 +77,12 @@ function startSkyDash() {
     onError: (message, retry) => hud.showError(message, retry),
     onRematchRequested: () => updateEndGameModal({ actionLabel: "Accept rematch", status: "Your rival is ready for another race.", phase: "ready" }),
   });
-  movementRuntime = createPluggablePoseRuntime({
+  movementRuntime = createNetworkedGameRuntime({
+    session: multiplayer,
     fixedDtSec: SKY_DASH_FIXED_DT_SEC,
     maxFrameSec: MAX_FRAME_SEC,
     maxFixedSteps: 5,
     targetRenderFps: initialQuality.targetFps,
-    samplePose: ({ nowMs, fixedDtSec }) => multiplayer.samplePose({ nowMs, deltaSec: fixedDtSec }),
     applyPose: (pose) => { presentationPose = pose; },
   });
   registerRematchHandler(() => {

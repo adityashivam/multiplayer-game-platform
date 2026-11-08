@@ -8,8 +8,12 @@
     "test": "node --test tests/*.test.js",
     "test:dead-shift:browser": "node tests/browser/dead-shift.mjs",
     "test:touch-controls:browser": "node tests/browser/touch-layouts.mjs",
+    "test:config:browser": "node tests/browser/config-layout.mjs",
+    "test:orientation:browser": "node tests/browser/game-orientation.mjs",
     "test:sky-dash:browser": "node tests/browser/sky-dash.mjs",
+    "test:riftball:browser": "node tests/browser/riftball.mjs",
     "test:room-start:browser": "node tests/browser/room-start.mjs",
+    "test:multiplayer:browser": "node tests/browser/multiplayer-latency.mjs",
     "net:probe": "node scripts/network-probe.mjs",
     "start": "node server/platform-backend-server/server.js",
     "dev": "node --watch server/platform-backend-server/server.js",
@@ -19,7 +23,8 @@
     "build:msgpack": "esbuild node_modules/socket.io-msgpack-parser/index.js --bundle --format=esm --outfile=public/platform/frontend-engine/msgpackParser.js --platform=browser --minify",
     "build:dead-shift": "esbuild public/games/dead-shift/main.js --bundle --format=esm --target=es2020 --external:/platform/* --outfile=public/games/dead-shift/dist/main.js --minify",
     "build:sky-dash": "esbuild public/games/sky-dash/main.js --bundle --format=esm --target=es2020 --external:/platform/* --outfile=public/games/sky-dash/dist/main.js --minify",
-    "build": "npm run build:msgpack && npm run build:dead-shift && npm run build:sky-dash && npm run platform:build",
+    "build:riftball": "esbuild public/games/riftball/main.js --bundle --format=esm --target=es2020 --external:/platform/* --outfile=public/games/riftball/dist/main.js --minify",
+    "build": "npm run build:msgpack && npm run build:dead-shift && npm run build:sky-dash && npm run build:riftball && npm run platform:build",
     "postinstall": "npm run build"
   },
   "engines": {

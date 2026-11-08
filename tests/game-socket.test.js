@@ -56,6 +56,52 @@ function createTestGameConnection(testContext) {
   return { rawSocket, socket };
 }
 
+test("Engine.IO heartbeat response events cannot fabricate an unmeasured round-trip latency", (testContext) => {
+  let nowMs = 100;
+  testContext.mock.method(performance, "now", () => nowMs);
+  const { rawSocket, socket } = createTestGameConnection(testContext);
+
+  rawSocket.io.engine.emit("ping");
+  rawSocket.io.engine.emit("pong");
+  nowMs += 25000;
+  rawSocket.io.emit("open");
+  rawSocket.io.engine.emit("ping");
+  rawSocket.io.engine.emit("pong");
+
+  const connectionSnapshot = socket.getConnectionSnapshot();
+  assert.equal(socket.getPing(), null);
+  assert.equal(connectionSnapshot.ping, null);
+  assert.equal(connectionSnapshot.pingP95Ms, null);
+  assert.equal(connectionSnapshot.pingP99Ms, null);
+});
+
+test("immediate Engine.IO heartbeats preserve acknowledged application RTT and its quantiles", (testContext) => {
+  let nowMs = 100;
+  testContext.mock.method(performance, "now", () => nowMs);
+  const { rawSocket, socket } = createTestGameConnection(testContext);
+  let acknowledgeProbe;
+  rawSocket.volatile.emit = (eventName, acknowledgement) => {
+    assert.equal(eventName, "__ping");
+    acknowledgeProbe = acknowledgement;
+  };
+  rawSocket.emit("connect");
+  nowMs += 500;
+  acknowledgeProbe();
+  assert.equal(socket.getConnectionSnapshot().ping, 500);
+
+  for (let heartbeat = 0; heartbeat < 25; heartbeat += 1) {
+    nowMs += 1000;
+    rawSocket.io.engine.emit("ping");
+    rawSocket.io.engine.emit("pong");
+  }
+
+  const connectionSnapshot = socket.getConnectionSnapshot();
+  assert.equal(socket.getPing(), 500);
+  assert.equal(connectionSnapshot.ping, 500);
+  assert.equal(connectionSnapshot.pingP95Ms, 500);
+  assert.equal(connectionSnapshot.pingP99Ms, 500);
+});
+
 function createControlledTimeouts(testContext) {
   let currentTimeMs = 0;
   let nextTimerId = 0;

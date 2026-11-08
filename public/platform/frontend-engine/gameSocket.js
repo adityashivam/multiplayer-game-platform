@@ -181,7 +181,6 @@ export function getGameSocket(namespace) {
 
   let connectionState = "disconnected";
   let ping = null;
-  let pingStart = 0;
   const connectionListeners = new Set();
   let pingInterval = null;
   let lastNotifyMs = 0;
@@ -537,44 +536,9 @@ export function getGameSocket(namespace) {
   // duplicates the work.
   const handleAnyEvent = null;
 
-  const handleEnginePing = () => {
-    pingStart = performance.now();
-  };
-
-  const handleEnginePong = () => {
-    if (!pingStart) return;
-    ping = Math.round(performance.now() - pingStart);
-    pushSample(pingSamples, ping);
-    markSnapshotDirty();
-    scheduleConnectionNotify();
-  };
-
-  function attachEngineListeners(engine) {
-    if (!engine) return;
-    if (typeof engine.on === "function") {
-      engine.on("ping", handleEnginePing);
-      engine.on("pong", handleEnginePong);
-    }
-  }
-
-  function detachEngineListeners(engine) {
-    if (!engine) return;
-    removeListener(engine, "ping", handleEnginePing);
-    removeListener(engine, "pong", handleEnginePong);
-  }
-
-  const handleManagerOpen = () => {
-    attachEngineListeners(raw.io.engine);
-  };
-
-  // Ping measurement via socket.io engine
-  if (raw.io && raw.io.engine) {
-    attachEngineListeners(raw.io.engine);
-  }
-  // Engine may not exist yet on first connect; attach after open
-  raw.io.on(SOCKET_EVENT.OPEN, handleManagerOpen);
-
-  // Application probes refresh the measured round-trip latency.
+  // Engine.IO v4 emits ping/pong together when answering a server heartbeat;
+  // that local turnaround is not RTT. Only acknowledged application probes
+  // supply latency measurements and quantile samples.
   function startPingProbe() {
     stopPingProbe();
     pingInterval = setInterval(() => {
@@ -764,9 +728,7 @@ export function getGameSocket(namespace) {
       removeListener(raw, SOCKET_EVENT.DISCONNECT, handleDisconnectProbe);
       removeListener(raw.io, SOCKET_EVENT.RECONNECT_ATTEMPT, handleReconnectAttempt);
       removeListener(raw.io, SOCKET_EVENT.RECONNECT, handleReconnect);
-      removeListener(raw.io, SOCKET_EVENT.OPEN, handleManagerOpen);
       // onAny handler removed for performance — no cleanup needed.
-      detachEngineListeners(raw.io?.engine);
 
       for (const event of eventWrappers.keys()) {
         clearWrappedHandlers(event);

@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createWorkerInterpolator } from "../public/platform/frontend-engine/interpolationWorker.js";
+import { createInputLatch } from "../public/platform/frontend-engine/inputTimeline.js";
 
 const sessionModuleUrl = new URL("../public/platform/frontend-engine/networkedGameSession.js", import.meta.url);
 const sessionModule = await import(sessionModuleUrl.href).catch((error) => {
@@ -153,6 +154,144 @@ test("interpolation-only games render supplied snapshots without command or auth
   const diagnostics = harness.session.getStats();
   assert.equal(diagnostics.prediction, null);
   assert.equal(diagnostics.interpolation.updateRateHz, 10);
+});
+
+test("fixed command capture and render-only samples share ownership and pause guards", (testContext) => {
+  const harness = createSessionHarness(testContext, { canCaptureInput: (snapshot) => snapshot.active });
+  assert.equal(harness.session.captureAndPredict(), null);
+  harness.deliver(createSnapshot({ active: false }));
+  assert.equal(harness.session.captureAndPredict(), null);
+  harness.session.samplePose({ captureInput: false, nowMs: 0 });
+  assert.equal(harness.sentPackets.length, 0);
+
+  harness.deliver(createSnapshot({ net: { seq: 2, serverTime: 17 } }), 17);
+  assert.equal(harness.session.captureAndPredict().seq, 1);
+  for (let nowMs = 17; nowMs < 34; nowMs += 2) {
+    assert.equal(harness.session.samplePose({ captureInput: false, nowMs, deltaSec: 0.002 }).distance, 1);
+  }
+  assert.equal(harness.sentPackets.length, 1);
+
+  harness.socket.connected = false;
+  assert.equal(harness.session.captureAndPredict(), null);
+  harness.sample(34);
+  assert.equal(harness.sentPackets.length, 1);
+  harness.socket.connected = true;
+  assert.equal(harness.session.captureAndPredict().seq, 2);
+  harness.deliver(createSnapshot({ player: null, net: { seq: 3, serverTime: 50 } }), 50);
+  assert.equal(harness.session.captureAndPredict(), null);
+  harness.session.destroy();
+  assert.equal(harness.session.captureAndPredict(), null);
+  assert.equal(harness.session.samplePose({ captureInput: false, nowMs: 51 }), null);
+  assert.equal(harness.sentPackets.length, 2);
+});
+
+test("render-only correction sampling remains smooth at 120 and 144 Hz without sending extra commands", (testContext) => {
+  const finalDistances = [];
+  for (const renderHz of [120, 144]) {
+    const harness = createSessionHarness(testContext);
+    harness.deliver(createSnapshot());
+    harness.session.captureAndPredict();
+    harness.deliver(createSnapshot({
+      player: { distance: 11 },
+      acknowledgement: 1,
+      net: { seq: 2, serverTime: 100 },
+    }), 100);
+
+    let previousDistance = 1;
+    for (let renderFrame = 1; renderFrame <= renderHz / 2; renderFrame += 1) {
+      const renderedPose = harness.session.samplePose({
+        captureInput: false,
+        nowMs: 100 + renderFrame * 1000 / renderHz,
+        deltaSec: 1 / renderHz,
+      });
+      assert.ok(renderedPose.distance > previousDistance && renderedPose.distance < 11);
+      previousDistance = renderedPose.distance;
+    }
+    assert.equal(harness.sentPackets.length, 1);
+    finalDistances.push(previousDistance);
+  }
+
+  assert.ok(Math.abs(finalDistances[0] - 10.998765901959134) < 1e-10);
+  assert.ok(Math.abs(finalDistances[0] - finalDistances[1]) < 1e-10);
+});
+
+test("render alpha interpolates local fixed poses without interpolating discrete action identities", (testContext) => {
+  const harness = createSessionHarness(testContext, {
+    prediction: {
+      captureInput: () => ({ east: true }),
+      simulate(player) { player.distance += 1; player.actionId += 1; },
+      extractPose: (player) => ({ distance: player.distance }),
+    },
+    composeRenderPose: (_remote, local, _snapshot, predictedState) => ({
+      distance: local?.distance ?? null,
+      actionId: predictedState?.actionId ?? null,
+    }),
+  });
+  harness.deliver(createSnapshot({ player: Object.freeze({ distance: 0, actionId: 4 }) }));
+  harness.session.captureAndPredict();
+
+  assert.deepEqual(harness.session.samplePose({ captureInput: false, interpolationAlpha: 0.5 }), {
+    distance: 0.5,
+    actionId: 5,
+  });
+  assert.equal(harness.sentPackets.length, 1);
+});
+
+test("accepted ownership changes reset game input latches without clearing fresh authority or interpolation", (testContext) => {
+  const inputLatch = createInputLatch({ east: false, hop: false }, { edgeKeys: ["hop"] });
+  const ownershipResets = [];
+  const harness = createSessionHarness(testContext, {
+    prediction: {
+      captureInput: () => inputLatch.capture(),
+      simulate(player, input) { if (input.east) player.distance += 1; },
+      extractPose: (player) => ({ distance: player.distance }),
+    },
+    onInputOwnershipReset(ownershipReset) {
+      ownershipResets.push(ownershipReset);
+      inputLatch.reset();
+    },
+  });
+  harness.deliver(createSnapshot());
+  assert.deepEqual(ownershipResets, []);
+  harness.deliver(createSnapshot({ epoch: undefined, net: { seq: 2, serverTime: 10 } }), 10);
+  harness.deliver(createSnapshot({ epoch: 6, net: { seq: 3, serverTime: 20 } }), 20);
+  assert.deepEqual(ownershipResets, []);
+
+  inputLatch.set("east", true);
+  inputLatch.set("hop", true);
+  inputLatch.set("hop", false);
+  const freshSnapshot = createSnapshot({ player: { distance: 50 }, epoch: 8, net: { seq: 4, serverTime: 30 } });
+  harness.deliver(freshSnapshot, 30);
+  assert.deepEqual(ownershipResets, [{ previousEpoch: 7, inputEpoch: 8 }]);
+  assert.equal(harness.session.getLatestSnapshot(), freshSnapshot);
+  assert.equal(harness.interpolator.getLatestState(), freshSnapshot);
+  harness.session.captureAndPredict();
+  assert.deepEqual(harness.sentPackets.at(-1).payload, {
+    type: "inputFrame", protocol: 2, epoch: 8, seq: 1,
+    state: { east: false, hop: false },
+  });
+  assert.equal(harness.session.samplePose({ captureInput: false, nowMs: 30 }).distance, 50);
+});
+
+test("presentation receives discrete predicted state separately from smoothed numeric poses", (testContext) => {
+  const harness = createSessionHarness(testContext, {
+    prediction: {
+      captureInput: () => ({ east: true }),
+      simulate(player) { player.distance += 1; player.animation = "serve"; player.actionId += 1; },
+      extractPose: (player) => ({ distance: player.distance }),
+    },
+    composeRenderPose: (_remote, local, _snapshot, predictedState) => ({
+      distance: local?.distance ?? null,
+      animation: predictedState?.animation ?? null,
+      actionId: predictedState?.actionId ?? null,
+    }),
+  });
+  const snapshot = createSnapshot({ player: Object.freeze({ distance: 0, animation: "idle", actionId: 8 }) });
+  harness.deliver(snapshot);
+  assert.deepEqual(harness.sample(), { distance: 1, animation: "serve", actionId: 9 });
+  assert.equal(snapshot.player.actionId, 8, "Presentation sees the prediction clone, never authority");
+  harness.socket.deliver("disconnect");
+  assert.deepEqual(harness.sample(20), { distance: null, animation: null, actionId: null });
 });
 
 for (const eventName of ["gameJoined", "disconnect", "rematchStarted"]) {

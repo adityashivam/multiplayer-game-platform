@@ -6,6 +6,8 @@ import { createInterpolator } from "./interpolation.js";
  * @typedef {object} WorkerInterpolationConfig
  * @property {(serverState: State) => Record<PoseKey, number>} extractPositions
  * @property {(serverState: State) => (Record<PoseKey, number> | null)} [extractVelocities]
+ * @property {(serverState: State) => (Partial<Record<PoseKey, string|number>> | null)} [extractContinuityKeys]
+ *   Declare fields that must not interpolate or infer velocity across identity changes.
  * @property {number} [interpDelayMs=45]
  * @property {number} [maxBufferSize=32]
  * @property {boolean} [adaptive=true]
@@ -25,12 +27,18 @@ export function createWorkerInterpolator(config = {}) {
   const extractVelocities = typeof config.extractVelocities === "function"
     ? config.extractVelocities
     : null;
+  const extractContinuityKeys = typeof config.extractContinuityKeys === "function"
+    ? config.extractContinuityKeys
+    : null;
   const interpolationConfig = {
     interpDelayMs: config.interpDelayMs ?? 45,
     maxBufferSize: config.maxBufferSize ?? 32,
     adaptive: config.adaptive ?? true,
     extractVelocities: extractVelocities
       ? (reducedState) => reducedState.velocities
+      : undefined,
+    extractContinuityKeys: extractContinuityKeys
+      ? (reducedState) => reducedState.continuityKeys
       : undefined,
   };
 
@@ -62,6 +70,7 @@ export function createWorkerInterpolator(config = {}) {
     const reducedState = {
       positions,
       velocities,
+      continuityKeys: extractContinuityKeys ? extractContinuityKeys(serverState) : null,
       net: serverState.net && typeof serverState.net === "object" && !Array.isArray(serverState.net)
         ? serverState.net
         : null,

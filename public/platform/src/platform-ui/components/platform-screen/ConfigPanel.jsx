@@ -5,7 +5,7 @@ import TouchControlSettings from "./TouchControlSettings.jsx";
 
 /**
  * Present developer-enabled game layouts and the platform's audio preferences.
- * @param {{musicVolume: number, muted: boolean, onToggleMute: () => void, onMusicVolumeChange: (volume: number) => void}} props
+ * @param {{musicVolume: number, muted: boolean, onToggleMute: () => void, onMusicVolumeChange: (volume: number) => void, onDialogChange?: (open: boolean) => void}} props
  * @returns {React.ReactElement}
  */
 export default function ConfigPanel({
@@ -18,27 +18,27 @@ export default function ConfigPanel({
   const sliderValue = Math.round((musicVolume ?? 0) * 100);
 
   return (
-    <div className={styles.panel}>
-      <h1 className={styles.heading}>Settings</h1>
+    <section className={styles.panel} aria-labelledby="settings-title" tabIndex={0}>
+      <h1 id="settings-title" className={styles.heading}>Settings</h1>
       <TouchControlSettings onDialogChange={onDialogChange} />
-      <p className={styles.sectionLabel}>Audio</p>
+      <h2 className={styles.sectionLabel}>Audio</h2>
       <div className={styles.audioCard}>
         <div className={styles.audioHeader}>
           <div>
             <span className={styles.audioTitle}>Lobby music</span>
             <p className={styles.audioDescription}>Music plays while you browse.</p>
           </div>
-          <button
-            type="button"
-            className={classNames(styles.muteButton, muted && styles.muteButtonMuted)}
-            onClick={onToggleMute}
-            aria-pressed={muted}
-            aria-label={muted ? "Unmute lobby music" : "Mute lobby music"}
-          >
-            <span className="material-symbols-outlined" aria-hidden="true">{muted ? "volume_off" : "volume_up"}</span>
-            <span>{muted ? "Muted" : "On"}</span>
-          </button>
         </div>
+        <button
+          type="button"
+          className={classNames(styles.muteButton, muted && styles.muteButtonMuted)}
+          onClick={onToggleMute}
+          aria-pressed={muted}
+          aria-label={muted ? "Unmute lobby music" : "Mute lobby music"}
+        >
+          <span className="material-symbols-outlined" aria-hidden="true">{muted ? "volume_off" : "volume_up"}</span>
+          <span>{muted ? "Muted" : "On"}</span>
+        </button>
         <div className={styles.volumeRow}>
           <input
             type="range"
@@ -53,6 +53,6 @@ export default function ConfigPanel({
           <span className={styles.volumeValue}>{sliderValue}%</span>
         </div>
       </div>
-    </div>
+    </section>
   );
 }

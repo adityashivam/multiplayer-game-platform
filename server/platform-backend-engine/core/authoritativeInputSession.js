@@ -17,6 +17,7 @@ import { createInputSchema } from "../../../public/platform/shared/inputSchema.j
  * Networking state owned by the SDK, added to a game's player state in place.
  * @template {string} InputKey
  * @typedef {import("./inputProtocol.js").PlayerInputState<InputKey> & {
+ *   connected?: boolean,
  *   inputProtocol?: 1 | 2 | null,
  *   __lastInputReceiptMs?: number | null,
  *   __inputLoopTick?: number,
@@ -92,6 +93,8 @@ export function createAuthoritativeInputSession({
   inputTemplate = inputSchema.inputTemplate;
   numericInputs = inputSchema.numericInputs;
   edgeKeys = [...edgeKeys];
+  /** @type {WeakMap<AuthoritativePlayerInputState<InputKey>, Set<InputKey>>} */
+  const pendingLegacyEdges = new WeakMap();
 
   /**
    * Clear held/queued input and advance ownership without changing game fields.
@@ -103,6 +106,7 @@ export function createAuthoritativeInputSession({
       return;
     }
     ensurePlayerInputState(player, inputTemplate);
+    pendingLegacyEdges.delete(player);
     resetInputBuffer(player, inputTemplate);
     player.inputEpoch = (Number.isSafeInteger(player.inputEpoch) ? player.inputEpoch : 0) + 1;
     player.inputProtocol = null;
@@ -113,20 +117,23 @@ export function createAuthoritativeInputSession({
 
   /**
    * Accept an owned command copy; queued input blocks legacy overwrites.
-   * Invalid or stale packets do not extend the queued session's lifetime.
+   * Legacy declared action edges survive until successful simulation. Explicitly
+   * disconnected players are ignored. Invalid or stale packets do not extend
+   * the queued session's lifetime.
    * @param {AuthoritativePlayerInputState<InputKey>} player
    * @param {import("./inputProtocol.js").InputPacket<InputKey>} payload
    * @param {number} [nowMs] Monotonic receipt time in milliseconds.
    * @returns {boolean} Whether the input was accepted.
    */
   function receiveInput(player, payload, nowMs = performance.now()) {
-    if (!player || typeof player !== "object") {
+    if (!player || typeof player !== "object" || player.connected === false) {
       return false;
     }
 
     if (payload?.type === INPUT_MESSAGE_TYPE.FRAME && payload.protocol === INPUT_PROTOCOL.QUEUED) {
       const acceptedFrame = enqueueInputFrame({ player, payload, inputTemplate, numericInputs });
       if (acceptedFrame) {
+        pendingLegacyEdges.delete(player);
         player.inputProtocol = INPUT_PROTOCOL.QUEUED;
         player.__lastInputReceiptMs = nowMs;
       }
@@ -136,13 +143,30 @@ export function createAuthoritativeInputSession({
       return false;
     }
 
-    return applySequencedInput({ player, payload, inputTemplate, numericInputs });
+    const previouslyHeldEdges = new Set(edgeKeys.filter((inputKey) =>
+      Boolean(player.input?.[inputKey] ?? inputTemplate[inputKey]),
+    ));
+    const acceptedLegacyInput = applySequencedInput({ player, payload, inputTemplate, numericInputs });
+    if (acceptedLegacyInput) {
+      for (const inputKey of edgeKeys) {
+        const explicitlySupplied = payload?.type === inputKey ||
+          (payload?.type === INPUT_MESSAGE_TYPE.FRAME && payload.state != null && Object.hasOwn(payload.state, inputKey));
+        if (explicitlySupplied && player.input[inputKey] && !previouslyHeldEdges.has(inputKey)) {
+          if (!pendingLegacyEdges.has(player)) {
+            pendingLegacyEdges.set(player, new Set());
+          }
+          pendingLegacyEdges.get(player).add(inputKey);
+        }
+      }
+    }
+    return acceptedLegacyInput;
   }
 
   /**
    * Advance one world step, with one command budget across a loop's catch-up.
    * Queued simulation continues held input between packets. A throwing callback
-   * leaves its command queued and unacknowledged; game mutations are not undone.
+   * leaves its command queued and unacknowledged, or its legacy edges pending;
+   * game mutations are not undone.
    * @param {object} options
    * @param {AuthoritativePlayerInputState<InputKey>} options.player Mutated in place.
    * @param {number} options.dtSec Legacy step duration in seconds.
@@ -177,7 +201,13 @@ export function createAuthoritativeInputSession({
     if (player.inputProtocol !== INPUT_PROTOCOL.QUEUED) {
       // Retain bounded pre-session credit and legacy simulation timing.
       consumeInputFrames({ player, dtSec, fixedDtSec, simulate() {} });
-      simulate(player.input, dtSec, null);
+      const pendingEdges = pendingLegacyEdges.get(player);
+      const capturedInput = pendingEdges?.size ? { ...player.input } : player.input;
+      for (const inputKey of pendingEdges || []) {
+        capturedInput[inputKey] = true;
+      }
+      simulate(capturedInput, dtSec, null);
+      pendingLegacyEdges.delete(player);
       return 0;
     }
 

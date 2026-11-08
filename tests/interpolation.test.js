@@ -41,6 +41,88 @@ test("Hermite interpolation stays within collision endpoints", () => {
   assert.equal(interpolator.getInterpolatedPositions(extractPositions, { nowMs: 50 }).x, 10);
 });
 
+test("positive endpoint velocities cannot reverse interpolated forward movement", () => {
+  const interpolator = createInterpolator({
+    adaptive: false,
+    interpDelayMs: 0,
+    extractVelocities: (serverState) => ({ x: serverState.v }),
+  });
+  interpolator.pushState({ ...createServerSnapshot(0, 0, 0), v: 1000 }, { timestampMs: 0 });
+  interpolator.pushState({ ...createServerSnapshot(1, 100, 10), v: 1000 }, { timestampMs: 100 });
+
+  let previousPositionX = 0;
+  for (let nowMs = 0; nowMs <= 100; nowMs += 5) {
+    const positionX = interpolator.getInterpolatedPositions(extractPositions, { nowMs }).x;
+    assert.ok(positionX >= previousPositionX, `movement reversed at ${nowMs} ms: ${previousPositionX} -> ${positionX}`);
+    assert.ok(positionX >= 0 && positionX <= 10);
+    previousPositionX = positionX;
+  }
+  assert.equal(previousPositionX, 10);
+});
+
+test("declared field identities skip interpolation across a respawn without changing other fields", () => {
+  const interpolator = createInterpolator({
+    adaptive: false,
+    interpDelayMs: 0,
+    extractContinuityKeys: (snapshot) => ({ x: snapshot.movementEpoch }),
+  });
+  const firstSnapshot = { ...createServerSnapshot(0, 0, 100), y: 0, movementEpoch: "first-life" };
+  const respawnSnapshot = { ...createServerSnapshot(1, 100, 0), y: 10, movementEpoch: "second-life" };
+  interpolator.pushState(firstSnapshot, { timestampMs: 0 });
+  interpolator.pushState(respawnSnapshot, { timestampMs: 100 });
+
+  assert.deepEqual(interpolator.getInterpolatedPositions(
+    (snapshot) => ({ x: snapshot.x, y: snapshot.y }),
+    { nowMs: 50 },
+  ), { x: 0, y: 5 });
+  assert.equal(firstSnapshot.x, 100);
+  assert.equal(respawnSnapshot.x, 0);
+});
+
+test("unchanged or missing field identities preserve ordinary interpolation", () => {
+  for (const identities of [["life", "life"], [undefined, undefined], ["life", undefined], [undefined, "life"]]) {
+    const interpolator = createInterpolator({
+      adaptive: false,
+      interpDelayMs: 0,
+      extractContinuityKeys: (snapshot) => ({ x: snapshot.movementEpoch }),
+    });
+    interpolator.pushState({ ...createServerSnapshot(0, 0, 0), movementEpoch: identities[0] }, { timestampMs: 0 });
+    interpolator.pushState({ ...createServerSnapshot(1, 100, 10), movementEpoch: identities[1] }, { timestampMs: 100 });
+
+    assert.equal(interpolator.getInterpolatedPositions(extractPositions, { nowMs: 50 }).x, 5);
+  }
+});
+
+test("finite-difference extrapolation does not infer velocity through an identity reset", () => {
+  const interpolator = createInterpolator({
+    adaptive: false,
+    interpDelayMs: 0,
+    extractContinuityKeys: (snapshot) => ({ x: snapshot.movementEpoch }),
+  });
+  interpolator.pushState({ ...createServerSnapshot(0, 0, 100), movementEpoch: 1 }, { timestampMs: 0 });
+  interpolator.pushState({ ...createServerSnapshot(1, 100, 0), movementEpoch: 2 }, { timestampMs: 100 });
+
+  assert.equal(interpolator.getInterpolatedPositions(extractPositions, { nowMs: 150, extrapolateMs: 80 }).x, 0);
+});
+
+test("worker wrapper retains declared continuity for interpolation and reset", async () => {
+  const { createWorkerInterpolator } = await import("../public/platform/frontend-engine/interpolationWorker.js");
+  const interpolator = createWorkerInterpolator({
+    extractPositions,
+    adaptive: false,
+    interpDelayMs: 0,
+    extractContinuityKeys: (snapshot) => ({ x: snapshot.movementEpoch }),
+  });
+  interpolator.pushState({ ...createServerSnapshot(0, 0, 100), movementEpoch: 1 }, { timestampMs: 0 });
+  interpolator.pushState({ ...createServerSnapshot(1, 100, 0), movementEpoch: 2 }, { timestampMs: 100 });
+  assert.equal(interpolator.getInterpolatedPositions({ nowMs: 50 }).x, 0);
+
+  interpolator.reset();
+  interpolator.pushState({ ...createServerSnapshot(0, 0, 10), movementEpoch: 2 }, { timestampMs: 0 });
+  interpolator.pushState({ ...createServerSnapshot(1, 100, 20), movementEpoch: 2 }, { timestampMs: 100 });
+  assert.equal(interpolator.getInterpolatedPositions({ nowMs: 50 }).x, 15);
+});
+
 test("duplicates and reset leave playback and diagnostics usable", () => {
   const interpolator = createInterpolator({ adaptive: false, interpDelayMs: 0 });
   interpolator.pushState(createServerSnapshot(1, 0, 0), { timestampMs: 0 });

@@ -1,5 +1,5 @@
 import { getGameDomRefs, getGameControls } from "/platform/frontend-engine/gameDom.js";
-import { createPluggablePoseRuntime } from "/platform/frontend-engine/pluggablePoseRuntime.js";
+import { createNetworkedGameRuntime } from "/platform/frontend-engine/networkedGameRuntime.js";
 import { getRuntimePerformanceProfile, subscribeRuntimePerformanceProfile } from "/platform/frontend-engine/performanceSettings.js";
 import { openShareModal } from "/platform/frontend-engine/shareModalBridge.js";
 import { hideEndGameModal, registerRematchHandler, showEndGameModal, updateEndGameModal } from "/platform/frontend-engine/endGameBridge.js";
@@ -10,7 +10,7 @@ import { createDeadShiftControls } from "./client/controls.js";
 import { createDeadShiftMultiplayerSession } from "./client/multiplayer.js";
 import { createDeadShiftHud } from "./client/hud.js";
 import { createDeadShiftAudio } from "./client/audio.js";
-import { readDeadShiftEntityPosition } from "./client/snapshotPose.js";
+import { readDeadShiftEntityPosition, createDeadShiftPresentedPlayer } from "./client/snapshotPose.js";
 import { isPlatformTouchControlsActive } from "/platform/frontend-engine/touchControlSurface.js";
 
 const DISPOSE_GAME_EVENT = "kaboom:dispose-game";
@@ -82,12 +82,12 @@ function startDeadShift() {
     onError: (message, retry) => hud.showError(message, retry),
     onRematchRequested: () => updateEndGameModal({ actionLabel: "Accept rematch", status: "Your rival is ready for another shift.", phase: "ready" }),
   });
-  movementRuntime = createPluggablePoseRuntime({
+  movementRuntime = createNetworkedGameRuntime({
+    session: multiplayer,
     fixedDtSec: DEAD_SHIFT_FIXED_DT_SEC,
     maxFrameSec: MAX_FRAME_SEC,
     maxFixedSteps: 5,
     targetRenderFps: initialQualityProfile.targetFps,
-    samplePose: ({ nowMs, fixedDtSec }) => multiplayer.samplePose({ nowMs, deltaSec: fixedDtSec }),
     applyPose: (pose) => { presentationPose = pose; },
   });
 
@@ -210,12 +210,7 @@ function createPresentedPlayers(authoritativePlayers, pose) {
   const players = {};
   for (const playerId of ["p1", "p2"]) {
     const playerState = authoritativePlayers[playerId];
-    players[playerId] = {
-      ...playerState,
-      x: pose?.[`${playerId}x`] ?? playerState.x,
-      y: pose?.[`${playerId}y`] ?? playerState.y,
-      z: pose?.[`${playerId}z`] ?? playerState.z,
-    };
+    players[playerId] = createDeadShiftPresentedPlayer(playerState, pose, playerId);
   }
   return players;
 }

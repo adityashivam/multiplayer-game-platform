@@ -13,6 +13,7 @@ import useLobbyAudio from "./hooks/useLobbyAudio.js";
 import usePlatformGameLoader from "./hooks/usePlatformGameLoader.js";
 import usePlatformGameUiState from "./hooks/usePlatformGameUiState.js";
 import usePlatformPresentation from "./hooks/usePlatformPresentation.js";
+import useGameOrientation from "./hooks/useGameOrientation.js";
 import usePlatformRoute from "./hooks/usePlatformRoute.js";
 import useTouchProfile from "./hooks/useTouchProfile.js";
 import useRoomLifecycle from "./hooks/useRoomLifecycle.js";
@@ -59,26 +60,27 @@ export default function App() {
     playNavSound,
     triggerHaptic,
   } = useLobbyAudio({ isGameView });
-  const { fullscreenActive, toggleFullscreen } = usePlatformPresentation();
+  const { fullscreenActive, toggleFullscreen, requestFullscreen } = usePlatformPresentation();
+  const gameOrientation = useGameOrientation({ gameId: isGameView ? activeGame?.id || null : null, requestFullscreen });
   const { connectionState, endGameState, endGameBridgeRef } = usePlatformGameUiState(setShareModal);
   const { disposeGameSession, gameLoadError } = usePlatformGameLoader({
     game: activeGame,
     setShareModal,
+    canStart: gameOrientation.canLoadRuntime,
   });
   const activeGameRuntime = useMemo(() => getGameRuntimeSpec(activeGame), [activeGame]);
-  const startInLandscape = Boolean(activeGame?.startInLandscape);
   const showPlatformControlButtons = !isGameView || activeGame?.platformControlButtons !== false;
   const showShareInvite = !isGameView || Boolean(activeGame && activeGame.shareRoom !== false);
   const showNetworkUi = !isGameView || Boolean(activeGame && activeGame.networked !== false);
-  const roomLifecycleEnabled = Boolean(isGameView && activeGame && activeGameRuntime.kind === "module" && activeGameRuntime.runtime?.socketIo === true && activeGame.networked !== false);
+  const roomLifecycleEnabled = Boolean(isGameView && activeGame && gameOrientation.canLoadRuntime && activeGameRuntime.kind === "module" && activeGameRuntime.runtime?.socketIo === true && activeGame.networked !== false);
   const roomLifecycle = useRoomLifecycle(activeGame, roomLifecycleEnabled);
   countdownActiveRef.current = roomLifecycleEnabled && roomLifecycle.phase === "countdown";
   const roomStartBlocking = roomLifecycleEnabled && !["playing", "finished"].includes(roomLifecycle.phase);
   const controllerMode = useMemo(() => {
-    if (isGameView && startInLandscape && showPlatformControlButtons) return "split";
+    if (isGameView && showPlatformControlButtons) return "split";
     if (showPlatformControlButtons) return "full";
     return "home-bar";
-  }, [isGameView, showPlatformControlButtons, startInLandscape]);
+  }, [isGameView, showPlatformControlButtons]);
 
   const shareUrl = useMemo(() => {
     if (!route?.gameId || !route?.roomId) return "";
@@ -332,7 +334,7 @@ export default function App() {
       onDirectional={handleDirectionalInput}
       onAction={handleActionInput}
       immersive={isGameView && touchSettings.expanded}
-      controllerDisabled={Boolean(roomStartBlocking || touchEditorOpen || configDialogOpen || shareOpen || exitConfirmOpen || endGameState.open)}
+      controllerDisabled={Boolean(gameOrientation.needsLandscape || roomStartBlocking || touchEditorOpen || configDialogOpen || shareOpen || exitConfirmOpen || endGameState.open)}
     >
       {!isGameView && activeTab !== "config" && (
         <LobbyHeader
@@ -381,6 +383,7 @@ export default function App() {
 
       {isGameView && (
         <GameView
+          gameOrientation={gameOrientation}
           roomLifecycle={roomLifecycleEnabled ? roomLifecycle : null}
           roomCreatorEntry={roomCreatorEntry}
           runtimeSpec={activeGameRuntime}

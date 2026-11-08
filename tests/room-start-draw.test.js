@@ -164,7 +164,7 @@ test("Draw waits for both owners and publishes fixed lifecycle fields before its
   assert.equal(session.snapshotValue("started"), false);
 });
 
-test("Draw rejects every drawing action before the deadline and preserves its drawing wire format after start", () => {
+test("Draw rejects every drawing action before the deadline and keeps authoritative drawing events after start", () => {
   const session = createDrawRoomSession();
   const firstClient = session.connectPlayer();
   const secondClient = session.connectPlayer();
@@ -196,7 +196,7 @@ test("Draw rejects every drawing action before the deadline and preserves its dr
   }]);
   assert.equal(state.totalPoints, 2);
   assert.equal(state.activeStrokeIds.p1, null);
-  assert.deepEqual(session.opponentDrawEvents.map((event) => ({ eventName: event.eventName, payload: event.payload })), [
+  assert.deepEqual(session.opponentDrawEvents.map((event) => { const { clearVersion, revision, ...payload } = event.payload; return { eventName: event.eventName, payload }; }), [
     { eventName: "drawEvent", payload: { action: "start", strokeId: "art-1", owner: "p1", color: "#abc", size: 7.5, point: { x: 0.1235, y: 1 } } },
     { eventName: "drawEvent", payload: { action: "move", strokeId: "art-1", owner: "p1", point: { x: 0.5, y: 0.6 } } },
     { eventName: "drawEvent", payload: { action: "end", strokeId: "art-1", owner: "p1" } },
@@ -208,7 +208,7 @@ test("Draw rejects every drawing action before the deadline and preserves its dr
   assert.equal(state.strokes.length, 0);
   assert.equal(state.totalPoints, 0);
   assert.equal(state.clearVersion, 1);
-  assert.deepEqual(session.opponentDrawEvents.at(-1).payload, { action: "clear", owner: "p2", clearVersion: 1 });
+  assert.deepEqual(session.opponentDrawEvents.at(-1).payload, { action: "clear", owner: "p2", clearVersion: 1, revision: 5 });
 });
 
 test("Draw cancels a departing owner's countdown and rejoins with a fresh five seconds while retaining strokes", () => {
@@ -255,4 +255,47 @@ test("Draw cancels a departing owner's countdown and rejoins with a fresh five s
   firstClient.input({ type: "strokeStart", strokeId: "new-art", point: { x: 0.4, y: 0.5 } });
   assert.deepEqual(state.strokes[0], retainedStrokes[0]);
   assert.equal(state.strokes[1].id, "new-art");
+});
+
+
+test("Draw recovers bounded history before countdown and excludes it from periodic snapshots", () => {
+  const session = createDrawRoomSession();
+  const firstClient = session.connectPlayer();
+  firstClient.input({ type: "syncBoard" });
+  assert.deepEqual(firstClient.socketEvents.at(-1), {
+    eventName: "drawBoard", payload: { strokes: [], clearVersion: 0, revision: 0 },
+  });
+  session.connectPlayer();
+  session.tickAt(15000);
+  firstClient.input({ type: "strokeStart", strokeId: "retained", point: { x: 0.2, y: 0.3 } });
+  firstClient.input({ type: "strokeEnd", strokeId: "retained" });
+  session.tickAt(15100);
+  assert.equal(session.snapshotValue("strokes"), undefined, "full canvas never enters the frequent snapshot schema");
+  assert.equal(session.snapshotValue("revision"), 2);
+  firstClient.input({ type: "syncBoard" });
+  const recoveredBoard = firstClient.socketEvents.at(-1).payload;
+  assert.equal(recoveredBoard.strokes[0].id, "retained");
+  assert.equal(recoveredBoard.revision, 2);
+  recoveredBoard.strokes[0].points[0].x = 0.9;
+  assert.equal(session.getState().strokes[0].points[0].x, 0.2, "recovery owns its point copies");
+  firstClient.input({ type: "clear" });
+  assert.deepEqual(firstClient.socketEvents.at(-1), {
+    eventName: "drawEvent", payload: { action: "clear", owner: "p1", clearVersion: 1, revision: 3 },
+  });
+});
+
+test("Draw ignores duplicate starts and closes both active strokes when a player disconnects", () => {
+  const session = createDrawRoomSession();
+  const firstClient = session.connectPlayer();
+  const secondClient = session.connectPlayer();
+  session.tickAt(15000);
+  const firstStroke = { type: "strokeStart", strokeId: "same-id", point: { x: 0.2, y: 0.3 } };
+  firstClient.input(firstStroke);
+  firstClient.input(firstStroke);
+  secondClient.input({ type: "strokeStart", strokeId: "other-id", point: { x: 0.3, y: 0.4 } });
+  assert.equal(session.getState().strokes.length, 2);
+  assert.equal(session.getState().revision, 2);
+  secondClient.disconnect();
+  assert.ok(session.getState().strokes.every((stroke) => stroke.completed));
+  assert.deepEqual(session.getState().activeStrokeIds, { p1: null, p2: null });
 });

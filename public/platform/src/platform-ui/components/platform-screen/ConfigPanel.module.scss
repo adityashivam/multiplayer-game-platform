@@ -1,5 +1,6 @@
 .panel {
   flex: 1;
+  min-width: 0;
   min-height: 0;
   padding: 2px 2px 20px;
   overflow-y: auto;
@@ -7,10 +8,18 @@
   font-family: var(--platform-font-body);
   scrollbar-width: thin;
   scrollbar-gutter: stable;
+  scrollbar-color: var(--platform-border) transparent;
+  overscroll-behavior-y: contain;
+  container: platform-settings / inline-size;
+
+  &:focus-visible {
+    outline: 2px solid var(--platform-focus);
+    outline-offset: -2px;
+  }
 }
 
 .heading {
-  margin: 0 0 24px;
+  margin: 0 0 20px;
   font-family: var(--platform-font-heading);
   font-size: 28px;
   font-weight: 600;
@@ -27,17 +36,29 @@
 }
 
 .audioCard {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-  width: min(100%, 540px);
-  padding: 20px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+  grid-template-areas: "info volume mute";
+  align-items: center;
+  gap: 24px;
+  width: 100%;
+  padding: 16px 20px;
   border: 1px solid var(--platform-border);
   border-radius: 12px;
   background: var(--platform-surface);
 }
 
+@container platform-settings (max-width: 640px) {
+  .audioCard {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: "info mute" "volume volume";
+    gap: 14px;
+    padding: 16px;
+  }
+}
+
 .audioHeader {
+  grid-area: info;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -57,6 +78,8 @@
 }
 
 .muteButton {
+  grid-area: mute;
+  justify-self: end;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -90,6 +113,7 @@
 }
 
 .volumeRow {
+  grid-area: volume;
   display: flex;
   align-items: center;
   gap: 16px;

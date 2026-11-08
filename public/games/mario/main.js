@@ -9,7 +9,21 @@ import {
 import { openShareModal } from "/platform/frontend-engine/shareModalBridge.js";
 import { createWorkerInterpolator } from "/platform/frontend-engine/interpolationWorker.js";
 import { updateConnectionState } from "/platform/frontend-engine/connectionBridge.js";
-import { LEVEL_1_1, buildOneOneTrack } from "/games/mario/levelData.js";
+import { LEVEL_1_1 } from "/games/mario/levelData.js";
+import { createGameRoomConnection } from "/platform/frontend-engine/gameRoomConnection.js";
+import { createInputLatch } from "/platform/frontend-engine/inputTimeline.js";
+import { createNetworkedGameRuntime } from "/platform/frontend-engine/networkedGameRuntime.js";
+import { createMarioInterpolationOptions, createMarioNetworkSession } from "/games/mario/networking.js";
+import {
+  MARIO_EDGE_KEYS,
+  MARIO_FIXED_DT_SEC,
+  MARIO_INPUT_TEMPLATE,
+  MARIO_MOVEMENT_SETTINGS,
+  MARIO_TRACK,
+} from "/games/mario/shared/config.js";
+
+/** @typedef {import("./shared/config.js").MarioInputState} MarioInputState */
+/** @typedef {import("./shared/config.js").MarioPlayerId} MarioPlayerId */
 
 function getGameSlugFromPath() {
   const match = window.location.pathname.match(/^\/games\/([^/]+)/i);
@@ -21,11 +35,9 @@ const TOUCH_VARIANT_SLUG = "mario-touch";
 const TOUCH_VARIANT_ENABLED = GAME_SLUG === TOUCH_VARIANT_SLUG;
 const ASSET_SLUG = "mario";
 const TOUCH_OVERLAY_ID = "mario-touch-overlay";
-const TOUCH_ROTATE_HINT_ID = "mario-touch-rotate-hint";
 const TOUCH_STYLE_ID = "mario-touch-style";
 const WORLD_RENDER_OFFSET_Y = TOUCH_VARIANT_ENABLED ? 108 : 0;
 const HUD_TOP_SAFE_PX = TOUCH_VARIANT_ENABLED ? 14 : 0;
-const ROOM_READY_EVENT = "kaboom:room-ready";
 const OPPONENT_JOIN_EVENT = "kaboom:opponent-joined";
 const DISPOSE_GAME_EVENT = "kaboom:dispose-game";
 
@@ -33,28 +45,10 @@ const WIDTH = 1024;
 const HEIGHT = 576;
 const ROOM_STATUS_TTL_MS = 2200;
 
-const LEVEL_TRACK = buildOneOneTrack();
+const LEVEL_TRACK = MARIO_TRACK;
 const QBLOCK_FRAMES = [0, 0, 0, 0, 1, 2, 1];
 
-const PLAYER_W = 16;
-const PLAYER_H = 16;
-const WALK_ACCEL = 920;
-const RUN_ACCEL = 1320;
-const AIR_ACCEL = 720;
-const GROUND_FRICTION = 1080;
-const AIR_DRAG = 180;
-const MAX_WALK_SPEED = 125;
-const MAX_RUN_SPEED = 175;
-const JUMP_SPEED = 460;
-const GRAVITY = 1450;
-const MAX_FALL_SPEED = 760;
-
-const INTERP_DELAY_MS = 42;
-const INTERP_MAX_BUFFER = 16;
-const PREDICTION_MAX_DT_SEC = 0.05;
-const PREDICTION_CORRECTION_BLEND = 0.34;
-const PREDICTION_CORRECTION_DECAY = 18;
-const PREDICTION_HARD_SNAP_DIST = 72;
+const { PLAYER_WIDTH: PLAYER_W, PLAYER_HEIGHT: PLAYER_H } = MARIO_MOVEMENT_SETTINGS;
 
 const FRAME_STANDING_X = 80;
 const FRAME_WALK_X = 96;
@@ -71,21 +65,6 @@ function clamp(value, min, max) {
 
 function lerp(a, b, t) {
   return a + (b - a) * t;
-}
-
-function approach(value, target, step) {
-  if (value < target) return Math.min(target, value + step);
-  if (value > target) return Math.max(target, value - step);
-  return target;
-}
-
-function intersects(a, b) {
-  return (
-    a.x < b.x + b.w &&
-    a.x + a.w > b.x &&
-    a.y < b.y + b.h &&
-    a.y + a.h > b.y
-  );
 }
 
 const { canvas } = getGameDomRefs();
@@ -112,47 +91,28 @@ if (TOUCH_VARIANT_ENABLED) {
 }
 
 const socket = getGameSocket(GAME_SLUG);
-let latestConnectionSnapshot = {
-  status: socket.getConnectionState(),
-  ping: socket.getPing(),
-  pingP95Ms: null,
-  jitterP95Ms: null,
-  packetLossPct: 0,
-};
+const unsubscribeConnection = socket.onConnectionChange(updateConnectionState);
 
-const unsubscribeConnection = socket.onConnectionChange((snapshot) => {
-  latestConnectionSnapshot = { ...latestConnectionSnapshot, ...snapshot };
-  updateConnectionState(snapshot);
-});
-
-let roomUrl = "";
 let gameId = null;
-let hasJoined = false;
+/** @type {MarioPlayerId|null} */
 let myPlayerId = null;
-let myRejoinToken = null;
 let readyToPlay = false;
 let opponentJoined = false;
-let currentRoomId = null;
 
-let latestServerState = null;
 let shownGameOver = false;
 let rematchPending = false;
 let disposed = false;
 let animationFrameId = 0;
-let lastRenderSampleMs = performance.now();
 let cameraX = 0;
+let cameraContinuityKey = null;
 let lastAudioStartAttemptMs = 0;
 
 let statusMessage = "Joining room...";
 let statusUntilMs = Date.now() + 2500;
 
-const heldInput = {
-  left: false,
-  right: false,
-  run: false,
-  jump: false,
-};
-let jumpQueuedForPrediction = false;
+/** @type {MarioInputState} */
+const heldInput = { ...MARIO_INPUT_TEMPLATE };
+const marioInputLatch = createInputLatch(MARIO_INPUT_TEMPLATE, { edgeKeys: MARIO_EDGE_KEYS });
 
 const imageAssets = {
   playerRight: null,
@@ -176,49 +136,35 @@ let audioUnlocked = false;
 let bgmPlaying = false;
 let victorySoundPlayed = false;
 
-const interpolationRuntimeOptions = {
-  pingMs: 0,
-  pingP95Ms: 0,
-  jitterP95Ms: 0,
-  packetLossPct: 0,
-  nowMs: 0,
-};
+const interpolator = createWorkerInterpolator(createMarioInterpolationOptions());
+let movementRuntime = null;
+const networkSession = createMarioNetworkSession({
+  socket,
+  interpolator,
+  captureInput: captureMarioInputState,
+  getPlayerId: () => myPlayerId,
+  canCaptureInput: (snapshot) => readyToPlay && !document.hidden && !snapshot.gameOver,
+  onReset: () => {
+    resetMarioControls();
+    movementRuntime?.reset();
+    cameraContinuityKey = null;
+  },
+  onInputOwnershipReset: resetMarioControls,
+  onDiagnostics: updateConnectionState,
+});
 
-const localPrediction = {
-  initialized: false,
-  simX: 0,
-  simY: 0,
-  simVx: 0,
-  simVy: 0,
-  correctionX: 0,
-  correctionY: 0,
-};
-
-function clearLocalPrediction() {
-  localPrediction.initialized = false;
-  localPrediction.simX = 0;
-  localPrediction.simY = 0;
-  localPrediction.simVx = 0;
-  localPrediction.simVy = 0;
-  localPrediction.correctionX = 0;
-  localPrediction.correctionY = 0;
-  jumpQueuedForPrediction = false;
-}
-
-function resetLocalPrediction(player) {
-  if (!player) {
-    clearLocalPrediction();
-    return;
-  }
-
-  localPrediction.initialized = true;
-  localPrediction.simX = Number.isFinite(player.x) ? player.x : 0;
-  localPrediction.simY = Number.isFinite(player.y) ? player.y : 0;
-  localPrediction.simVx = Number.isFinite(player.vx) ? player.vx : 0;
-  localPrediction.simVy = Number.isFinite(player.vy) ? player.vy : 0;
-  localPrediction.correctionX = 0;
-  localPrediction.correctionY = 0;
-}
+movementRuntime = createNetworkedGameRuntime({
+  session: networkSession,
+  fixedDtSec: MARIO_FIXED_DT_SEC,
+  maxFrameSec: 0.08,
+  maxFixedSteps: 8,
+  targetRenderFps: null,
+  applyPose: (renderState, runtimeContext) => {
+    renderMarioWorld(renderState, runtimeContext.nowMs, runtimeContext.frameDtSec);
+    if (renderState?.started && !renderState.gameOver) tryStartBgm();
+    else if (renderState?.gameOver) pauseBgm();
+  },
+});
 
 function getTrack(state) {
   return {
@@ -236,340 +182,9 @@ function getTrack(state) {
   };
 }
 
-function resolveHorizontalForPrediction(sim, solids, dt) {
-  let nextX = sim.x + sim.vx * dt;
-  const rect = { x: nextX, y: sim.y, w: PLAYER_W, h: PLAYER_H };
-
-  for (let i = 0; i < solids.length; i += 1) {
-    const solid = solids[i];
-    if (!intersects(rect, solid)) continue;
-
-    if (sim.vx > 0) {
-      nextX = solid.x - PLAYER_W;
-      rect.x = nextX;
-      sim.vx = 0;
-    } else if (sim.vx < 0) {
-      nextX = solid.x + solid.w;
-      rect.x = nextX;
-      sim.vx = 0;
-    }
-  }
-
-  sim.x = nextX;
-}
-
-function resolveVerticalForPrediction(sim, solids, dt) {
-  let nextY = sim.y + sim.vy * dt;
-  let grounded = false;
-  const rect = { x: sim.x, y: nextY, w: PLAYER_W, h: PLAYER_H };
-
-  for (let i = 0; i < solids.length; i += 1) {
-    const solid = solids[i];
-    if (!intersects(rect, solid)) continue;
-
-    if (sim.vy > 0) {
-      nextY = solid.y - PLAYER_H;
-      rect.y = nextY;
-      sim.vy = 0;
-      grounded = true;
-    } else if (sim.vy < 0) {
-      nextY = solid.y + solid.h;
-      rect.y = nextY;
-      sim.vy = 0;
-    }
-  }
-
-  sim.y = nextY;
-  sim.onGround = grounded;
-}
-
-function estimateGrounded(simX, simY, solids, epsilon = 2) {
-  const feetY = simY + PLAYER_H;
-  for (let i = 0; i < solids.length; i += 1) {
-    const solid = solids[i];
-    const overlapX = simX < solid.x + solid.w && simX + PLAYER_W > solid.x;
-    if (!overlapX) continue;
-    if (Math.abs(feetY - solid.y) <= epsilon) return true;
-  }
-  return false;
-}
-
-function reconcileLocalPrediction(state) {
-  if (!myPlayerId || !state?.players?.[myPlayerId]) {
-    clearLocalPrediction();
-    return;
-  }
-
-  const player = state.players[myPlayerId];
-
-  if (!localPrediction.initialized) {
-    resetLocalPrediction(player);
-    return;
-  }
-
-  const predictiveActive = Boolean(
-    state.started &&
-      !state.gameOver &&
-      player.connected &&
-      !player.finished,
-  );
-
-  if (!predictiveActive) {
-    resetLocalPrediction(player);
-    return;
-  }
-
-  const renderedX = localPrediction.simX + localPrediction.correctionX;
-  const renderedY = localPrediction.simY + localPrediction.correctionY;
-
-  const errorX = (Number.isFinite(player.x) ? player.x : 0) - renderedX;
-  const errorY = (Number.isFinite(player.y) ? player.y : 0) - renderedY;
-
-  if (Math.abs(errorX) > PREDICTION_HARD_SNAP_DIST || Math.abs(errorY) > PREDICTION_HARD_SNAP_DIST) {
-    resetLocalPrediction(player);
-    return;
-  }
-
-  localPrediction.correctionX = clamp(
-    localPrediction.correctionX + errorX * PREDICTION_CORRECTION_BLEND,
-    -84,
-    84,
-  );
-  localPrediction.correctionY = clamp(
-    localPrediction.correctionY + errorY * PREDICTION_CORRECTION_BLEND,
-    -84,
-    84,
-  );
-}
-
-function stepLocalPrediction(state, dtSec) {
-  if (!myPlayerId || !state?.players?.[myPlayerId]) return null;
-
-  const player = state.players[myPlayerId];
-  const track = getTrack(state);
-  const solids = LEVEL_TRACK.solids;
-  const worldWidth = Number.isFinite(track.worldWidth) ? track.worldWidth : LEVEL_TRACK.worldWidth;
-  const groundY = Number.isFinite(track.groundY) ? track.groundY : LEVEL_TRACK.groundY;
-
-  if (!localPrediction.initialized) {
-    resetLocalPrediction(player);
-  }
-
-  const dt = clamp(dtSec, 0, PREDICTION_MAX_DT_SEC);
-  const predictiveActive = Boolean(
-    state.started &&
-      !state.gameOver &&
-      player.connected &&
-      !player.finished,
-  );
-
-  if (!predictiveActive) {
-    const syncAlpha = Math.min(1, dt * 12);
-    localPrediction.simX += ((Number.isFinite(player.x) ? player.x : 0) - localPrediction.simX) * syncAlpha;
-    localPrediction.simY += ((Number.isFinite(player.y) ? player.y : 0) - localPrediction.simY) * syncAlpha;
-    localPrediction.simVx += ((Number.isFinite(player.vx) ? player.vx : 0) - localPrediction.simVx) * syncAlpha;
-    localPrediction.simVy += ((Number.isFinite(player.vy) ? player.vy : 0) - localPrediction.simVy) * syncAlpha;
-    jumpQueuedForPrediction = false;
-  } else {
-    const groundedEstimate = estimateGrounded(localPrediction.simX, localPrediction.simY, solids);
-
-    let moveDir = 0;
-    if (heldInput.left && !heldInput.right) moveDir = -1;
-    if (heldInput.right && !heldInput.left) moveDir = 1;
-
-    if (moveDir !== 0) {
-      const accel = groundedEstimate
-        ? heldInput.run
-          ? RUN_ACCEL
-          : WALK_ACCEL
-        : AIR_ACCEL;
-      localPrediction.simVx += moveDir * accel * dt;
-    } else {
-      const drag = groundedEstimate ? GROUND_FRICTION : AIR_DRAG;
-      localPrediction.simVx = approach(localPrediction.simVx, 0, drag * dt);
-    }
-
-    const maxSpeed = heldInput.run ? MAX_RUN_SPEED : MAX_WALK_SPEED;
-    localPrediction.simVx = clamp(localPrediction.simVx, -maxSpeed, maxSpeed);
-
-    const wantsJump = jumpQueuedForPrediction;
-    jumpQueuedForPrediction = false;
-    if (wantsJump && groundedEstimate) {
-      localPrediction.simVy = -JUMP_SPEED;
-    }
-
-    localPrediction.simVy = clamp(localPrediction.simVy + GRAVITY * dt, -JUMP_SPEED, MAX_FALL_SPEED);
-
-    const sim = {
-      x: localPrediction.simX,
-      y: localPrediction.simY,
-      vx: localPrediction.simVx,
-      vy: localPrediction.simVy,
-      onGround: false,
-    };
-
-    resolveHorizontalForPrediction(sim, solids, dt);
-    sim.x = clamp(sim.x, 0, worldWidth - PLAYER_W);
-    resolveVerticalForPrediction(sim, solids, dt);
-
-    if (sim.y > groundY + 260) {
-      sim.y = LEVEL_TRACK.playerSpawn.y;
-      sim.vy = 0;
-      sim.vx = 0;
-      sim.onGround = true;
-    }
-
-    localPrediction.simX = sim.x;
-    localPrediction.simY = sim.y;
-    localPrediction.simVx = sim.vx;
-    localPrediction.simVy = sim.vy;
-  }
-
-  const decay = 1 / (1 + PREDICTION_CORRECTION_DECAY * dt);
-  localPrediction.correctionX *= decay;
-  localPrediction.correctionY *= decay;
-
-  return {
-    x: localPrediction.simX + localPrediction.correctionX,
-    y: localPrediction.simY + localPrediction.correctionY,
-    vx: localPrediction.simVx,
-    vy: localPrediction.simVy,
-  };
-}
-
-function extractMarioPositions(state) {
-  const positions = {
-    p1x: Number.isFinite(state?.players?.p1?.x) ? state.players.p1.x : 0,
-    p1y: Number.isFinite(state?.players?.p1?.y) ? state.players.p1.y : 0,
-    p2x: Number.isFinite(state?.players?.p2?.x) ? state.players.p2.x : 0,
-    p2y: Number.isFinite(state?.players?.p2?.y) ? state.players.p2.y : 0,
-  };
-
-  const enemies = Array.isArray(state?.enemies) ? state.enemies : [];
-  for (let i = 0; i < enemies.length; i += 1) {
-    const enemy = enemies[i] || {};
-    positions[`e${i}x`] = Number.isFinite(enemy.x) ? enemy.x : 0;
-    positions[`e${i}y`] = Number.isFinite(enemy.y) ? enemy.y : 0;
-  }
-
-  return positions;
-}
-
-function extractMarioVelocities(state) {
-  const velocities = {
-    p1x: Number.isFinite(state?.players?.p1?.vx) ? state.players.p1.vx : 0,
-    p1y: Number.isFinite(state?.players?.p1?.vy) ? state.players.p1.vy : 0,
-    p2x: Number.isFinite(state?.players?.p2?.vx) ? state.players.p2.vx : 0,
-    p2y: Number.isFinite(state?.players?.p2?.vy) ? state.players.p2.vy : 0,
-  };
-
-  const enemies = Array.isArray(state?.enemies) ? state.enemies : [];
-  for (let i = 0; i < enemies.length; i += 1) {
-    const enemy = enemies[i] || {};
-    velocities[`e${i}x`] = Number.isFinite(enemy.vx) ? enemy.vx : 0;
-    velocities[`e${i}y`] = Number.isFinite(enemy.vy) ? enemy.vy : 0;
-  }
-
-  return velocities;
-}
-
-const interpolator = createWorkerInterpolator({
-  extractPositions: extractMarioPositions,
-  extractVelocities: extractMarioVelocities,
-  interpDelayMs: INTERP_DELAY_MS,
-  maxBufferSize: INTERP_MAX_BUFFER,
-});
-
-function cloneRenderableState(state) {
-  if (!state?.players) return state;
-  return {
-    ...state,
-    track: state.track ? { ...state.track } : null,
-    players: {
-      p1: { ...state.players.p1 },
-      p2: { ...state.players.p2 },
-    },
-    enemies: Array.isArray(state.enemies)
-      ? state.enemies.map((enemy) => ({ ...enemy }))
-      : [],
-  };
-}
-
-function applyInterpolatedPose(renderState, pose) {
-  if (!renderState?.players || !pose) return;
-
-  if (Number.isFinite(pose.p1x)) renderState.players.p1.x = pose.p1x;
-  if (Number.isFinite(pose.p1y)) renderState.players.p1.y = pose.p1y;
-  if (Number.isFinite(pose.p2x)) renderState.players.p2.x = pose.p2x;
-  if (Number.isFinite(pose.p2y)) renderState.players.p2.y = pose.p2y;
-
-  if (!Array.isArray(renderState.enemies)) return;
-  for (let i = 0; i < renderState.enemies.length; i += 1) {
-    const enemy = renderState.enemies[i];
-    if (!enemy) continue;
-    const xKey = `e${i}x`;
-    const yKey = `e${i}y`;
-    if (Number.isFinite(pose[xKey])) enemy.x = pose[xKey];
-    if (Number.isFinite(pose[yKey])) enemy.y = pose[yKey];
-  }
-}
-
-function buildRenderStateForFrame(nowMs, dtSec) {
-  if (!latestServerState?.players) return latestServerState;
-
-  interpolationRuntimeOptions.pingMs = latestConnectionSnapshot?.ping;
-  interpolationRuntimeOptions.pingP95Ms = latestConnectionSnapshot?.pingP95Ms;
-  interpolationRuntimeOptions.jitterP95Ms = latestConnectionSnapshot?.jitterP95Ms;
-  interpolationRuntimeOptions.packetLossPct = latestConnectionSnapshot?.packetLossPct;
-  interpolationRuntimeOptions.nowMs = nowMs;
-
-  const renderState = cloneRenderableState(latestServerState);
-  const interpolatedPose = interpolator.getInterpolatedPositions(interpolationRuntimeOptions);
-  applyInterpolatedPose(renderState, interpolatedPose);
-
-  if (myPlayerId && renderState.players?.[myPlayerId]) {
-    const predictedLocal = stepLocalPrediction(latestServerState, dtSec);
-    if (predictedLocal) {
-      renderState.players[myPlayerId].x = predictedLocal.x;
-      renderState.players[myPlayerId].y = predictedLocal.y;
-      renderState.players[myPlayerId].vx = predictedLocal.vx;
-      renderState.players[myPlayerId].vy = predictedLocal.vy;
-    }
-  }
-
-  return renderState;
-}
-
-function resetMarioNetcodeState(nextState = null) {
-  interpolator.reset();
-  clearLocalPrediction();
-  lastRenderSampleMs = performance.now();
-  if (nextState?.players?.[myPlayerId]) {
-    resetLocalPrediction(nextState.players[myPlayerId]);
-  }
-}
-
 function setStatus(message, ttlMs = ROOM_STATUS_TTL_MS) {
   statusMessage = message;
   statusUntilMs = Date.now() + ttlMs;
-}
-
-function buildRoomUrl(roomId) {
-  return `${window.location.origin}/games/${GAME_SLUG}/${roomId}`;
-}
-
-function setRoomLink(url) {
-  roomUrl = url;
-}
-
-function announceRoomReady(roomId) {
-  if (!roomId) return;
-  if (roomId !== currentRoomId) {
-    currentRoomId = roomId;
-    opponentJoined = false;
-    window.__kaboomOpponentJoined = null;
-  }
-  window.dispatchEvent(new CustomEvent(ROOM_READY_EVENT, { detail: { gameId: GAME_SLUG, roomId } }));
 }
 
 function announceOpponentJoined() {
@@ -578,101 +193,50 @@ function announceOpponentJoined() {
   window.dispatchEvent(new CustomEvent(OPPONENT_JOIN_EVENT, { detail: { gameId: GAME_SLUG, roomId: gameId } }));
 }
 
-function getRoomIdFromPath() {
-  const match = window.location.pathname.match(new RegExp(`/games/${GAME_SLUG}/([a-z0-9]+)`, "i"));
-  return match && match[1] ? match[1] : null;
-}
-
-async function ensureRoomId() {
-  const existing = getRoomIdFromPath();
-  if (existing) {
-    setRoomLink(buildRoomUrl(existing));
-    announceRoomReady(existing);
-    return existing;
-  }
-
-  try {
-    const response = await fetch(`/api/games/${GAME_SLUG}/new-room`);
-    if (!response.ok) throw new Error("Failed to create room");
-    const data = await response.json();
-    const roomId = data?.roomId || Math.random().toString(36).slice(2, 8);
-    const url = data?.url || buildRoomUrl(roomId);
-    window.history.replaceState({}, "", `/games/${GAME_SLUG}/${roomId}`);
-    setRoomLink(url);
-    announceRoomReady(roomId);
-    return roomId;
-  } catch {
-    const fallback = Math.random().toString(36).slice(2, 8);
-    window.history.replaceState({}, "", `/games/${GAME_SLUG}/${fallback}`);
-    setRoomLink(buildRoomUrl(fallback));
-    announceRoomReady(fallback);
-    return fallback;
-  }
-}
-
 function resultLabel(winner) {
   if (!winner || winner === "tie") return "Tie finish";
   if (!myPlayerId) return winner === "p1" ? "Player 1 wins" : "Player 2 wins";
   return winner === myPlayerId ? "You won the race" : "Rival won the race";
 }
 
-function sendInput(type, value) {
-  if (!readyToPlay) return;
-  socket.send("input", { type, value });
+/** @param {keyof MarioInputState} inputKey @param {boolean} active */
+function setHoldInput(inputKey, active) {
+  if (active && areMarioControlsBlocked()) return;
+  if (heldInput[inputKey] === active) return;
+  heldInput[inputKey] = active;
+  marioInputLatch.set(inputKey, active);
 }
 
-function setHoldInput(type, active) {
-  if (heldInput[type] === active) return;
-  heldInput[type] = active;
-  sendInput(type, active);
+/** @returns {boolean} Keep hidden views and platform dialogs in control of input. */
+function areMarioControlsBlocked() {
+  return Boolean(document.hidden || document.querySelector('[aria-modal="true"], dialog[open]'));
+}
+
+/** @returns {MarioInputState} An owned frame with short jump edges preserved. */
+function captureMarioInputState() {
+  if (areMarioControlsBlocked()) resetMarioControls();
+  return marioInputLatch.capture();
+}
+
+/** Clear controls and pending action edges after lifecycle changes. */
+function resetMarioControls() {
+  Object.assign(heldInput, MARIO_INPUT_TEMPLATE);
+  marioInputLatch.reset();
 }
 
 function releaseAllInputs() {
-  setHoldInput("left", false);
-  setHoldInput("right", false);
-  setHoldInput("run", false);
-  setHoldInput("jump", false);
+  resetMarioControls();
 }
 
 function triggerJump(active) {
   setHoldInput("jump", Boolean(active));
   if (active) {
-    jumpQueuedForPrediction = true;
     playJumpSound();
   }
 }
 
-function tryJoinGame() {
-  if (!socket.isConnected() || !gameId || hasJoined) return;
-
-  let token = myRejoinToken;
-  if (!token) {
-    try {
-      token = sessionStorage.getItem(`rejoinToken:${GAME_SLUG}:${gameId}`);
-    } catch {
-      // Ignore sessionStorage failures.
-    }
-  }
-
-  socket.send("joinGame", { gameId, rejoinToken: token || undefined });
-  hasJoined = true;
-}
-
 function onStartAction() {
-  if (roomUrl) {
-    openShareModal();
-    return;
-  }
-
-  ensureRoomId().finally(() => {
-    openShareModal();
-  });
-}
-
-function isTouchLikeDevice() {
-  const coarsePointer = globalThis.matchMedia?.("(pointer: coarse)")?.matches;
-  if (typeof coarsePointer === "boolean") return coarsePointer;
-  return (globalThis.navigator?.maxTouchPoints || 0) > 0;
+  openShareModal();
 }
 
 function unlockAudio() {
@@ -931,99 +495,6 @@ function initTouchOverlayControls() {
   };
 }
 
-/**
- * Fit the touch renderer inside its platform-owned host, without changing browser presentation.
- * @returns {() => void} Disconnects host resize tracking and restores the renderer's inline style.
- */
-function initTouchSurfaceLayout() {
-  if (!TOUCH_VARIANT_ENABLED) return () => {};
-
-  const gameView = document.getElementById("game-view");
-  const gameSurface = canvas.parentElement;
-  if (!gameView || !gameSurface) return () => {};
-
-  const originalGameSurfaceStyle = gameSurface.getAttribute("style");
-  const previousHint = document.getElementById(TOUCH_ROTATE_HINT_ID);
-  previousHint?.remove();
-
-  const rotateHint = document.createElement("div");
-  rotateHint.id = TOUCH_ROTATE_HINT_ID;
-  rotateHint.textContent = "Rotate device for landscape mode";
-  rotateHint.style.position = "absolute";
-  rotateHint.style.left = "50%";
-  rotateHint.style.bottom = "10px";
-  rotateHint.style.transform = "translateX(-50%)";
-  rotateHint.style.padding = "7px 11px";
-  rotateHint.style.borderRadius = "12px";
-  rotateHint.style.background = "rgba(5, 13, 26, 0.78)";
-  rotateHint.style.border = "1px solid rgba(96, 165, 250, 0.46)";
-  rotateHint.style.color = "#f8fafc";
-  rotateHint.style.font = "700 11px ui-monospace, monospace";
-  rotateHint.style.letterSpacing = "0.06em";
-  rotateHint.style.pointerEvents = "none";
-  rotateHint.style.zIndex = "11";
-  rotateHint.style.opacity = "0";
-  rotateHint.style.boxShadow = "0 8px 22px rgba(0, 0, 0, 0.38)";
-  gameView.appendChild(rotateHint);
-
-  const applyLayout = () => {
-    const surfaceWidth = gameView.clientWidth;
-    const surfaceHeight = gameView.clientHeight;
-    if (surfaceWidth <= 0 || surfaceHeight <= 0) return;
-
-    const portrait = surfaceHeight > surfaceWidth;
-    const rotateSurface = portrait && isTouchLikeDevice();
-
-    if (rotateSurface) {
-      const targetWidth = surfaceHeight;
-      const targetHeight = surfaceWidth;
-      gameSurface.style.position = "absolute";
-      gameSurface.style.left = "50%";
-      gameSurface.style.top = "50%";
-      gameSurface.style.width = `${targetWidth}px`;
-      gameSurface.style.height = `${targetHeight}px`;
-      gameSurface.style.transform = "translate(-50%, -50%) rotate(90deg)";
-      gameSurface.style.transformOrigin = "center center";
-      rotateHint.style.opacity = "0";
-    } else if (portrait) {
-      const targetWidth = surfaceWidth;
-      const targetHeight = Math.floor((targetWidth * 9) / 16);
-      gameSurface.style.position = "absolute";
-      gameSurface.style.left = "50%";
-      gameSurface.style.top = "50%";
-      gameSurface.style.width = `${targetWidth}px`;
-      gameSurface.style.height = `${targetHeight}px`;
-      gameSurface.style.transform = "translate(-50%, -50%)";
-      gameSurface.style.transformOrigin = "center center";
-      rotateHint.style.opacity = "1";
-    } else {
-      gameSurface.style.position = "relative";
-      gameSurface.style.left = "0";
-      gameSurface.style.top = "0";
-      gameSurface.style.width = "100%";
-      gameSurface.style.height = "100%";
-      gameSurface.style.transform = "none";
-      gameSurface.style.transformOrigin = "center center";
-      rotateHint.style.opacity = "0";
-    }
-  };
-
-  const surfaceObserver = new ResizeObserver(applyLayout);
-  surfaceObserver.observe(gameView);
-  applyLayout();
-
-  return () => {
-    surfaceObserver.disconnect();
-
-    if (originalGameSurfaceStyle == null) {
-      gameSurface.removeAttribute("style");
-    } else {
-      gameSurface.setAttribute("style", originalGameSurfaceStyle);
-    }
-    rotateHint.remove();
-  };
-}
-
 function initControllerNavigation() {
   const cleanups = [];
 
@@ -1079,6 +550,7 @@ function initKeyboardNavigation() {
   };
 
   const onKeyDown = (event) => {
+    if (areMarioControlsBlocked()) return;
     const tag = event.target?.tagName?.toLowerCase();
     if (tag === "input" || tag === "textarea" || tag === "select") return;
 
@@ -1102,13 +574,25 @@ function initKeyboardNavigation() {
     action();
   };
 
+  const onBlur = () => {
+    pressed.clear();
+    releaseAllInputs();
+  };
+  const onVisibilityChange = () => {
+    if (document.hidden) onBlur();
+  };
+
   window.addEventListener("keydown", onKeyDown);
   window.addEventListener("keyup", onKeyUp);
+  window.addEventListener("blur", onBlur);
+  document.addEventListener("visibilitychange", onVisibilityChange);
   window.addEventListener("pointerdown", unlockAudio, { passive: true });
 
   return () => {
     window.removeEventListener("keydown", onKeyDown);
     window.removeEventListener("keyup", onKeyUp);
+    window.removeEventListener("blur", onBlur);
+    document.removeEventListener("visibilitychange", onVisibilityChange);
     window.removeEventListener("pointerdown", unlockAudio);
   };
 }
@@ -1440,7 +924,7 @@ function drawHud(state) {
   }
 }
 
-function renderMarioWorld(state, nowMs) {
+function renderMarioWorld(state, nowMs, deltaSec = MARIO_FIXED_DT_SEC) {
   const track = getTrack(state);
   const myPlayer = state?.players?.[myPlayerId] || state?.players?.p1;
 
@@ -1450,7 +934,13 @@ function renderMarioWorld(state, nowMs) {
       0,
       Math.max(0, track.worldWidth - WIDTH),
     );
-    cameraX = lerp(cameraX, targetCamera, 0.18);
+    const nextCameraContinuityKey = `${myPlayerId}:${myPlayer.movementEpoch}`;
+    if (cameraContinuityKey !== nextCameraContinuityKey) {
+      cameraX = targetCamera;
+      cameraContinuityKey = nextCameraContinuityKey;
+    } else {
+      cameraX = lerp(cameraX, targetCamera, 1 - Math.exp(-12 * deltaSec));
+    }
   } else {
     cameraX = lerp(cameraX, 0, 0.1);
   }
@@ -1486,18 +976,7 @@ function renderFrame() {
     return;
   }
 
-  const dtSec = Math.max(0, Math.min((nowMs - lastRenderSampleMs) / 1000, PREDICTION_MAX_DT_SEC));
-  lastRenderSampleMs = nowMs;
-
-  const renderState = buildRenderStateForFrame(nowMs, dtSec);
-  renderMarioWorld(renderState, nowMs);
-
-  const raceActive = Boolean(renderState?.started && !renderState?.gameOver);
-  if (raceActive) {
-    tryStartBgm();
-  } else if (renderState?.gameOver) {
-    pauseBgm();
-  }
+  movementRuntime.step({ nowMs, forceRender: true });
 
   animationFrameId = requestAnimationFrame(renderFrame);
 }
@@ -1509,52 +988,31 @@ registerRematchHandler(() => {
     status: "Waiting for rival...",
     phase: "waiting",
   });
-  socket.send("rematch");
+  roomConnection.requestRematch();
 });
 
-socket.onEvent("connect", () => {
-  hasJoined = false;
-  latestServerState = null;
-  resetMarioNetcodeState(null);
-
-  const pathRoomId = getRoomIdFromPath();
-  if (pathRoomId && gameId && pathRoomId !== gameId) {
-    gameId = null;
-    myRejoinToken = null;
-  }
-
-  if (gameId) {
-    tryJoinGame();
-  } else {
-    ensureRoomId().then((id) => {
-      gameId = id;
-      tryJoinGame();
-    });
-  }
+const roomConnection = createGameRoomConnection({
+  gameId: GAME_SLUG,
+  socket,
+  onJoined: ({ playerId, gameId: roomId }) => {
+    myPlayerId = playerId;
+    gameId = roomId;
+    readyToPlay = true;
+    opponentJoined = false;
+    window.__kaboomOpponentJoined = null;
+    setStatus(`Joined as ${playerId.toUpperCase()}`);
+  },
+  onError: (message) => setStatus(message, 5000),
+  onRematchRequested: () => updateEndGameModal({
+    status: "Accept challenge.",
+    actionLabel: "Accept Challenge",
+    phase: "ready",
+  }),
 });
 
-socket.onEvent("roomFull", () => {
-  setStatus("Room is full", 3500);
-});
-
-socket.onEvent("gameJoined", ({ playerId, gameId: joinedGameId, rejoinToken }) => {
-  myPlayerId = playerId;
-  myRejoinToken = rejoinToken || null;
-  readyToPlay = true;
-  gameId = gameId || joinedGameId;
-  resetMarioNetcodeState(null);
-
-  if (rejoinToken && gameId) {
-    try {
-      sessionStorage.setItem(`rejoinToken:${GAME_SLUG}:${gameId}`, rejoinToken);
-    } catch {
-      // Ignore sessionStorage failures.
-    }
-  }
-
-  setRoomLink(buildRoomUrl(gameId));
-  announceRoomReady(gameId);
-  setStatus(`Joined as ${playerId.toUpperCase()}`);
+socket.onEvent("disconnect", () => {
+  readyToPlay = false;
+  setStatus("Reconnecting to race...", 5000);
 });
 
 socket.onEvent("playerJoined", ({ playerId }) => {
@@ -1578,21 +1036,10 @@ socket.onEvent("playerLeft", ({ playerId }) => {
   }
 });
 
-socket.onEvent("rematchRequested", ({ playerId }) => {
-  if (playerId === myPlayerId) return;
-  updateEndGameModal({
-    status: "Accept challenge.",
-    actionLabel: "Accept Challenge",
-    phase: "ready",
-  });
-});
-
 socket.onEvent("rematchStarted", () => {
   rematchPending = false;
   shownGameOver = false;
   victorySoundPlayed = false;
-  latestServerState = null;
-  resetMarioNetcodeState(null);
   releaseAllInputs();
   hideEndGameModal();
   setStatus("Rematch started");
@@ -1600,10 +1047,6 @@ socket.onEvent("rematchStarted", () => {
 
 socket.onEvent("state", (state) => {
   if (!state || !state.players) return;
-
-  latestServerState = state;
-  interpolator.pushState(state);
-  reconcileLocalPrediction(state);
 
   const connected = state.players;
   if (!opponentJoined && connected?.p1?.connected && connected?.p2?.connected) {
@@ -1636,7 +1079,6 @@ socket.onEvent("state", (state) => {
 
 const cleanupControllerNavigation = initControllerNavigation();
 const cleanupKeyboardNavigation = initKeyboardNavigation();
-const cleanupTouchSurfaceLayout = initTouchSurfaceLayout();
 const cleanupTouchOverlay = initTouchOverlayControls();
 
 function disposeGameRuntime() {
@@ -1646,7 +1088,6 @@ function disposeGameRuntime() {
   releaseAllInputs();
   cleanupControllerNavigation?.();
   cleanupKeyboardNavigation?.();
-  cleanupTouchSurfaceLayout?.();
   cleanupTouchOverlay?.();
   registerRematchHandler(null);
   hideEndGameModal();
@@ -1661,16 +1102,14 @@ function disposeGameRuntime() {
 
   unsubscribeConnection?.();
   updateConnectionState({ status: "disconnected", ping: null });
+  roomConnection.dispose();
+  networkSession.destroy();
+  movementRuntime.destroy();
   interpolator.destroy?.();
-  latestServerState = null;
-  clearLocalPrediction();
 
-  socket.offEvent("connect");
-  socket.offEvent("roomFull");
-  socket.offEvent("gameJoined");
+  socket.offEvent("disconnect");
   socket.offEvent("playerJoined");
   socket.offEvent("playerLeft");
-  socket.offEvent("rematchRequested");
   socket.offEvent("rematchStarted");
   socket.offEvent("state");
   socket.destroy?.();
@@ -1686,11 +1125,6 @@ function handleDisposeEvent(event) {
 }
 
 window.addEventListener(DISPOSE_GAME_EVENT, handleDisposeEvent);
-
-ensureRoomId().then((id) => {
-  gameId = id;
-  tryJoinGame();
-});
 
 loadAssets().catch((error) => {
   console.error(error);

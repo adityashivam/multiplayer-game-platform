@@ -47,6 +47,7 @@ import { getDeadShiftNavigationWaypoint } from "./navigation.js";
  * @property {number} reloadRemaining
  * @property {boolean} reloadHeld
  * @property {number} respawnRemaining
+ * @property {number} respawnId Monotonic presentation identity within a round.
  * @property {number} invulnerabilityRemaining
  * @property {number} shotCooldown
  * @property {number} shotId Monotonic within a round, including across respawns.
@@ -152,6 +153,7 @@ export function createDeadShiftPlayer(playerId) {
     reloadRemaining: 0,
     reloadHeld: false,
     respawnRemaining: 0,
+    respawnId: 0,
     invulnerabilityRemaining: 0,
     shotCooldown: 0,
     shotId: 0,
@@ -851,6 +853,7 @@ function respawnDeadShiftPlayer(round, player) {
     if (candidate === defaultSpawn && minimumDistance > 4) break;
   }
   Object.assign(player, {
+    respawnId: player.respawnId + 1,
     x: selectedSpawn.x, y: 0, z: selectedSpawn.z, vx: 0, vy: 0, vz: 0,
     health: DEAD_SHIFT_PLAYER_SETTINGS.maxHealth, respawnRemaining: 0,
     invulnerabilityRemaining: DEAD_SHIFT_PLAYER_SETTINGS.respawnInvulnerabilitySec,

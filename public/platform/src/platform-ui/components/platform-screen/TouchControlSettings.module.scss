@@ -1,31 +1,37 @@
 .settingsSection {
-  display: grid;
-  grid-template-columns: minmax(130px, 180px) minmax(0, 1fr);
-  gap: clamp(20px, 3vw, 40px);
-  padding-bottom: 34px;
-  margin-bottom: 32px;
+  min-width: 0;
+  padding-bottom: 24px;
+  margin-bottom: 22px;
   border-bottom: 1px solid var(--platform-border);
 }
 
 .sectionIntro {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 20px;
+
   h2 {
-    margin: 10px 0 12px;
-    font: 600 21px var(--platform-font-heading);
+    margin: 0;
+    font: 600 19px var(--platform-font-heading);
     letter-spacing: -.03em;
   }
   > p {
-    margin: 0 0 20px;
+    margin: 0;
     color: var(--platform-text-muted);
-    font-size: 12px;
-    line-height: 1.8;
+    font-size: 11px;
+    line-height: 1.6;
   }
 }
 
 .sectionNumber { color: var(--platform-accent); font-size: 10px; letter-spacing: .14em; }
-.deviceNote { display: flex; align-items: center; gap: 5px; color: var(--platform-text-muted); font-size: 9px; line-height: 1.5; }
+.deviceNote { display: flex; align-items: center; gap: 5px; margin-left: auto; color: var(--platform-text-muted); font-size: 9px; line-height: 1.5; }
 .deviceNote > span { font-size: 14px; }
 .settingsBody { min-width: 0; }
-.gameRow { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-bottom: 22px; }
+.workspace { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); align-items: start; gap: 24px; }
+.preferences, .previewColumn { min-width: 0; }
+.gameRow { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-bottom: 20px; }
 .selectedGame { display: flex; align-items: center; min-width: 0; gap: 12px; }
 .selectedGame > img { width: 64px; height: 43px; border-radius: 5px; object-fit: cover; }
 .selectedGame > div { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
@@ -57,7 +63,7 @@
   grid-template-columns: repeat(var(--touch-preset-count, 3), minmax(0, 1fr));
   gap: 8px;
   min-width: 0;
-  margin: 0 0 22px;
+  margin: 0 0 8px;
   padding: 0;
   border: none;
   > legend { margin-bottom: 10px; color: var(--platform-text-muted); font-size: 10px; }
@@ -91,11 +97,12 @@
 .orientationTabs > button[aria-pressed="true"] { color: var(--platform-text); background: var(--platform-surface); }
 .orientationTabs > button:focus-visible { outline: 2px solid var(--platform-focus); }
 .editButton { background: var(--platform-accent); border-color: var(--platform-accent); color: #041b22; }
-.previewFrame { display: flex; align-items: center; justify-content: center; height: clamp(200px, 32vh, 290px); overflow: hidden; border: 1px solid var(--platform-border); border-radius: 10px; background: #0c171c; margin-bottom: 12px; }
-.preferenceRow { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 15px 0; border-bottom: 1px solid var(--platform-border); }
+.previewFrame { min-width: 0; }
+.preferenceRow { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 15px 0; border-bottom: 1px solid var(--platform-border); }
+.preferenceRow > div { min-width: 0; }
 .preferenceRow label { font-size: 12px; font-weight: 600; cursor: pointer; }
 .preferenceRow p { margin: 5px 0 0; font-size: 10px; line-height: 1.6; color: var(--platform-text-muted); }
-.preferenceRow select { max-width: 130px; min-height: 36px; padding: 0 8px; border: 1px solid var(--platform-border); border-radius: 6px; background: var(--platform-surface-inset); color: var(--platform-text); font: 11px var(--platform-font-body); }
+.preferenceRow select { flex-shrink: 0; max-width: 130px; min-height: 36px; padding: 0 8px; border: 1px solid var(--platform-border); border-radius: 6px; background: var(--platform-surface-inset); color: var(--platform-text); font: 11px var(--platform-font-body); }
 .preferenceRow select:focus-visible { outline: 2px solid var(--platform-focus); }
 .switch { flex-shrink: 0; appearance: none; width: 40px; height: 24px; margin: 0; padding: 3px; border-radius: 20px; border: 1px solid var(--platform-border); background: var(--platform-surface-inset); cursor: pointer; }
 .switch::before { content: ""; display: block; width: 16px; height: 16px; border-radius: 50%; background: var(--platform-text-muted); transition: transform 120ms; }
@@ -122,15 +129,12 @@
 .pickerPagination > button { min-height: 33px; font-size: 10px; }
 .pickerPagination > button:disabled { opacity: .35; cursor: default; }
 
-@media (max-width: 760px) {
-  .settingsSection { grid-template-columns: 1fr; gap: 15px; }
-  .sectionIntro { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-  .sectionIntro h2 { margin: 0; font-size: 19px; }
+@container platform-settings (max-width: 760px) {
+  .workspace { grid-template-columns: minmax(0, 1fr); gap: 20px; }
   .sectionIntro > p { display: none; }
-  .sectionIntro > .deviceNote { margin-left: auto; }
 }
 
-@media (max-width: 420px) {
+@container platform-settings (max-width: 420px) {
   .gameRow { gap: 8px; margin-bottom: 17px; }
   .selectedGame { gap: 8px; }
   .selectedGame > img { width: 47px; height: 35px; }

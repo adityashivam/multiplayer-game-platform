@@ -6,6 +6,7 @@ import { registerMarioGame, registerMarioTouchGame } from "./mario.js";
 import { registerDrawGame } from "./draw.js";
 import { deadShiftGameMeta, registerDeadShiftGame } from "./dead-shift.js";
 import { skyDashGameMeta, registerSkyDashGame } from "./sky-dash.js";
+import { riftballGameMeta, registerRiftballGame } from "./riftball.js";
 import {
   fightGameMeta,
   pongGameMeta,
@@ -28,6 +29,7 @@ export const legacyRoomRouteAliases = Object.freeze([
  */
 export function createBuiltInGameRegistry() {
   return createGameRegistry([
+    { apiVersion: GAME_PLUGIN_API_VERSION, meta: riftballGameMeta, register: registerRiftballGame },
     { apiVersion: GAME_PLUGIN_API_VERSION, meta: skyDashGameMeta, register: registerSkyDashGame },
     { apiVersion: GAME_PLUGIN_API_VERSION, meta: deadShiftGameMeta, register: registerDeadShiftGame },
     { apiVersion: GAME_PLUGIN_API_VERSION, meta: fightGameMeta, register: registerFightGame },

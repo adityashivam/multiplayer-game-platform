@@ -172,7 +172,7 @@ export function createPredictedInputSession(sessionConfig) {
       stopped = true;
       inputTimeline.stop();
     },
-    getRenderPose: (deltaSec = 0) => commandPredictor.getRenderPose(deltaSec),
+    getRenderPose: (deltaSec = 0, interpolationAlpha = 1) => commandPredictor.getRenderPose(deltaSec, interpolationAlpha),
     /** Return library-owned state; consumers must not mutate it. */
     getState: () => commandPredictor.getState(),
     getStats: () => ({

@@ -68,6 +68,50 @@ test("small authoritative differences are reconciled in simulation and smoothed 
   assert.equal(predictor.getState().x, 119);
 });
 
+test("render interpolation samples consecutive fixed poses and clamps invalid fractions", () => {
+  const predictor = createTestPredictor();
+  predictor.reset({ x: 100, y: 0 });
+  assert.equal(predictor.getRenderPose(0, 0).x, 100);
+  predictor.advance(createInputFrame(1));
+
+  assert.equal(predictor.getRenderPose(0, 0).x, 100);
+  assert.equal(predictor.getRenderPose(0, 0.5).x, 105);
+  assert.equal(predictor.getRenderPose(0, 1).x, 110);
+  assert.equal(predictor.getRenderPose(0, -1).x, 100);
+  assert.equal(predictor.getRenderPose(0, 2).x, 110);
+  assert.equal(predictor.getRenderPose(0, NaN).x, 110);
+  assert.equal(predictor.getState().x, 110);
+});
+
+test("reconciliation rebases both fixed render endpoints without changing their visible path", () => {
+  const predictor = createTestPredictor();
+  predictor.reset({ x: 100, y: 0 });
+  predictor.advance(createInputFrame(1));
+  predictor.advance(createInputFrame(2));
+  const authority = Object.freeze({ x: 109, y: 0 });
+  predictor.reconcile(authority, [createInputFrame(2)], {}, 1);
+
+  assert.equal(predictor.getState().x, 119);
+  assert.equal(predictor.getRenderPose(0, 0).x, 110);
+  assert.equal(predictor.getRenderPose(0, 0.5).x, 115);
+  assert.equal(predictor.getRenderPose(0, 1).x, 120);
+  assert.deepEqual(authority, { x: 109, y: 0 });
+});
+
+test("movement identity changes and distance snaps clear both render endpoints", () => {
+  const predictor = createTestPredictor();
+  predictor.reconcile({ x: 100, y: 0 }, [], { continuityKey: 1 });
+  predictor.advance(createInputFrame(1));
+  predictor.reconcile({ x: 50, y: 0 }, [], { continuityKey: 2 }, 1);
+  assert.equal(predictor.getRenderPose(0, 0).x, 50);
+
+  predictor.advance(createInputFrame(2));
+  predictor.reconcile({ x: 900, y: 0 }, [], { continuityKey: 2 }, 2);
+  assert.equal(predictor.getRenderPose(0, 0).x, 900);
+  predictor.reset({ x: 200, y: 0 });
+  assert.equal(predictor.getRenderPose(0, 0).x, 200);
+});
+
 test("each sequence advances at most once and a reconciled pending command is not advanced twice", () => {
   const predictor = createTestPredictor();
   predictor.reset({ x: 100, y: 0 });
@@ -111,6 +155,83 @@ test("visual correction decay is independent of render refresh rate", () => {
     return pose.x;
   };
   assert.ok(Math.abs(sampleDecayedPoseX(60) - sampleDecayedPoseX(144)) < 1e-8);
+});
+
+test("normalized pose corrections decay smoothly without a world-scale residual snap", () => {
+  const predictor = createTestPredictor();
+  predictor.reset({ x: 0.001, y: 0 });
+  predictor.reconcile({ x: 0.00091, y: 0 }, [], {}, 0);
+  assert.equal(predictor.getRenderPose(0).x, 0.001);
+
+  const renderedPose = predictor.getRenderPose(0.1);
+  assert.ok(Math.abs(renderedPose.x - 0.0009248768999399428) < 1e-16);
+  assert.equal(predictor.getState().x, 0.00091);
+});
+
+test("a ball correction snaps only its own group while the player's correction stays smooth", () => {
+  const predictor = createTestPredictor({
+    maxSmoothingDistance: 0.5,
+    correctionGroups: [
+      { name: "player", fields: ["x"], maxSmoothingDistance: 1.2 },
+      { name: "ball", fields: ["ballX"], maxSmoothingDistance: 1.2 },
+    ],
+    simulate(player) { player.x += 1; player.ballX += 1; },
+    extractPose: (player) => ({ x: player.x, ballX: player.ballX }),
+  });
+  predictor.reset({ x: 0, ballX: 0 });
+  predictor.advance(createInputFrame(1));
+  predictor.reconcile(Object.freeze({ x: 0.5, ballX: 10 }), [], {}, 1);
+
+  assert.deepEqual(predictor.getState(), { x: 0.5, ballX: 10 });
+  assert.deepEqual(predictor.getRenderPose(0, 1), { x: 1, ballX: 10 });
+  assert.deepEqual(predictor.getRenderPose(0, 0), { x: 0, ballX: 10 });
+  assert.equal(predictor.getStats().hardSnaps, 1);
+  assert.equal(predictor.getStats().corrections, 1);
+});
+
+test("facing and course clocks use their declared correction scales independently of positions", () => {
+  for (const { field, value, threshold } of [
+    { field: "facing", value: 1, threshold: 3 },
+    { field: "courseTimeSec", value: 100, threshold: 200 },
+  ]) {
+    const predictor = createTestPredictor({
+      maxSmoothingDistance: 0.5,
+      correctionGroups: [
+        { fields: ["x"], maxSmoothingDistance: 1.2 },
+        { fields: [field], maxSmoothingDistance: threshold },
+      ],
+      extractPose: (player) => ({ x: player.x, [field]: player[field] }),
+    });
+    predictor.reset({ x: 0, [field]: 0 });
+    predictor.reconcile({ x: 0.1, [field]: value });
+    assert.deepEqual(predictor.getRenderPose(0), { x: 0, [field]: 0 });
+    assert.equal(predictor.getStats().hardSnaps, 0);
+  }
+});
+
+test("ungrouped pose fields retain the default distance limit without snapping declared groups", () => {
+  const predictor = createTestPredictor({
+    maxSmoothingDistance: 5,
+    correctionGroups: [{ fields: ["x"], maxSmoothingDistance: 1 }],
+  });
+  predictor.reset({ x: 0, y: 0 });
+  predictor.reconcile({ x: 0.5, y: 10 });
+
+  assert.deepEqual(predictor.getRenderPose(0), { x: 0, y: 10 });
+  assert.deepEqual(predictor.getRenderPose(0, 0), { x: 0, y: 10 });
+});
+
+test("ambiguous or invalid correction groups are rejected before simulation", () => {
+  for (const correctionGroups of [
+    {},
+    [{ fields: [], maxSmoothingDistance: 1 }],
+    [{ fields: ["x", "x"], maxSmoothingDistance: 1 }],
+    [{ fields: ["x"], maxSmoothingDistance: 1 }, { fields: ["x"], maxSmoothingDistance: 2 }],
+    [{ fields: ["x"], maxSmoothingDistance: -1 }],
+    [{ fields: ["x"], maxSmoothingDistance: NaN }],
+  ]) {
+    assert.throws(() => createTestPredictor({ correctionGroups }), { name: "TypeError" });
+  }
 });
 
 test("teleports snap while reset clears history and visual offsets", () => {

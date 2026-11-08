@@ -133,6 +133,86 @@ function simulateSessionPlayer(session, playerState, options = {}) {
   });
 }
 
+test("legacy short action presses survive a release before simulation without latching movement", () => {
+  const session = createSession();
+  const playerState = {};
+  session.resetPlayer(playerState);
+  assert.equal(session.receiveInput(playerState, {
+    type: "inputFrame", seq: 1, state: { drift: true, ignite: true },
+  }), true);
+  assert.equal(session.receiveInput(playerState, {
+    type: "inputFrame", seq: 2, state: { drift: false, ignite: false },
+  }), true);
+  const simulatedInputs = [];
+  simulateSessionPlayer(session, playerState, { simulate: (input) => simulatedInputs.push({ ...input }) });
+  simulateSessionPlayer(session, playerState, { simulate: (input) => simulatedInputs.push({ ...input }) });
+
+  assert.deepEqual(simulatedInputs, [
+    { drift: false, ignite: true },
+    { drift: false, ignite: false },
+  ]);
+  assert.deepEqual(playerState.input, { drift: false, ignite: false });
+});
+
+for (const packetKind of ["discrete", "frame"]) {
+  test(`legacy ${packetKind} updates do not relatch a held action over its release`, () => {
+    const session = createSession();
+    const playerState = {};
+    session.resetPlayer(playerState);
+    const simulatedInputs = [];
+    const simulate = () => simulateSessionPlayer(session, playerState, {
+      simulate: (inputState) => simulatedInputs.push({ ...inputState }),
+    });
+
+    session.receiveInput(playerState, { type: "ignite", value: true });
+    simulate();
+
+    if (packetKind === "discrete") {
+      session.receiveInput(playerState, { type: "drift", value: true });
+      session.receiveInput(playerState, { type: "ignite", value: false });
+    } else {
+      session.receiveInput(playerState, { type: "inputFrame", state: { drift: true, ignite: true } });
+      session.receiveInput(playerState, { type: "inputFrame", state: { drift: true, ignite: false } });
+    }
+    simulate();
+
+    session.receiveInput(playerState, { type: "ignite", value: true });
+    simulate();
+    assert.deepEqual(simulatedInputs, [
+      { drift: false, ignite: true },
+      { drift: true, ignite: false },
+      { drift: true, ignite: true },
+    ], "the release must reach simulation so a fresh press can start another action");
+  });
+}
+
+test("ownership reset clears a legacy edge and disconnected input cannot relatch it", () => {
+  const session = createSession();
+  const playerState = { connected: true };
+  session.resetPlayer(playerState);
+  session.receiveInput(playerState, { type: "ignite", value: true });
+  session.receiveInput(playerState, { type: "ignite", value: false });
+  session.resetPlayer(playerState);
+  playerState.connected = false;
+  assert.equal(session.receiveInput(playerState, { type: "ignite", value: true }), false);
+  playerState.connected = true;
+  simulateSessionPlayer(session, playerState, {
+    simulate: (input) => assert.deepEqual(input, { drift: false, ignite: false }),
+  });
+});
+
+test("queued ownership does not inherit a pending legacy action", () => {
+  const session = createSession();
+  const playerState = {};
+  session.resetPlayer(playerState);
+  session.receiveInput(playerState, { type: "ignite", value: true });
+  session.receiveInput(playerState, { type: "ignite", value: false });
+  session.receiveInput(playerState, createInputFrame(playerState, 1));
+  simulateSessionPlayer(session, playerState, {
+    simulate: (input) => assert.deepEqual(input, { drift: false, ignite: false }),
+  });
+});
+
 test("custom input schemas use a configured fixed step and acknowledge after simulation", () => {
   const session = createSession({ fixedDtSec: 1 / 30 });
   const playerState = { distance: 0 };

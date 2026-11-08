@@ -5,6 +5,7 @@ import EndGameModal from "./EndGameModal.jsx";
 import ExitConfirmModal from "./ExitConfirmModal.jsx";
 import ShareModal from "./ShareModal.jsx";
 import RoomStartOverlay from "./RoomStartOverlay.jsx";
+import GameOrientationPrompt from "./GameOrientationPrompt.jsx";
 import { TOGGLE_NETWORK_PANEL_EVENT } from "../../constants/events.js";
 import styles from "../../PlatformApp.module.scss";
 import { TouchControlSurface, TouchLayoutEditor } from "../touch-controls/index.js";
@@ -31,6 +32,7 @@ function quantileFromSamples(samples, q) {
 }
 
 export default function GameView({
+  gameOrientation,
   roomLifecycle,
   roomCreatorEntry,
   runtimeSpec,
@@ -74,7 +76,8 @@ export default function GameView({
   const networkButtonRef = useRef(null);
   const roomStartBlocking = Boolean(roomLifecycle && !["playing", "finished"].includes(roomLifecycle.phase));
   const roomStartHasPriority = roomLifecycle?.phase === "countdown" || roomLifecycle?.phase === "error";
-  const platformDialogOpen = roomStartBlocking || shareOpen || endGameOpen || exitConfirmOpen || touchEditorOpen;
+  const landscapePromptOpen = Boolean(gameOrientation?.needsLandscape && !gameLoadError);
+  const platformDialogOpen = landscapePromptOpen || roomStartBlocking || shareOpen || endGameOpen || exitConfirmOpen || touchEditorOpen;
   const allowTouchCustomization = Boolean(game?.touchControls?.customizable && touchProfile);
   useEffect(() => {
     if (touchEditorOpen || !touchProfileStatus) return undefined;
@@ -442,10 +445,10 @@ export default function GameView({
             icons={icons?.endGame}
           />
         )}
-        {roomLifecycle && (!shareOpen || roomStartHasPriority) && !endGameOpen && !exitConfirmOpen && !touchEditorOpen && !gameLoadError && (
+        {roomLifecycle && !landscapePromptOpen && (!shareOpen || roomStartHasPriority) && !endGameOpen && !exitConfirmOpen && !touchEditorOpen && !gameLoadError && (
           <RoomStartOverlay room={roomLifecycle} gameName={game?.name} isCreatorEntry={roomCreatorEntry} onInvite={onOpenInvite} onLeave={roomLifecycle.phase === "error" ? onBackHome : onRequestHome} />
         )}
-        {shareOpen && !endGameOpen && !exitConfirmOpen && !roomStartHasPriority && (
+        {shareOpen && !landscapePromptOpen && !endGameOpen && !exitConfirmOpen && !roomStartHasPriority && (
           <ShareModal
             roomLabel={roomLabel}
             shareUrl={shareUrl}
@@ -458,6 +461,14 @@ export default function GameView({
         {exitConfirmOpen && (
           <ExitConfirmModal onConfirm={onConfirmExit} onCancel={onCancelExit} icons={icons?.exitConfirm} />
         )}
+        {landscapePromptOpen && !exitConfirmOpen && <GameOrientationPrompt
+          gameName={game?.name}
+          canLockOrientation={gameOrientation.canLockOrientation}
+          requesting={gameOrientation.requesting}
+          requestFailed={gameOrientation.requestFailed}
+          onLandscapeFullscreen={gameOrientation.requestLandscapeFullscreen}
+          onBack={onBackHome}
+        />}
         {gameLoadError && <div className={styles.gameError} role="alert">
           <span className="material-symbols-outlined" aria-hidden="true">error_outline</span>
           <h2>Unable to start this game</h2>

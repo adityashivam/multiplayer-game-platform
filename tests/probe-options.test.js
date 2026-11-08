@@ -130,15 +130,23 @@ test("probe selection rejects player slots that cannot preserve snapshot paths",
   }
 });
 
-test("games without inputFrame support permit snapshots and RTT without fabricated movement", () => {
+test("migrated platformer/racing games expose queued input and Draw remains event-driven", () => {
   const gameCatalog = { games: [marioGameMeta, marioTouchGameMeta, roadRashGameMeta, drawGameMeta] };
 
   for (const gameId of ["mario", "mario-touch", "roadrash", "draw"]) {
     const probeGameConfig = resolveProbeGameConfig(gameCatalog, gameId);
 
     assert.equal(probeGameConfig.namespace, `/${gameId}`);
-    assert.equal(probeGameConfig.inputProtocol, null);
-    assert.equal(probeGameConfig.inputTemplate, null);
+    if (gameId === "draw") {
+      assert.equal(probeGameConfig.inputProtocol, null);
+      assert.equal(probeGameConfig.inputTemplate, null);
+    } else {
+      assert.equal(probeGameConfig.inputProtocol, 2);
+      const expectedKeys = gameId === "roadrash"
+        ? ["left", "right", "throttle", "brake", "kickLeft", "kickRight"]
+        : ["left", "right", "run", "jump"];
+      assert.deepEqual(Object.keys(probeGameConfig.inputTemplate).sort(), expectedKeys.sort());
+    }
     assert.deepEqual(probeGameConfig.playerIds, ["p1", "p2"]);
   }
 });

@@ -305,6 +305,9 @@ try {
   assert.equal(exceptions.length, 0, JSON.stringify(exceptions));
   console.log("EXPANDED PORTRAIT, MODAL PRIORITY, RETURN AND CLEANUP PASSED");
   await evaluate(p1, "document.querySelector('[data-library-card-id=pong]').dispatchEvent(new MouseEvent('dblclick',{bubbles:true}));");
+  await waitFor(p1, "document.querySelector('[aria-label=\"Landscape game startup\"]')");
+  assert.equal(await evaluate(p1, "return document.querySelectorAll('script[id^=game-runtime-pong-]').length;"), 0, "Landscape startup also applies to games without customizable touch controls");
+  await send("Emulation.setDeviceMetricsOverride", { width: 844, height: 390, deviceScaleFactor: 1, mobile: true }, p1);
   await waitFor(p1, "location.pathname.startsWith('/games/pong/')&&typeof get==='function'&&document.querySelector('#game-canvas')", 25000);
   assert.equal(await evaluate(p1, "return document.querySelectorAll('[aria-label=\"Customize touch controls\"],[data-platform-touch-game]').length;"), 0, "An existing game without opt-in must keep its own controls");
   assert.equal(exceptions.length, 0, JSON.stringify(exceptions));

@@ -70,6 +70,7 @@ export default function usePlatformPresentation() {
     isFullscreen,
     pseudoFullscreen,
     fullscreenActive: isFullscreen || pseudoFullscreen,
+    requestFullscreen,
     toggleFullscreen,
   };
 }

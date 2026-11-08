@@ -1,7 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { disposeGameRuntime, loadGameClient, removeGameClientScripts } from "../services/gameRuntime.js";
 
-export default function usePlatformGameLoader({ game, setShareModal }) {
+/**
+ * Load one runtime after platform startup requirements are satisfied. Callers
+ * keep canStart true after initial admission so viewport changes cannot reload it.
+ * @param {{game:object|null,setShareModal:(open:boolean)=>void,canStart?:boolean}} options
+ */
+export default function usePlatformGameLoader({ game, setShareModal, canStart = true }) {
   const [gameLoadError, setGameLoadError] = useState(null);
   const activeRuntimeRef = useRef(null);
   const gameId = game?.id || null;
@@ -36,6 +41,7 @@ export default function usePlatformGameLoader({ game, setShareModal }) {
       setGameLoadError(null);
       return;
     }
+    if (!canStart) return undefined;
 
     let cancelled = false;
 
@@ -67,7 +73,7 @@ export default function usePlatformGameLoader({ game, setShareModal }) {
     return () => {
       cancelled = true;
     };
-  }, [game, gameId]);
+  }, [game, gameId, canStart]);
 
   useEffect(() => {
     return () => {

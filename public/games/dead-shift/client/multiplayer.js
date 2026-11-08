@@ -6,7 +6,7 @@ import { updateConnectionState } from "/platform/frontend-engine/connectionBridg
 import { INPUT_PROTOCOL, SOCKET_EVENT } from "/platform/shared/networkProtocol.js";
 import { DEAD_SHIFT_FIXED_DT_SEC, DEAD_SHIFT_GAME_ID, DEAD_SHIFT_INPUT_TEMPLATE } from "../shared/config.js";
 import { stepDeadShiftPlayer } from "../shared/simulation.js";
-import { extractDeadShiftPositions } from "./snapshotPose.js";
+import { extractDeadShiftPositions, extractDeadShiftContinuityKeys } from "./snapshotPose.js";
 
 const INTERPOLATION_DELAY_MS = 55;
 const MAX_SNAPSHOT_BUFFER_SIZE = 24;
@@ -19,6 +19,7 @@ export function createDeadShiftMultiplayerSession(options) {
   const socket = getGameSocket(DEAD_SHIFT_GAME_ID);
   const interpolator = createWorkerInterpolator({
     extractPositions: extractDeadShiftPositions,
+    extractContinuityKeys: extractDeadShiftContinuityKeys,
     interpDelayMs: INTERPOLATION_DELAY_MS,
     maxBufferSize: MAX_SNAPSHOT_BUFFER_SIZE,
   });
@@ -50,6 +51,7 @@ export function createDeadShiftMultiplayerSession(options) {
         acknowledgedSequence: playerState.inputSeqAck ?? 0,
         context: {
           simulationTick: playerState.inputSimulationTick,
+          continuityKey: `${snapshot.roundId}:${playerState.respawnId}`,
           active: snapshot.started && !snapshot.gameOver && snapshot.players.p1.connected && snapshot.players.p2.connected,
           players: Object.values(snapshot.players),
         },
@@ -66,6 +68,7 @@ export function createDeadShiftMultiplayerSession(options) {
         [`${playerId}x`]: localPose.x,
         [`${playerId}y`]: localPose.y,
         [`${playerId}z`]: localPose.z,
+        [`${playerId}respawnId`]: snapshot.players[playerId].respawnId,
       };
     },
     onReset: () => {
@@ -73,6 +76,7 @@ export function createDeadShiftMultiplayerSession(options) {
       latestInput = { ...DEAD_SHIFT_INPUT_TEMPLATE };
       options.onReset();
     },
+    onInputOwnershipReset: () => options.controls.reset(),
     onDiagnostics: updateConnectionState,
     diagnosticsIntervalMs: 200,
   });
@@ -89,6 +93,7 @@ export function createDeadShiftMultiplayerSession(options) {
   });
 
   return {
+    captureAndPredict: () => networkSession.captureAndPredict(),
     samplePose: (sampleOptions) => networkSession.samplePose(sampleOptions),
     getSnapshot: () => networkSession.getLatestSnapshot(),
     getPlayerId: () => roomConnection.getPlayerId(),

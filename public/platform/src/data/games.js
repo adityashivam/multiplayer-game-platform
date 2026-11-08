@@ -7,8 +7,10 @@ import { drawPresentation } from "../../../games/draw/catalog.js";
 import { webglSamplePresentation } from "../../../games/webgl-sample/catalog.js";
 import { deadShiftPresentation, deadShiftTouchControls } from "../../../games/dead-shift/catalog.js";
 import { skyDashPresentation, skyDashTouchControls } from "../../../games/sky-dash/catalog.js";
+import { riftballPresentation, riftballTouchControls } from "../../../games/riftball/catalog.js";
 
 export const gameTitles = {
+  riftball: "Riftball Duel",
   "sky-dash": "Sky Dash",
   "dead-shift": "Dead Shift",
   fight: "Kaboom Fight",
@@ -41,6 +43,18 @@ function makeWebglRuntime(id) {
 }
 
 export const fallbackGames = [
+  {
+    id: "riftball",
+    name: "Riftball Duel",
+    description: "One ball. Every angle is yours. Charge, dash and feint through a competitive 3D court duel.",
+    presentation: riftballPresentation,
+    touchControls: riftballTouchControls,
+    path: "/games/riftball",
+    engine: "webgl",
+    runtime: { kind: "module", mount: "canvas", entryUrl: "/games/riftball/dist/main.js", socketIo: true, kaboom: false },
+    tags: ["Sports", "2 players", "Competitive", "3D"],
+    platformControlButtons: true,
+  },
   {
     id: "sky-dash",
     name: "Sky Dash",

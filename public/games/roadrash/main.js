@@ -9,9 +9,24 @@ import {
 import { openShareModal } from "/platform/frontend-engine/shareModalBridge.js";
 import { createWorkerInterpolator } from "/platform/frontend-engine/interpolationWorker.js";
 import { updateConnectionState } from "/platform/frontend-engine/connectionBridge.js";
+import { createGameRoomConnection } from "/platform/frontend-engine/gameRoomConnection.js";
+import { createInputLatch } from "/platform/frontend-engine/inputTimeline.js";
+import { createModularRuntime } from "/platform/frontend-engine/modularRuntime.js";
+import {
+  ROAD_RASH_EDGE_INPUT_KEYS,
+  ROAD_RASH_FIXED_DT_SEC,
+  ROAD_RASH_INPUT_TEMPLATE,
+  ROAD_RASH_MOVEMENT_SETTINGS,
+} from "./shared/simulation.js";
+import {
+  buildRoadRashRenderState,
+  createRoadRashNetworkSession,
+  extractRoadRashContinuityKeys,
+  extractRoadRashPositions,
+  extractRoadRashVelocities,
+} from "./client/networkSession.js";
 
 const GAME_SLUG = "roadrash";
-const ROOM_READY_EVENT = "kaboom:room-ready";
 const OPPONENT_JOIN_EVENT = "kaboom:opponent-joined";
 const DISPOSE_GAME_EVENT = "kaboom:dispose-game";
 
@@ -28,26 +43,9 @@ const DRAW_DISTANCE = 260;
 const CAMERA_DEPTH = 1 / Math.tan((FIELD_OF_VIEW / 2) * (Math.PI / 180));
 const PLAYER_Z = CAMERA_HEIGHT * CAMERA_DEPTH;
 const RESOLUTION = HEIGHT / 480;
-const ROAD_MAX_SPEED = 28500;
-const ROAD_ACCEL = 16500;
-const ROAD_BRAKE_DECEL = 23000;
-const ROAD_COAST_DECEL = 9000;
-const ROAD_OFFROAD_DECEL = 18000;
-const ROAD_STEER_SPEED_BASE = 0.9;
-const ROAD_STEER_SPEED_GAIN = 1.5;
-const MAX_SPEED_FOR_HUD = ROAD_MAX_SPEED;
-
+const MAX_SPEED_FOR_HUD = ROAD_RASH_MOVEMENT_SETTINGS.MAX_SPEED;
 const INTERP_DELAY_MS = 42;
-const INTERP_MAX_BUFFER = 16;
-const LOCAL_PREDICTION_MAX_DT_SEC = 0.05;
-const LOCAL_CORRECTION_BLEND = 0.35;
-const LOCAL_CORRECTION_DECAY = 18;
-const LOCAL_HARD_SNAP_X = 0.52;
-const LOCAL_HARD_SNAP_PROGRESS = 2400;
-const LOCAL_HARD_SNAP_SPEED = 10000;
-const LOCAL_CORRECTION_CLAMP_X = 0.45;
-const LOCAL_CORRECTION_CLAMP_PROGRESS = 1700;
-const LOCAL_CORRECTION_CLAMP_SPEED = 12000;
+const INTERP_MAX_BUFFER = 24;
 
 const COLORS = {
   SKY: "#72D7EE",
@@ -94,33 +92,18 @@ canvas.style.height = "auto";
 canvas.style.maxHeight = "100%";
 
 const socket = getGameSocket(GAME_SLUG);
-let latestConnectionSnapshot = {
-  status: socket.getConnectionState(),
-  ping: socket.getPing(),
-  pingP95Ms: null,
-  jitterP95Ms: null,
-  packetLossPct: 0,
-};
-const unsubscribeConnection = socket.onConnectionChange((snapshot) => {
-  latestConnectionSnapshot = { ...latestConnectionSnapshot, ...snapshot };
-  updateConnectionState(snapshot);
-});
+const unsubscribeConnection = socket.onConnectionChange(updateConnectionState);
 
-let roomUrl = "";
 let gameId = null;
-let hasJoined = false;
+/** @type {import("./client/networkSession.js").RoadRashPlayerId|null} */
 let myPlayerId = null;
-let myRejoinToken = null;
 let readyToPlay = false;
-let currentRoomId = null;
 let opponentJoined = false;
 
-let latestServerState = null;
 let shownGameOver = false;
 let rematchPending = false;
 let animationFrameId = 0;
 let disposed = false;
-let lastRenderSampleMs = performance.now();
 
 let statusMessage = "Joining room...";
 let statusUntilMs = Date.now() + 2500;
@@ -131,6 +114,7 @@ const heldInput = {
   throttle: false,
   brake: false,
 };
+const pressedKeyboardKeys = new Set();
 
 const imageAssets = {
   background: null,
@@ -141,30 +125,50 @@ let assetsReady = false;
 let assetsFailed = false;
 
 const segments = [];
-const interpolationRuntimeOptions = {
-  pingMs: 0,
-  pingP95Ms: 0,
-  jitterP95Ms: 0,
-  packetLossPct: 0,
-  nowMs: 0,
-};
-
-const trafficUnwrapState = {
-  initialized: false,
-  trackLength: 0,
-  rawZ: [],
-  unwrapped: [],
-};
-
-const localPrediction = {
-  initialized: false,
-  simX: 0,
-  simProgress: 0,
-  simSpeed: 0,
-  correctionX: 0,
-  correctionProgress: 0,
-  correctionSpeed: 0,
-};
+const roadRashInputLatch = createInputLatch(ROAD_RASH_INPUT_TEMPLATE, {
+  edgeKeys: ROAD_RASH_EDGE_INPUT_KEYS,
+});
+const interpolator = createWorkerInterpolator({
+  extractPositions: extractRoadRashPositions,
+  extractVelocities: extractRoadRashVelocities,
+  extractContinuityKeys: extractRoadRashContinuityKeys,
+  interpDelayMs: INTERP_DELAY_MS,
+  maxBufferSize: INTERP_MAX_BUFFER,
+});
+let movementRuntime = null;
+let latestRenderState = null;
+const networkSession = createRoadRashNetworkSession({
+  socket,
+  interpolator,
+  inputLatch: roadRashInputLatch,
+  getPlayerId: () => myPlayerId,
+  canCaptureInput: () => readyToPlay && !document.hidden,
+  onReset: () => {
+    releaseAllInputs();
+    latestRenderState = null;
+    movementRuntime?.reset();
+  },
+  onDiagnostics: updateConnectionState,
+});
+movementRuntime = createModularRuntime({
+  fixedDtSec: ROAD_RASH_FIXED_DT_SEC,
+  maxFrameSec: 0.08,
+  maxFixedSteps: 8,
+  targetRenderFps: null,
+});
+movementRuntime.addSystem({
+  name: "road-rash-network",
+  onFixedUpdate: () => networkSession.captureAndPredict(),
+  onLateUpdate: ({ nowMs, frameDtSec, alpha }) => {
+    const renderPose = networkSession.samplePose({
+      nowMs,
+      deltaSec: frameDtSec,
+      interpolationAlpha: alpha,
+      captureInput: false,
+    });
+    latestRenderState = buildRoadRashRenderState(networkSession.getLatestSnapshot(), renderPose);
+  },
+});
 
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
@@ -346,356 +350,9 @@ function toForwardDistance(trackLength, fromZ, toZ) {
   return dz;
 }
 
-function toRaceProgress(player, trackLength, lapsRequired) {
-  if (!player) return 0;
-  const raceDistance = Math.max(1, trackLength * lapsRequired);
-  const laps = Number.isFinite(player.lapsCompleted) ? player.lapsCompleted : 0;
-  const z = Number.isFinite(player.z) ? player.z : 0;
-  if (player.finished) return raceDistance;
-  return clamp(laps * trackLength + z, 0, raceDistance);
-}
-
-function splitRaceProgress(progress, trackLength, lapsRequired, finished = false) {
-  const raceDistance = Math.max(1, trackLength * lapsRequired);
-  const clampedProgress = clamp(progress, 0, raceDistance);
-  if (finished || clampedProgress >= raceDistance) {
-    return { lapsCompleted: lapsRequired, z: 0 };
-  }
-  const lapsCompleted = clamp(Math.floor(clampedProgress / trackLength), 0, lapsRequired);
-  const z = clampedProgress - lapsCompleted * trackLength;
-  return {
-    lapsCompleted,
-    z: clamp(z, 0, trackLength),
-  };
-}
-
-function clearLocalPrediction() {
-  localPrediction.initialized = false;
-  localPrediction.simX = 0;
-  localPrediction.simProgress = 0;
-  localPrediction.simSpeed = 0;
-  localPrediction.correctionX = 0;
-  localPrediction.correctionProgress = 0;
-  localPrediction.correctionSpeed = 0;
-}
-
-function resetLocalPrediction(player, trackLength, lapsRequired) {
-  if (!player) {
-    clearLocalPrediction();
-    return;
-  }
-  localPrediction.initialized = true;
-  localPrediction.simX = Number.isFinite(player.x) ? player.x : 0;
-  localPrediction.simProgress = toRaceProgress(player, trackLength, lapsRequired);
-  localPrediction.simSpeed = Number.isFinite(player.speed) ? player.speed : 0;
-  localPrediction.correctionX = 0;
-  localPrediction.correctionProgress = 0;
-  localPrediction.correctionSpeed = 0;
-}
-
-function reconcileLocalPrediction(state) {
-  if (!myPlayerId || !state?.players?.[myPlayerId]) {
-    clearLocalPrediction();
-    return;
-  }
-
-  const player = state.players[myPlayerId];
-  const trackLength = Math.max(1, state.trackLength || 1);
-  const lapsRequired = Math.max(1, state.lapsRequired || 10);
-  const serverX = Number.isFinite(player.x) ? player.x : 0;
-  const serverProgress = toRaceProgress(player, trackLength, lapsRequired);
-  const serverSpeed = Number.isFinite(player.speed) ? player.speed : 0;
-
-  if (!localPrediction.initialized) {
-    resetLocalPrediction(player, trackLength, lapsRequired);
-    return;
-  }
-
-  const predictiveActive = Boolean(
-    state.started &&
-    !state.gameOver &&
-    player.connected &&
-    !player.finished,
-  );
-
-  if (!predictiveActive) {
-    resetLocalPrediction(player, trackLength, lapsRequired);
-    return;
-  }
-
-  const renderedX = localPrediction.simX + localPrediction.correctionX;
-  const renderedProgress = localPrediction.simProgress + localPrediction.correctionProgress;
-  const renderedSpeed = localPrediction.simSpeed + localPrediction.correctionSpeed;
-  const errorX = serverX - renderedX;
-  const errorProgress = serverProgress - renderedProgress;
-  const errorSpeed = serverSpeed - renderedSpeed;
-
-  if (
-    Math.abs(errorX) > LOCAL_HARD_SNAP_X ||
-    Math.abs(errorProgress) > LOCAL_HARD_SNAP_PROGRESS ||
-    Math.abs(errorSpeed) > LOCAL_HARD_SNAP_SPEED
-  ) {
-    resetLocalPrediction(player, trackLength, lapsRequired);
-    return;
-  }
-
-  localPrediction.correctionX = clamp(
-    localPrediction.correctionX + errorX * LOCAL_CORRECTION_BLEND,
-    -LOCAL_CORRECTION_CLAMP_X,
-    LOCAL_CORRECTION_CLAMP_X,
-  );
-  localPrediction.correctionProgress = clamp(
-    localPrediction.correctionProgress + errorProgress * LOCAL_CORRECTION_BLEND,
-    -LOCAL_CORRECTION_CLAMP_PROGRESS,
-    LOCAL_CORRECTION_CLAMP_PROGRESS,
-  );
-  localPrediction.correctionSpeed = clamp(
-    localPrediction.correctionSpeed + errorSpeed * LOCAL_CORRECTION_BLEND,
-    -LOCAL_CORRECTION_CLAMP_SPEED,
-    LOCAL_CORRECTION_CLAMP_SPEED,
-  );
-}
-
-function stepLocalPrediction(state, dtSec) {
-  if (!myPlayerId || !state?.players?.[myPlayerId]) return null;
-
-  const player = state.players[myPlayerId];
-  const trackLength = Math.max(1, state.trackLength || 1);
-  const lapsRequired = Math.max(1, state.lapsRequired || 10);
-  const raceDistance = trackLength * lapsRequired;
-
-  if (!localPrediction.initialized) {
-    resetLocalPrediction(player, trackLength, lapsRequired);
-  }
-
-  const dt = clamp(dtSec, 0, LOCAL_PREDICTION_MAX_DT_SEC);
-  const predictiveActive = Boolean(
-    state.started &&
-    !state.gameOver &&
-    player.connected &&
-    !player.finished,
-  );
-
-  if (!predictiveActive) {
-    const targetX = Number.isFinite(player.x) ? player.x : 0;
-    const targetProgress = toRaceProgress(player, trackLength, lapsRequired);
-    const targetSpeed = Number.isFinite(player.speed) ? player.speed : 0;
-    const syncAlpha = Math.min(1, dt * 12);
-    localPrediction.simX += (targetX - localPrediction.simX) * syncAlpha;
-    localPrediction.simProgress += (targetProgress - localPrediction.simProgress) * syncAlpha;
-    localPrediction.simSpeed += (targetSpeed - localPrediction.simSpeed) * syncAlpha;
-  } else {
-    if (heldInput.throttle && !heldInput.brake) {
-      localPrediction.simSpeed += ROAD_ACCEL * dt;
-    } else if (heldInput.brake && !heldInput.throttle) {
-      localPrediction.simSpeed -= ROAD_BRAKE_DECEL * dt;
-    } else {
-      localPrediction.simSpeed -= ROAD_COAST_DECEL * dt;
-    }
-
-    let steerDir = 0;
-    if (heldInput.left && !heldInput.right) steerDir = -1;
-    else if (heldInput.right && !heldInput.left) steerDir = 1;
-
-    if (steerDir !== 0) {
-      const steerSpeed =
-        ROAD_STEER_SPEED_BASE + (localPrediction.simSpeed / ROAD_MAX_SPEED) * ROAD_STEER_SPEED_GAIN;
-      localPrediction.simX += steerDir * steerSpeed * dt;
-    }
-
-    if (localPrediction.simX < -1 || localPrediction.simX > 1) {
-      localPrediction.simSpeed -= ROAD_OFFROAD_DECEL * dt;
-    }
-
-    localPrediction.simSpeed = clamp(localPrediction.simSpeed, 0, ROAD_MAX_SPEED);
-    localPrediction.simX = clamp(localPrediction.simX, -1.2, 1.2);
-    localPrediction.simProgress = clamp(
-      localPrediction.simProgress + localPrediction.simSpeed * dt,
-      0,
-      raceDistance,
-    );
-    if (localPrediction.simProgress >= raceDistance) {
-      localPrediction.simProgress = raceDistance;
-      localPrediction.simSpeed = 0;
-    }
-  }
-
-  const correctionDecay = 1 / (1 + LOCAL_CORRECTION_DECAY * dt);
-  localPrediction.correctionX *= correctionDecay;
-  localPrediction.correctionProgress *= correctionDecay;
-  localPrediction.correctionSpeed *= correctionDecay;
-
-  const predictedX = clamp(localPrediction.simX + localPrediction.correctionX, -1.2, 1.2);
-  const predictedProgress = clamp(
-    localPrediction.simProgress + localPrediction.correctionProgress,
-    0,
-    raceDistance,
-  );
-  const predictedSpeed = clamp(localPrediction.simSpeed + localPrediction.correctionSpeed, 0, ROAD_MAX_SPEED);
-  const progressSplit = splitRaceProgress(predictedProgress, trackLength, lapsRequired, Boolean(player.finished));
-
-  return {
-    x: predictedX,
-    z: progressSplit.z,
-    lapsCompleted: progressSplit.lapsCompleted,
-    speed: predictedSpeed,
-  };
-}
-
-function resetTrafficInterpolationTracking(state = null) {
-  if (!state?.players) {
-    trafficUnwrapState.initialized = false;
-    trafficUnwrapState.trackLength = 0;
-    trafficUnwrapState.rawZ = [];
-    trafficUnwrapState.unwrapped = [];
-    return;
-  }
-
-  const trackLength = Math.max(1, state.trackLength || 1);
-  const traffic = Array.isArray(state.traffic) ? state.traffic : [];
-  trafficUnwrapState.trackLength = trackLength;
-  trafficUnwrapState.rawZ = new Array(traffic.length);
-  trafficUnwrapState.unwrapped = new Array(traffic.length);
-
-  for (let i = 0; i < traffic.length; i += 1) {
-    const rawZ = Number.isFinite(traffic[i]?.z) ? traffic[i].z : 0;
-    trafficUnwrapState.rawZ[i] = rawZ;
-    trafficUnwrapState.unwrapped[i] = rawZ;
-  }
-  trafficUnwrapState.initialized = true;
-}
-
-function extractRoadRashPositions(state) {
-  const trackLength = Math.max(1, state?.trackLength || 1);
-  const lapsRequired = Math.max(1, state?.lapsRequired || 10);
-  const traffic = Array.isArray(state?.traffic) ? state.traffic : [];
-
-  if (
-    !trafficUnwrapState.initialized ||
-    trafficUnwrapState.trackLength !== trackLength ||
-    trafficUnwrapState.rawZ.length !== traffic.length
-  ) {
-    resetTrafficInterpolationTracking(state);
-  }
-
-  const positions = {
-    p1x: Number.isFinite(state?.players?.p1?.x) ? state.players.p1.x : 0,
-    p2x: Number.isFinite(state?.players?.p2?.x) ? state.players.p2.x : 0,
-    p1progress: toRaceProgress(state?.players?.p1, trackLength, lapsRequired),
-    p2progress: toRaceProgress(state?.players?.p2, trackLength, lapsRequired),
-  };
-
-  for (let i = 0; i < traffic.length; i += 1) {
-    const rawZ = Number.isFinite(traffic[i]?.z) ? traffic[i].z : 0;
-    const prevRawZ = trafficUnwrapState.rawZ[i];
-    const prevProgress = trafficUnwrapState.unwrapped[i];
-    let nextProgress = rawZ;
-
-    if (Number.isFinite(prevRawZ) && Number.isFinite(prevProgress)) {
-      let delta = rawZ - prevRawZ;
-      if (delta < -trackLength / 2) delta += trackLength;
-      else if (delta > trackLength / 2) delta -= trackLength;
-      nextProgress = prevProgress + delta;
-    }
-
-    trafficUnwrapState.rawZ[i] = rawZ;
-    trafficUnwrapState.unwrapped[i] = nextProgress;
-
-    positions[`t${i}x`] = Number.isFinite(traffic[i]?.x) ? traffic[i].x : 0;
-    positions[`t${i}progress`] = nextProgress;
-  }
-
-  return positions;
-}
-
-const interpolator = createWorkerInterpolator({
-  extractPositions: extractRoadRashPositions,
-  interpDelayMs: INTERP_DELAY_MS,
-  maxBufferSize: INTERP_MAX_BUFFER,
-});
-
-function cloneRenderableState(state) {
-  if (!state?.players) return state;
-  return {
-    ...state,
-    players: {
-      p1: { ...state.players.p1 },
-      p2: { ...state.players.p2 },
-    },
-    traffic: Array.isArray(state.traffic)
-      ? state.traffic.map((item) => ({ ...item }))
-      : [],
-  };
-}
-
-function applyInterpolatedPose(renderState, pose) {
-  if (!renderState?.players || !pose) return;
-
-  const trackLength = Math.max(1, renderState.trackLength || 1);
-  const lapsRequired = Math.max(1, renderState.lapsRequired || 10);
-
-  for (const playerId of ["p1", "p2"]) {
-    const player = renderState.players[playerId];
-    if (!player) continue;
-    const xKey = `${playerId}x`;
-    const progressKey = `${playerId}progress`;
-    if (Number.isFinite(pose[xKey])) {
-      player.x = clamp(pose[xKey], -1.2, 1.2);
-    }
-    if (Number.isFinite(pose[progressKey]) && !player.finished) {
-      const split = splitRaceProgress(pose[progressKey], trackLength, lapsRequired, false);
-      player.lapsCompleted = split.lapsCompleted;
-      player.z = split.z;
-    }
-  }
-
-  if (!Array.isArray(renderState.traffic)) return;
-
-  for (let i = 0; i < renderState.traffic.length; i += 1) {
-    const item = renderState.traffic[i];
-    const xKey = `t${i}x`;
-    const progressKey = `t${i}progress`;
-    if (Number.isFinite(pose[xKey])) {
-      item.x = clamp(pose[xKey], -0.95, 0.95);
-    }
-    if (Number.isFinite(pose[progressKey])) {
-      item.z = wrap(pose[progressKey], trackLength);
-    }
-  }
-}
-
-function buildRenderStateForFrame(nowMs, dtSec) {
-  if (!latestServerState?.players) return latestServerState;
-
-  interpolationRuntimeOptions.pingMs = latestConnectionSnapshot?.ping;
-  interpolationRuntimeOptions.pingP95Ms = latestConnectionSnapshot?.pingP95Ms;
-  interpolationRuntimeOptions.jitterP95Ms = latestConnectionSnapshot?.jitterP95Ms;
-  interpolationRuntimeOptions.packetLossPct = latestConnectionSnapshot?.packetLossPct;
-  interpolationRuntimeOptions.nowMs = nowMs;
-
-  const renderState = cloneRenderableState(latestServerState);
-  const interpolatedPose = interpolator.getInterpolatedPositions(interpolationRuntimeOptions);
-  applyInterpolatedPose(renderState, interpolatedPose);
-
-  if (myPlayerId && renderState.players?.[myPlayerId]) {
-    const predictedLocal = stepLocalPrediction(latestServerState, dtSec);
-    if (predictedLocal) {
-      const myPlayer = renderState.players[myPlayerId];
-      myPlayer.x = predictedLocal.x;
-      myPlayer.z = predictedLocal.z;
-      myPlayer.lapsCompleted = predictedLocal.lapsCompleted;
-      myPlayer.speed = predictedLocal.speed;
-    }
-  }
-
-  return renderState;
-}
-
-function resetRoadRashNetcodeState(nextState = null) {
-  interpolator.reset();
-  resetTrafficInterpolationTracking(nextState);
-  clearLocalPrediction();
-  lastRenderSampleMs = performance.now();
+function buildRenderStateForFrame(nowMs) {
+  movementRuntime.step({ nowMs });
+  return latestRenderState;
 }
 
 function loadImage(src) {
@@ -717,64 +374,12 @@ async function loadAssets() {
   assetsReady = true;
 }
 
-function buildRoomUrl(roomId) {
-  return `${window.location.origin}/games/${GAME_SLUG}/${roomId}`;
-}
-
-function setRoomLink(url) {
-  roomUrl = url;
-}
-
-function announceRoomReady(roomId) {
-  if (!roomId) return;
-  if (roomId !== currentRoomId) {
-    currentRoomId = roomId;
-    opponentJoined = false;
-    window.__kaboomOpponentJoined = null;
-  }
-  window.dispatchEvent(
-    new CustomEvent(ROOM_READY_EVENT, { detail: { gameId: GAME_SLUG, roomId } }),
-  );
-}
-
 function announceOpponentJoined() {
   if (!gameId) return;
   window.__kaboomOpponentJoined = { gameId: GAME_SLUG, roomId: gameId };
   window.dispatchEvent(
     new CustomEvent(OPPONENT_JOIN_EVENT, { detail: { gameId: GAME_SLUG, roomId: gameId } }),
   );
-}
-
-function getRoomIdFromPath() {
-  const match = window.location.pathname.match(new RegExp(`/games/${GAME_SLUG}/([a-z0-9]+)`, "i"));
-  return match && match[1] ? match[1] : null;
-}
-
-async function ensureRoomId() {
-  const existing = getRoomIdFromPath();
-  if (existing) {
-    setRoomLink(buildRoomUrl(existing));
-    announceRoomReady(existing);
-    return existing;
-  }
-
-  try {
-    const response = await fetch(`/api/games/${GAME_SLUG}/new-room`);
-    if (!response.ok) throw new Error("Failed to create room");
-    const data = await response.json();
-    const roomId = data?.roomId || Math.random().toString(36).slice(2, 8);
-    const url = data?.url || buildRoomUrl(roomId);
-    window.history.replaceState({}, "", `/games/${GAME_SLUG}/${roomId}`);
-    setRoomLink(url);
-    announceRoomReady(roomId);
-    return roomId;
-  } catch {
-    const fallback = Math.random().toString(36).slice(2, 8);
-    window.history.replaceState({}, "", `/games/${GAME_SLUG}/${fallback}`);
-    setRoomLink(buildRoomUrl(fallback));
-    announceRoomReady(fallback);
-    return fallback;
-  }
 }
 
 function setStatus(message, ttlMs = ROOM_STATUS_TTL_MS) {
@@ -788,56 +393,36 @@ function resultLabel(winner) {
   return winner === myPlayerId ? "You won the race" : "You lost the race";
 }
 
-function tryJoinGame() {
-  if (!socket.isConnected() || !gameId || hasJoined) return;
-
-  let token = myRejoinToken;
-  if (!token) {
-    try {
-      token = sessionStorage.getItem(`rejoinToken:${GAME_SLUG}:${gameId}`);
-    } catch {
-      // Ignore sessionStorage failures.
-    }
-  }
-
-  socket.send("joinGame", { gameId, rejoinToken: token || undefined });
-  hasJoined = true;
-}
-
-function sendInput(type, value) {
-  if (!readyToPlay) return;
-  socket.send("input", { type, value });
-}
-
+/**
+ * @param {"left"|"right"|"throttle"|"brake"} type
+ * @param {boolean} active
+ */
 function setHoldInput(type, active) {
   if (heldInput[type] === active) return;
   heldInput[type] = active;
-  sendInput(type, active);
+  roadRashInputLatch.set(type, active);
 }
 
 function releaseAllInputs() {
+  pressedKeyboardKeys.clear();
   setHoldInput("left", false);
   setHoldInput("right", false);
   setHoldInput("throttle", false);
   setHoldInput("brake", false);
+  roadRashInputLatch.reset();
 }
 
 function triggerKick(side) {
   if (!readyToPlay) return;
-  if (side === "left") sendInput("kickLeft", true);
-  else sendInput("kickRight", true);
+  const inputKey = side === "left" ? "kickLeft" : "kickRight";
+  roadRashInputLatch.set(inputKey, true);
+  roadRashInputLatch.set(inputKey, false);
 }
 
 function handleActionInput(action) {
   switch (action) {
     case "start":
-      if (roomUrl) {
-        openShareModal();
-      } else {
-        ensureRoomId().finally(() => {
-          openShareModal();
-        });
-      }
+      openShareModal();
       break;
     case "x":
       triggerKick("left");
@@ -879,8 +464,6 @@ function initControllerNavigation() {
 }
 
 function initKeyboardNavigation() {
-  const pressed = new Set();
-
   const downMap = {
     ArrowLeft: () => setHoldInput("left", true),
     a: () => setHoldInput("left", true),
@@ -918,7 +501,8 @@ function initKeyboardNavigation() {
 
   const onKeyDown = (event) => {
     const tag = event.target?.tagName?.toLowerCase();
-    if (tag === "input" || tag === "textarea" || tag === "select") return;
+    if (event.defaultPrevented || tag === "input" || tag === "textarea" || tag === "select" ||
+        event.target?.closest?.('[role="dialog"], [aria-modal="true"]')) return;
 
     const action = downMap[event.key];
     if (!action) return;
@@ -928,11 +512,11 @@ function initKeyboardNavigation() {
     }
 
     event.preventDefault();
-    if (pressed.has(event.key) && event.key !== "z" && event.key !== "Z" && event.key !== "c" && event.key !== "C") {
+    if (pressedKeyboardKeys.has(event.key) && event.key !== "z" && event.key !== "Z" && event.key !== "c" && event.key !== "C") {
       return;
     }
 
-    pressed.add(event.key);
+    pressedKeyboardKeys.add(event.key);
     action();
   };
 
@@ -940,7 +524,7 @@ function initKeyboardNavigation() {
     const action = upMap[event.key];
     if (!action) return;
     event.preventDefault();
-    pressed.delete(event.key);
+    pressedKeyboardKeys.delete(event.key);
     action();
   };
 
@@ -1273,9 +857,7 @@ function renderFrame() {
   }
 
   const nowMs = performance.now();
-  const dtSec = Math.max(0, Math.min((nowMs - lastRenderSampleMs) / 1000, LOCAL_PREDICTION_MAX_DT_SEC));
-  lastRenderSampleMs = nowMs;
-  const renderState = buildRenderStateForFrame(nowMs, dtSec);
+  const renderState = buildRenderStateForFrame(nowMs);
   renderRoad(renderState);
   animationFrameId = requestAnimationFrame(renderFrame);
 }
@@ -1287,52 +869,12 @@ registerRematchHandler(() => {
     status: "Waiting for opponent...",
     phase: "waiting",
   });
-  socket.send("rematch");
+  roomConnection.requestRematch();
 });
 
-socket.onEvent("connect", () => {
-  hasJoined = false;
-  latestServerState = null;
-  resetRoadRashNetcodeState(null);
-
-  const pathRoomId = getRoomIdFromPath();
-  if (pathRoomId && gameId && pathRoomId !== gameId) {
-    gameId = null;
-    myRejoinToken = null;
-  }
-
-  if (gameId) {
-    tryJoinGame();
-  } else {
-    ensureRoomId().then((id) => {
-      gameId = id;
-      tryJoinGame();
-    });
-  }
-});
-
-socket.onEvent("roomFull", () => {
-  setStatus("Room is full", 3500);
-});
-
-socket.onEvent("gameJoined", ({ playerId, gameId: joinedGameId, rejoinToken }) => {
-  myPlayerId = playerId;
-  myRejoinToken = rejoinToken || null;
-  readyToPlay = true;
-  gameId = gameId || joinedGameId;
-  resetRoadRashNetcodeState(null);
-
-  if (rejoinToken && gameId) {
-    try {
-      sessionStorage.setItem(`rejoinToken:${GAME_SLUG}:${gameId}`, rejoinToken);
-    } catch {
-      // Ignore sessionStorage failures.
-    }
-  }
-
-  setRoomLink(buildRoomUrl(gameId));
-  announceRoomReady(gameId);
-  setStatus(`Joined as ${playerId.toUpperCase()}`);
+socket.onEvent("disconnect", () => {
+  readyToPlay = false;
+  setStatus("Reconnecting...", 3500);
 });
 
 socket.onEvent("playerJoined", ({ playerId }) => {
@@ -1356,20 +898,9 @@ socket.onEvent("playerLeft", ({ playerId }) => {
   }
 });
 
-socket.onEvent("rematchRequested", ({ playerId }) => {
-  if (playerId === myPlayerId) return;
-  updateEndGameModal({
-    status: "Accept challenge.",
-    actionLabel: "Accept Challenge",
-    phase: "ready",
-  });
-});
-
 socket.onEvent("rematchStarted", () => {
   rematchPending = false;
   shownGameOver = false;
-  latestServerState = null;
-  resetRoadRashNetcodeState(null);
   releaseAllInputs();
   hideEndGameModal();
   setStatus("Rematch started");
@@ -1377,9 +908,6 @@ socket.onEvent("rematchStarted", () => {
 
 socket.onEvent("state", (state) => {
   if (!state || !state.players) return;
-  latestServerState = state;
-  interpolator.pushState(state);
-  reconcileLocalPrediction(state);
 
   const connected = state.players;
   if (!opponentJoined && connected?.p1?.connected && connected?.p2?.connected) {
@@ -1425,21 +953,21 @@ function disposeGameRuntime() {
 
   unsubscribeConnection?.();
   updateConnectionState({ status: "disconnected", ping: null });
-  interpolator.destroy?.();
-  latestServerState = null;
-  resetTrafficInterpolationTracking(null);
-  clearLocalPrediction();
+  roomConnection.dispose();
+  networkSession.destroy();
+  movementRuntime.destroy();
+  interpolator.destroy();
+  latestRenderState = null;
 
-  socket.offEvent("connect");
-  socket.offEvent("roomFull");
-  socket.offEvent("gameJoined");
+  socket.offEvent("disconnect");
   socket.offEvent("playerJoined");
   socket.offEvent("playerLeft");
-  socket.offEvent("rematchRequested");
   socket.offEvent("rematchStarted");
   socket.offEvent("state");
   socket.destroy?.();
 
+  window.removeEventListener("blur", releaseAllInputs);
+  document.removeEventListener("visibilitychange", releaseHiddenRoadRashControls);
   window.removeEventListener(DISPOSE_GAME_EVENT, handleDisposeEvent);
 }
 
@@ -1452,13 +980,31 @@ function handleDisposeEvent(event) {
 
 window.addEventListener(DISPOSE_GAME_EVENT, handleDisposeEvent);
 
-buildTrack();
-resetRoadRashNetcodeState(null);
+function releaseHiddenRoadRashControls() {
+  if (document.hidden) releaseAllInputs();
+}
 
-ensureRoomId().then((id) => {
-  gameId = id;
-  tryJoinGame();
+window.addEventListener("blur", releaseAllInputs);
+document.addEventListener("visibilitychange", releaseHiddenRoadRashControls);
+
+const roomConnection = createGameRoomConnection({
+  gameId: GAME_SLUG,
+  socket,
+  onJoined: ({ playerId, gameId: joinedRoomId }) => {
+    myPlayerId = playerId;
+    gameId = joinedRoomId;
+    readyToPlay = true;
+    setStatus(`Joined as ${playerId.toUpperCase()}`);
+  },
+  onError: (message) => setStatus(message, 5000),
+  onRematchRequested: () => updateEndGameModal({
+    status: "Accept challenge.",
+    actionLabel: "Accept Challenge",
+    phase: "ready",
+  }),
 });
+
+buildTrack();
 
 loadAssets().catch((error) => {
   console.error(error);

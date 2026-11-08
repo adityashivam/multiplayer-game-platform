@@ -148,12 +148,14 @@ function connectDeadShiftPlayer(state, playerId) {
 function disconnectDeadShiftPlayer(state, playerId) {
   const player = state.players[playerId];
   player.connected = false;
-  player.vx = 0;
-  player.vy = 0;
-  player.vz = 0;
-  player.jumpHeld = false;
-  player.reloadHeld = false;
-  deadShiftInputSession.resetPlayer(player);
+  for (const ownerState of Object.values(state.players)) {
+    ownerState.vx = 0;
+    ownerState.vy = 0;
+    ownerState.vz = 0;
+    ownerState.jumpHeld = false;
+    ownerState.reloadHeld = false;
+    deadShiftInputSession.resetPlayer(ownerState);
+  }
   state.started = false;
   state.startAt = null;
   state.rematchRequests.p1 = false;

@@ -77,7 +77,7 @@ export async function createBrowserTestSession(prefix) {
     await evaluate(sessionId, `const button=[...document.querySelectorAll('button')].find(button=>{const clone=button.cloneNode(true);clone.querySelectorAll('[aria-hidden=true]').forEach(icon=>icon.remove());return clone.textContent.trim()===${JSON.stringify(text)}&&button.getBoundingClientRect().width>0});if(!button)throw Error('Missing button '+${JSON.stringify(text)});button.click();`);
   }
   async function key(sessionId, code, keyValue, active) {
-    const keyCodes = { KeyW: 87, KeyA: 65, KeyD: 68, KeyS: 83, Space: 32, ShiftLeft: 16, KeyE: 69, KeyR: 82, Escape: 27 };
+    const keyCodes = { KeyW: 87, KeyA: 65, KeyD: 68, KeyS: 83, KeyC: 67, ArrowLeft: 37, ArrowUp: 38, ArrowRight: 39, ArrowDown: 40, Space: 32, ShiftLeft: 16, KeyE: 69, KeyR: 82, Escape: 27 };
     await send("Input.dispatchKeyEvent", { type: active ? "keyDown" : "keyUp", code, key: keyValue, windowsVirtualKeyCode: keyCodes[code] || 0 }, sessionId);
   }
   return {

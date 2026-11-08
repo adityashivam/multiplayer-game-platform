@@ -13,13 +13,14 @@ import {
 } from "/platform/frontend-engine/performanceSettings.js";
 import { createWorkerInterpolator } from "/platform/frontend-engine/interpolationWorker.js";
 import { updateConnectionState } from "/platform/frontend-engine/connectionBridge.js";
-import { createPluggablePoseRuntime } from "/platform/frontend-engine/pluggablePoseRuntime.js";
-import { createInputLatch } from "/platform/frontend-engine/inputTimeline.js";
+import { createNetworkedGameRuntime } from "/platform/frontend-engine/networkedGameRuntime.js";
+import { extractPongPositions, extractPongContinuityKeys } from "./client/snapshotPose.js";
+import { createPongInputState, readPongKeyboardInput } from "./client/inputState.js";
 import { createNetworkedGameSession } from "/platform/frontend-engine/networkedGameSession.js";
 import { INPUT_PROTOCOL, SOCKET_EVENT } from "/platform/shared/networkProtocol.js";
 import {
+  PONG_ARENA_SETTINGS,
   PONG_FIXED_DT_SEC,
-  PONG_INPUT_TEMPLATE,
   PONG_PADDLE_SETTINGS,
   stepPongPaddle,
 } from "/games/pong/shared/simulation.js";
@@ -33,7 +34,7 @@ import {
 /**
  * @typedef {object} PongSnapshot
  * @property {{p1: PongSnapshotPlayer, p2: PongSnapshotPlayer}} players
- * @property {{x: number, y: number}} ball
+ * @property {{x: number, y: number, serveId: number}} ball
  * @property {1|2} [inputProtocol]
  * @property {boolean} gameOver
  * @property {boolean} started
@@ -45,19 +46,23 @@ import {
 const GAME_SLUG = "pong";
 const ROOM_READY_EVENT = "kaboom:room-ready";
 const DISPOSE_GAME_EVENT = "kaboom:dispose-game";
-const WIDTH = 960;
+const WIDTH = PONG_ARENA_SETTINGS.WIDTH;
 const HEIGHT = PONG_PADDLE_SETTINGS.HEIGHT;
 const PADDLE_W = 26;
 const PADDLE_H = PONG_PADDLE_SETTINGS.PADDLE_HEIGHT;
 const PADDLE_X1 = 70;
 const PADDLE_X2 = WIDTH - 70;
 const DIAGNOSTICS_REFRESH_MS = 120;
-const paddleInputLatch = createInputLatch(PONG_INPUT_TEMPLATE);
+const paddleInputLatch = createPongInputState();
 let destroyPongNetworkSession = () => {};
 
 /** Clear held controls when browser focus or room ownership changes. */
 function resetPongControls() {
   paddleInputLatch.reset();
+}
+
+function arePongControlsBlocked() {
+  return Boolean(document.hidden || document.querySelector('[aria-modal="true"], dialog[open]'));
 }
 
 function resetHiddenPongControls() {
@@ -84,15 +89,6 @@ function normalizePerformanceProfile(rawProfile = {}) {
 }
 
 const initialPerformanceProfile = normalizePerformanceProfile(getRuntimePerformanceProfile());
-
-function extractPongPositions(state) {
-  return {
-    p1y: state.players.p1.y,
-    p2y: state.players.p2.y,
-    ballx: state.ball.x,
-    bally: state.ball.y,
-  };
-}
 
 // Use the in-app canvas so it stays inside the layout
 const { canvas } = getGameDomRefs();
@@ -195,6 +191,7 @@ let targetRenderFps = initialPerformanceProfile.targetFps;
 let activePongRuntime = null;
 const interpolator = createWorkerInterpolator({
   extractPositions: extractPongPositions,
+  extractContinuityKeys: extractPongContinuityKeys,
   interpDelayMs: 36,
   maxBufferSize: 14,
 });
@@ -293,6 +290,7 @@ ensureRoomId().then((id) => {
 });
 
 function handleDirectionalInput(direction, active) {
+  if (active && arePongControlsBlocked()) return;
   // Map horizontal to vertical since Pong paddles move only up/down
   const mapped =
     direction === "up" || direction === "left"
@@ -301,12 +299,13 @@ function handleDirectionalInput(direction, active) {
       ? "down"
       : null;
   if (!mapped) return;
-  paddleInputLatch.set(mapped, active);
+  paddleInputLatch.setHeld(mapped, `shell:${direction}`, active);
 }
 
 function handleActionInput(action) {
   switch (action) {
     case "start":
+      resetPongControls();
       if (roomUrl) {
         openShareModal();
       } else {
@@ -328,6 +327,23 @@ function handleActionInput(action) {
 
 function initControllerNavigation() {
   const cleanups = [];
+
+  const updateKeyboardInput = (event, active) => {
+    const direction = readPongKeyboardInput(event.code);
+    if (!direction) return;
+    if (active && (arePongControlsBlocked() || event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey ||
+        event.target?.closest?.('input,textarea,select,[contenteditable="true"],[role="dialog"]'))) return;
+    event.preventDefault();
+    paddleInputLatch.setHeld(direction, event.code, active);
+  };
+  const pressKeyboardInput = (event) => updateKeyboardInput(event, true);
+  const releaseKeyboardInput = (event) => updateKeyboardInput(event, false);
+  window.addEventListener("keydown", pressKeyboardInput, true);
+  window.addEventListener("keyup", releaseKeyboardInput, true);
+  cleanups.push(() => {
+    window.removeEventListener("keydown", pressKeyboardInput, true);
+    window.removeEventListener("keyup", releaseKeyboardInput, true);
+  });
 
   cleanups.push(dpad.left.onHold(
     () => handleDirectionalInput("left", true),
@@ -468,7 +484,10 @@ scene("pong", () => {
     interpolator,
     prediction: {
       fixedDtSec: PONG_FIXED_DT_SEC,
-      captureInput: () => paddleInputLatch.capture(),
+      captureInput: () => {
+        if (arePongControlsBlocked()) resetPongControls();
+        return paddleInputLatch.capture();
+      },
       simulate: stepPongPaddle,
       extractPose: (paddleState) => ({ y: paddleState.y }),
     },
@@ -488,6 +507,7 @@ scene("pong", () => {
       p1y: myPlayerId === "p1" && localPose ? localPose.y : remotePose.p1y,
       p2y: myPlayerId === "p2" && localPose ? localPose.y : remotePose.p2y,
     } : null,
+    onInputOwnershipReset: resetPongControls,
     onReset: () => {
       resetPongControls();
       movementRuntime.reset();
@@ -496,15 +516,12 @@ scene("pong", () => {
     diagnosticsIntervalMs: DIAGNOSTICS_REFRESH_MS,
   });
 
-  const movementRuntime = createPluggablePoseRuntime({
+  const movementRuntime = createNetworkedGameRuntime({
+    session: networkSession,
     fixedDtSec: PONG_FIXED_DT_SEC,
     maxFrameSec: 0.08,
     maxFixedSteps: 10,
     targetRenderFps,
-    samplePose: (runtimeContext) => networkSession.samplePose({
-      nowMs: runtimeContext.nowMs,
-      deltaSec: runtimeContext.fixedDtSec,
-    }),
     applyPose: (pose) => {
       paddle1.pos.y = pose.p1y;
       paddle2.pos.y = pose.p2y;

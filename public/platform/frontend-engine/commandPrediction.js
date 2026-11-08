@@ -2,12 +2,13 @@ import { INPUT_LIMITS, NETWORK_TIMING } from "../shared/networkProtocol.js";
 
 const DEFAULT_CORRECTION_DECAY_RATE = 18;
 const DEFAULT_MAX_SMOOTHING_DISTANCE = 250;
-const RENDER_OFFSET_ZERO_THRESHOLD = 0.0001;
 const CORRECTION_COUNT_THRESHOLD = 0.001;
 
 /**
  * @typedef {object} PredictionClockContext
  * @property {number} [simulationTick] Simulation time already covered by authority.
+ * @property {string|number} [continuityKey] Game-owned movement identity. Changes
+ *   snap render corrections while retaining unacknowledged command replay.
  */
 
 /**
@@ -18,6 +19,14 @@ const CORRECTION_COUNT_THRESHOLD = 0.001;
  * @property {number} lastReplayCount
  * @property {number} hardSnaps
  * @property {number} pendingCommands Commands replayed by the last reconciliation.
+ */
+
+/**
+ * @template {string} PoseKey
+ * @typedef {object} PoseCorrectionGroup
+ * @property {string} [name] Optional label for readable game configuration.
+ * @property {ReadonlyArray<PoseKey>} fields Continuous pose paths using one scale.
+ * @property {number} maxSmoothingDistance Nonnegative finite group distance limit.
  */
 
 /**
@@ -32,8 +41,39 @@ const CORRECTION_COUNT_THRESHOLD = 0.001;
  * @property {number} [fixedDtSec=1/60]
  * @property {number} [correctionDecayRate=18]
  * @property {number} [maxSmoothingDistance=250]
+ * @property {ReadonlyArray<PoseCorrectionGroup<PoseKey>>} [correctionGroups]
+ *   Separate actors or units so one group's error cannot snap another group.
+ *   Fields may belong to at most one group. Ungrouped fields share the default
+ *   maxSmoothingDistance limit; no field names or units are inferred.
  * @property {number} [maxReplayFrames=240]
  */
+
+/**
+ * Copy game configuration so later caller mutations cannot change group ownership.
+ * @template {string} PoseKey
+ * @param {ReadonlyArray<PoseCorrectionGroup<PoseKey>>} [correctionGroups]
+ * @returns {PoseCorrectionGroup<PoseKey>[]}
+ * @throws {TypeError} For invalid thresholds, empty fields or overlapping groups.
+ */
+function copyAndValidateCorrectionGroups(correctionGroups = []) {
+  if (!Array.isArray(correctionGroups)) {
+    throw new TypeError("Prediction correctionGroups must be an array.");
+  }
+  const groupedFields = new Set();
+  return correctionGroups.map((correctionGroup) => {
+    if (!Array.isArray(correctionGroup?.fields) || correctionGroup.fields.length === 0 ||
+        !Number.isFinite(correctionGroup.maxSmoothingDistance) || correctionGroup.maxSmoothingDistance < 0) {
+      throw new TypeError("Prediction correction groups require fields and a nonnegative finite distance limit.");
+    }
+    for (const poseKey of correctionGroup.fields) {
+      if (typeof poseKey !== "string" || poseKey.length === 0 || groupedFields.has(poseKey)) {
+        throw new TypeError("Prediction correction group fields must be nonempty and cannot overlap.");
+      }
+      groupedFields.add(poseKey);
+    }
+    return { ...correctionGroup, fields: [...correctionGroup.fields] };
+  });
+}
 
 /**
  * Predict commands with the server's simulation step and replay pending commands
@@ -44,6 +84,7 @@ const CORRECTION_COUNT_THRESHOLD = 0.001;
  * @template {PredictionClockContext} PredictionContext
  * @param {CommandPredictionConfig<State, InputState, PoseKey, PredictionContext>} [config]
  * @throws {Error} When simulation or pose extraction callbacks are missing.
+ * @throws {TypeError} When correction groups have invalid thresholds or overlap.
  */
 export function createCommandPredictor(config = {}) {
   if (typeof config.simulate !== "function" || typeof config.extractPose !== "function") {
@@ -54,11 +95,17 @@ export function createCommandPredictor(config = {}) {
   const fixedDtSec = config.fixedDtSec ?? NETWORK_TIMING.FIXED_DT_SEC;
   const correctionDecayRate = config.correctionDecayRate ?? DEFAULT_CORRECTION_DECAY_RATE;
   const maxSmoothingDistance = config.maxSmoothingDistance ?? DEFAULT_MAX_SMOOTHING_DISTANCE;
+  const correctionGroups = copyAndValidateCorrectionGroups(config.correctionGroups);
+  const groupedPoseFields = new Set(correctionGroups.flatMap((correctionGroup) => correctionGroup.fields));
   const maxReplayFrames = config.maxReplayFrames ?? INPUT_LIMITS.MAX_PENDING_FRAMES;
 
   /** @type {State | null} */
   let predictedState = null;
+  /** @type {Record<PoseKey, number>|null} */
+  let previousFixedPose = null;
   let lastPredictedSequence = 0;
+  /** @type {string|number|undefined} */
+  let lastContinuityKey;
   /** @type {Partial<Record<PoseKey, number>>} */
   let renderOffsets = {};
   /** @type {PredictionStats} */
@@ -79,24 +126,28 @@ export function createCommandPredictor(config = {}) {
   /**
    * Decay owned offsets and return a fresh pose without changing simulation state.
    * @param {number} [deltaSec=0] Elapsed render time in seconds.
+   * @param {number} [interpolationAlpha=1] Fixed-step render fraction, clamped to [0, 1].
    * @returns {Record<PoseKey, number> | null}
    */
-  function getRenderPose(deltaSec = 0) {
+  function getRenderPose(deltaSec = 0, interpolationAlpha = 1) {
     const predictedPose = extractPredictedPose();
     if (!predictedPose) {
       return null;
     }
 
     const decayFactor = Math.exp(-Math.max(0, deltaSec) * correctionDecayRate);
+    const renderFraction = Number.isFinite(interpolationAlpha)
+      ? Math.max(0, Math.min(1, interpolationAlpha))
+      : 1;
     const renderPose = {};
     let offsetDistanceSquared = 0;
 
     for (const poseKey of Object.keys(predictedPose)) {
       renderOffsets[poseKey] = (renderOffsets[poseKey] || 0) * decayFactor;
-      if (Math.abs(renderOffsets[poseKey]) < RENDER_OFFSET_ZERO_THRESHOLD) {
-        renderOffsets[poseKey] = 0;
-      }
-      renderPose[poseKey] = predictedPose[poseKey] + renderOffsets[poseKey];
+      const previousValue = Number.isFinite(previousFixedPose?.[poseKey])
+        ? previousFixedPose[poseKey]
+        : predictedPose[poseKey];
+      renderPose[poseKey] = previousValue + (predictedPose[poseKey] - previousValue) * renderFraction + renderOffsets[poseKey];
       offsetDistanceSquared += renderOffsets[poseKey] * renderOffsets[poseKey];
     }
 
@@ -127,7 +178,9 @@ export function createCommandPredictor(config = {}) {
    */
   function reset(authoritativeState = null) {
     predictedState = authoritativeState ? cloneState(authoritativeState) : null;
+    previousFixedPose = predictedState ? { ...extractPredictedPose() } : null;
     lastPredictedSequence = 0;
+    lastContinuityKey = undefined;
     renderOffsets = {};
     predictionStats.correctionDistance = 0;
     predictionStats.lastReplayCount = 0;
@@ -144,8 +197,33 @@ export function createCommandPredictor(config = {}) {
       return;
     }
 
+    previousFixedPose = { ...extractPredictedPose() };
     simulateInputFrame(inputFrame, predictionContext);
     lastPredictedSequence = inputFrame.seq;
+  }
+
+  /**
+   * Snap only the selected continuous fields and their preceding render endpoints.
+   * @param {ReadonlyArray<PoseKey>} poseFields
+   * @param {Record<PoseKey, number>} reconciledPose
+   */
+  function resetPoseCorrectionFields(poseFields, reconciledPose) {
+    for (const poseKey of poseFields) {
+      if (Object.hasOwn(reconciledPose, poseKey)) {
+        renderOffsets[poseKey] = 0;
+        previousFixedPose[poseKey] = reconciledPose[poseKey];
+      }
+    }
+  }
+
+  /** @param {ReadonlyArray<PoseKey>} poseFields @returns {number} Current group offset magnitude. */
+  function measurePoseCorrectionDistance(poseFields) {
+    let distanceSquared = 0;
+    for (const poseKey of poseFields) {
+      const offset = renderOffsets[poseKey] || 0;
+      distanceSquared += offset * offset;
+    }
+    return Math.sqrt(distanceSquared);
   }
 
   /**
@@ -161,7 +239,16 @@ export function createCommandPredictor(config = {}) {
       return;
     }
 
-    const previousRenderPose = predictedState ? getRenderPose(0) : null;
+    const continuityKey = predictionContext.continuityKey;
+    const hasContinuityKey = typeof continuityKey === "string" ||
+      (typeof continuityKey === "number" && Number.isFinite(continuityKey));
+    const continuityChanged = hasContinuityKey && lastContinuityKey !== undefined &&
+      continuityKey !== lastContinuityKey;
+    const previousRenderPose = predictedState && !continuityChanged ? getRenderPose(0) : null;
+    const previousSimulationPose = previousRenderPose ? { ...extractPredictedPose() } : null;
+    if (hasContinuityKey) {
+      lastContinuityKey = continuityKey;
+    }
     predictedState = cloneState(authoritativeState);
     let replayCount = 0;
 
@@ -187,22 +274,45 @@ export function createCommandPredictor(config = {}) {
     const reconciledPose = extractPredictedPose();
     renderOffsets = {};
     if (previousRenderPose && reconciledPose) {
-      let correctionDistanceSquared = 0;
-      for (const poseKey of Object.keys(reconciledPose)) {
+      const poseFields = Object.keys(reconciledPose);
+      previousFixedPose ??= {};
+      for (const poseKey of poseFields) {
+        // Preserve the preceding fixed step's displacement through correction;
+        // the same render offset then keeps every fractional sample continuous.
+        const previousDisplacement = Number.isFinite(previousFixedPose?.[poseKey])
+          ? previousSimulationPose[poseKey] - previousFixedPose[poseKey]
+          : 0;
+        previousFixedPose[poseKey] = reconciledPose[poseKey] - previousDisplacement;
         const difference = Number.isFinite(previousRenderPose[poseKey])
           ? previousRenderPose[poseKey] - reconciledPose[poseKey]
           : 0;
         renderOffsets[poseKey] = difference;
-        correctionDistanceSquared += difference * difference;
       }
 
-      const correctionDistance = Math.sqrt(correctionDistanceSquared);
-      if (correctionDistance > maxSmoothingDistance) {
-        renderOffsets = {};
+      let didHardSnap = false;
+      for (const correctionGroup of correctionGroups) {
+        if (measurePoseCorrectionDistance(correctionGroup.fields) > correctionGroup.maxSmoothingDistance) {
+          resetPoseCorrectionFields(correctionGroup.fields, reconciledPose);
+          didHardSnap = true;
+        }
+      }
+
+      const ungroupedFields = correctionGroups.length
+        ? poseFields.filter((poseKey) => !groupedPoseFields.has(poseKey))
+        : poseFields;
+      if (measurePoseCorrectionDistance(ungroupedFields) > maxSmoothingDistance) {
+        resetPoseCorrectionFields(ungroupedFields, reconciledPose);
+        didHardSnap = true;
+      }
+      if (didHardSnap) {
         predictionStats.hardSnaps++;
-      } else if (correctionDistance > CORRECTION_COUNT_THRESHOLD) {
+      }
+
+      if (measurePoseCorrectionDistance(poseFields) > CORRECTION_COUNT_THRESHOLD) {
         predictionStats.corrections++;
       }
+    } else {
+      previousFixedPose = reconciledPose ? { ...reconciledPose } : null;
     }
 
     getRenderPose(0);

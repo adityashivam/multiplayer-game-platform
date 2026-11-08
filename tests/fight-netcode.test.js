@@ -4,7 +4,7 @@ import { createPredictedInputSession } from "../public/platform/frontend-engine/
 import { enqueueInputFrame, consumeInputFrames } from "../server/platform-backend-engine/core/inputProtocol.js";
 import { FIGHT_FIXED_DT_SEC, FIGHT_INPUT_TEMPLATE, FIGHT_ACTION_EDGE_KEYS, stepFightPlayer } from "../public/games/fight/shared/simulation.js";
 
-for (const roundTripMs of [0, 100, 200, 300]) {
+for (const roundTripMs of [0, 100, 200, 300, 500]) {
  for (const lateAction of [false, true]) {
   test(`Fight ${lateAction ? "settles a late attack" : "replays without false corrections"} at ${roundTripMs}ms RTT and a 100ms burst`, () => {
     const fixedDtSec = FIGHT_FIXED_DT_SEC;

@@ -21,6 +21,16 @@ export function extractSkyDashPositions(snapshot) {
   return pose;
 }
 
+/** @param {Parameters<typeof extractSkyDashPositions>[0] & {roundId?:number}} snapshot @returns {Record<string,string>} */
+export function extractSkyDashContinuityKeys(snapshot) {
+  const keys = {};
+  for (const runner of [...Object.values(snapshot.players), ...snapshot.bots]) {
+    const identity = `${snapshot.roundId ?? 0}:${runner.respawnId}`;
+    for (const field of ["x", "y", "z", "respawnId"]) keys[`${runner.id}.${field}`] = identity;
+  }
+  return keys;
+}
+
 /**
  * Render local interactive geometry at the predicted player's clock. Remote
  * racers retain delayed interpolation, while a sweeper never visibly lags the

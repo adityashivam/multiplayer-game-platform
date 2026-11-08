@@ -150,7 +150,7 @@ function simulateDelayedFightCrossUp(roundTripMs) {
   return { crossedAboveOpponent, maximumOpponentFrameDisplacement, minimumContactGap, predictionStats: clientInput.getStats() };
 }
 
-for (const roundTripMs of [100, 200, 300]) {
+for (const roundTripMs of [100, 200, 300, 500]) {
   test(`a late jump cross-up remains separated without opponent pops at ${roundTripMs}ms RTT`, () => {
     const crossUp = simulateDelayedFightCrossUp(roundTripMs);
     assert.equal(crossUp.crossedAboveOpponent, true, "exercise an actual airborne crossover");

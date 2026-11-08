@@ -154,14 +154,16 @@ function connectSkyDashPlayer(state, playerId) {
 function disconnectSkyDashPlayer(state, playerId) {
   const runner = state.players[playerId];
   runner.connected = false;
-  runner.vx = 0;
-  runner.vy = 0;
-  runner.vz = 0;
-  runner.jumpHeld = false;
-  runner.dashHeld = false;
-  runner.diveHeld = false;
-  runner.jumpBufferSec = 0;
-  skyDashInputSession.resetPlayer(runner);
+  for (const ownerState of Object.values(state.players)) {
+    ownerState.vx = 0;
+    ownerState.vy = 0;
+    ownerState.vz = 0;
+    ownerState.jumpHeld = false;
+    ownerState.dashHeld = false;
+    ownerState.diveHeld = false;
+    ownerState.jumpBufferSec = 0;
+    skyDashInputSession.resetPlayer(ownerState);
+  }
   state.started = false;
   state.startAt = null;
   for (const slotId of Object.keys(state.players)) state.rematchRequests[slotId] = false;

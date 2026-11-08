@@ -163,7 +163,9 @@ The current catalog index is built from trusted registered game metadata at serv
 
 ## Preserve the console shell
 
-Library and game views share the same outer console dimensions, bezel, and controller positions. Game launch and shared links keep the user's current fullscreen/orientation state; the platform's Full Screen button is the explicit presentation control. `startInLandscape` is a game preference, not permission to resize the shell or automatically enter fullscreen.
+Library and game views share the same outer console dimensions, bezel, and controller positions. Every game starts in landscape on touch devices through the platform's shared presentation layer. It attempts native landscape orientation; a portrait touch viewport waits before initial runtime loading or room joining and shows a rotate-device prompt. A labeled **Use landscape fullscreen** action can enable fullscreen and retry rotation where supported. Launch never silently requests fullscreen. The legacy `startInLandscape` hint does not select this policy or change shell geometry.
+
+After a game has started, later viewport changes keep its existing runtime, room and canvas. Returning to the library releases platform-owned orientation. This applies equally to shared-link entry and catalog launches, independently of the game's renderer or touch-customization capabilities. Games supply no orientation logic or new metadata fields.
 
 Render within the supplied game host. Size or rotate a game's own drawing surface using its host's measured bounds and observe host resizes when needed. Do not use browser viewport dimensions to expand a renderer beyond the screen, mutate the outer shell, or request fullscreen/orientation from game initialization and input handlers. Route transitions may fade screen content without translating or scaling the console.
 
@@ -238,6 +240,19 @@ const networkSession = createNetworkedGameSession({
 ```
 
 `socket` is the `getGameSocket(namespace)` facade. `localPlayerId` comes from its `gameJoined` event; game UI may also need that ID for labels and scoring. `interpolator` is created with `createWorkerInterpolator({extractPositions,extractVelocities?,interpDelayMs?,maxBufferSize?})`, using selectors appropriate to the game's snapshot shape. `controls` can use `createInputLatch(template,{edgeKeys,numericInputs})` so short boolean action presses survive between captures while numeric controls retain their magnitudes.
+
+`composeRenderPose(remotePose, localPose, snapshot, predictedState)` also receives the current read-only prediction clone, or `null` without current ownership. Use it for discrete animation/action/serve identities instead of adding those values to `prediction.extractPose`, whose numeric fields absorb reconciliation offsets. Do not mutate or retain this borrowed state; copy the render fields you need. Existing callbacks that take fewer arguments continue to work.
+
+```js
+composeRenderPose(remotePose, localPose, snapshot, predictedState) {
+  return {
+    ...remotePose,
+    localHeight: localPose?.height ?? snapshot.player.height,
+    action: predictedState?.action ?? snapshot.player.action,
+    actionId: predictedState?.actionId ?? snapshot.player.actionId,
+  };
+}
+```
 
 ### Shared room connection
 
@@ -370,7 +385,29 @@ socket.send("joinGame", {
 
 The server may still be waiting for the previous transport's disconnect. When the token identifies that occupied slot, it returns `roomFull` with `{gameId,rejoinPending:true}`. The facade retries the same room and token every 500 ms for at most 20 seconds, without allocating another slot or displacing the live owner. It delivers one final `roomFull` to game UI if recovery expires. Newcomers and invalid tokens receive ordinary full-room failures immediately. Success, disconnect, socket disposal or a new join request cancels pending retries. Game adapters should not add a second retry loop.
 
-Call `networkSession.samplePose({nowMs,deltaSec})` once per fixed simulation step and render its returned pose. `createPluggablePoseRuntime()` provides fixed sampling with independent rendering. Use the same fixed duration on browser and server; the SDK cannot infer a game's simulation cadence from rendering FPS.
+Prefer `createNetworkedGameRuntime()` for networked presentation. It captures/predicts input at the shared simulation cadence and samples remote interpolation/local presentation at the actual render cadence. It never interpolates discrete IDs through a second numeric pose buffer:
+
+```js
+import { createNetworkedGameRuntime } from "/platform/frontend-engine/networkedGameRuntime.js";
+
+const movementRuntime = createNetworkedGameRuntime({
+  session: networkSession,
+  fixedDtSec: gameConfig.fixedDtSec,
+  targetRenderFps: 60, // null renders on every animation frame
+  maxFrameSec: 0.08,
+  maxFixedSteps: 5,
+  applyPose(pose) {
+    renderer.applyPose(pose);
+  },
+});
+// Inside the game's existing requestAnimationFrame callback:
+movementRuntime.step({ nowMs: performance.now() });
+// Dispose both; the scheduler does not own the supplied network session.
+movementRuntime.destroy();
+networkSession.destroy();
+```
+
+The low-level equivalent calls `networkSession.captureAndPredict()` once per fixed update and `networkSession.samplePose({captureInput:false,nowMs,deltaSec,interpolationAlpha:alpha})` on render. `interpolationAlpha` defaults to 1 and blends only the local predictor's continuous fixed-step endpoints; remote playback already samples render time. `deltaSec` is elapsed presentation time, including skipped frames under a rendering cap. The established `samplePose({nowMs,deltaSec})` still captures one command by default for older integrations. Do not invoke both capture paths for the same simulation step. Browser and server must use the same fixed duration.
 
 Server registration uses `meta.networking.tickRateHz` as its default cadence. An explicit `tickMs` overrides it; games without declared timing keep the platform's 60 Hz default. Reuse the same game configuration for the prediction/controller step duration.
 
@@ -379,6 +416,36 @@ The session accepts `getStats()`, `getLatestSnapshot()`, `reset({preserveSequenc
 Return null from `readAuthority` while the local player has no authoritative state. The session then renders interpolation without a stale predicted override, retains unacknowledged commands and rebases prediction when authority returns. After a capture pause, new command sequences advance past elapsed authoritative simulation time; only actual acknowledgements remove retained commands, so late action inputs are preserved.
 
 Omit `prediction` and `readAuthority` for interpolation-only games. Games with event-driven drawing or other custom state delivery can use the lower-level transport APIs directly. A prediction pipeline is not mandatory for every genre or renderer.
+
+### Discrete resets and independent correction units
+
+`readAuthority(snapshot).context.continuityKey` accepts a string or number identifying a continuous local movement segment. Change it on a respawn, serve or new round. The SDK snaps render offsets/fixed endpoints for that change while retaining correctly owned, unacknowledged commands. Epochs still own input reset/recovery. Use `onInputOwnershipReset({previousEpoch,inputEpoch})` to clear game input latches on an accepted known epoch change; it does not reset the interpolation buffer or runtime.
+
+Pass `extractContinuityKeys(snapshot)` to `createWorkerInterpolator()` when remote numeric paths can teleport or refer to recycled actor slots:
+
+```js
+const interpolator = createWorkerInterpolator({
+  extractPositions: (snapshot) => ({ rivalX: snapshot.rival.x, rivalZ: snapshot.rival.z }),
+  extractContinuityKeys: (snapshot) => ({
+    rivalX: `${snapshot.roundId}:${snapshot.rival.respawnId}`,
+    rivalZ: `${snapshot.roundId}:${snapshot.rival.respawnId}`,
+  }),
+});
+```
+
+Changed endpoint identities choose the newer endpoint and suppress extrapolation across the reset. They do not move the whole playback clock forward to the latest snapshot. Keep action IDs, respawn/serve IDs and other discrete presentation outside `prediction.extractPose`; obtain them from the borrowed fourth `composeRenderPose` argument instead. Renderers that choose latest-authority identity guards must apply them coherently with the corresponding positions.
+
+When a prediction pose contains independent actors or units, declare `prediction.correctionGroups`:
+
+```js
+correctionGroups: [
+  { name: "player", fields: ["x", "y", "z"], maxSmoothingDistance: 1.2 },
+  { name: "ball", fields: ["ballX", "ballY", "ballZ"], maxSmoothingDistance: 1.2 },
+  { name: "facing", fields: ["facingSin", "facingCos"], maxSmoothingDistance: 3 },
+],
+```
+
+Fields must be unique across nonempty groups; thresholds are finite, nonnegative and expressed in that group's units. Unlisted fields share the existing `maxSmoothingDistance` fallback. A large ball correction snaps the ball group without snapping a correctly predicted player. Omit groups for a simple homogeneous position pose. Hermite interpolation limits contradictory tangents so monotonic endpoint motion cannot reverse just because of high reported velocity.
 
 ## Connect authoritative simulation
 
@@ -389,7 +456,7 @@ Omit `prediction` and `readAuthority` for interpolation-only games. Games with e
 - `resetPlayer(player)`: clear queued/held input and advance ownership on connection changes.
 - `getPlayerSnapshotMetadata(player)`: return `inputEpoch`, `inputSeqAck` and `inputSimulationTick` for the game's serializer.
 
-Call these from the standard `registerGame()` or `registerPluggableGame()` callbacks. Game rules use the supplied step duration; the SDK owns room-clock fields and recovery. Include `inputProtocol` in snapshots and spread `getPlayerSnapshotMetadata(player)` alongside each player's prediction state. The existing Fight and Pong adapters provide complete examples. `simulatePlayer()` remains available as a lower-level hook for custom schedulers.
+Call these from the standard `registerGame()` or `registerPluggableGame()` callbacks. When a room pauses because a participant leaves, reset every affected player's input ownership and game-owned held/action state while retaining match progress. New shared authority must reject frames from both old owners. Game rules use the supplied step duration; the SDK owns room-clock fields and recovery. Include `inputProtocol` in snapshots and spread `getPlayerSnapshotMetadata(player)` alongside each player's prediction state. The existing Fight and Pong adapters provide complete examples. `simulatePlayer()` remains available as a lower-level hook for custom schedulers.
 
 The queued input validator accepts game-defined booleans and explicitly bounded numeric controls. The SDK owns its template/range copies, queued-state copies, resets, acknowledgements, and ownership recovery. Custom message/input schemes can use registration's `handleInput` callback; they must define and validate their own contract. Game-specific combat, ball outcomes, scoring and wins remain authoritative.
 
@@ -397,15 +464,26 @@ The queued input validator accepts game-defined booleans and explicitly bounded 
 
 Fight and Pong use the high-level client session, the shared authoritative input session and configurable platform mechanics. Dead Shift uses those same sessions with bounded numeric movement/aim/weapon inputs, game-owned 3D movement prediction, server-owned combat, and a Three.js renderer. Its shared `roundId` distinguishes rematches from snapshot recovery so reconnects do not replay old visual effects. See [its controls and integration](../public/games/dead-shift/README.md).
 
-Mario, Mario Touch and Road Rash retain their existing input adapters and inherit shared transport/interpolation/scheduler fixes; their full prediction migrations remain separate work. Draw uses its event-driven state path. The WebGL sample is single-player.
+Sky Dash combines the same sessions with configurable 3D kinematic movement and game-owned obstacle rules. [Riftball Duel](../public/games/riftball/README.md) reuses that character controller, adds a configurable sphere body, and predicts a bounded ball/contact preview while authoritative rules own goals, overtime and series wins. Both use the generic touch editor and synchronized room countdown.
+
+Mario and Mario Touch now use the same sessions and shared acceleration, gravity and tile collision rules. Road Rash uses shared acceleration/steering and unwrapped progress; kicks, traffic, damage and race results remain server-owned. All eight continuous multiplayer entries advertise queued protocol 2 and their actual shared input schemas/cadence. Every adapter resets both command owners when a player leaves, so old held/queued controls cannot cross a reconnect.
+
+Draw stays event-driven: local strokes appear immediately, ordered revisioned events update both clients, and `syncBoard` requests bounded `drawBoard` history on join/recovery. Periodic state packets contain lifecycle and board revision instead of repeating the full canvas. Local echoes cannot rewind points, clear acknowledgements are owner-specific, and drawing waits for authoritative start plus history hydration. The WebGL Drift sample is single-player.
+
+Deterministic tests cover all continuous multiplayer games at **150, 300 and 500 ms RTT**, using half that delay in each direction, jitter and ordered delivery stalls. Coverage includes short actions, bounded queues, stopping/convergence, ownership recovery, respawns and new serves. Shared SDK tests also exercise alternate input schemas/rates, rendering at 120/144 Hz and a 1.3 second starvation/recovery. These are correctness scenarios, not global capacity or latency guarantees.
 
 ```sh
 npm test
 npm run build
 npm run net:probe -- --url http://localhost:3000 --game pong --seconds 30
+npm run test:multiplayer:browser
 ```
 
 The probe reads the selected game's public capabilities. It alternates the first two boolean controls and preserves every numeric template value; use a game-owned diagnostic for a specific analog movement pattern. Set `inputProtocol` and `inputTemplate` to null and omit `numericInputs` for snapshot/RTT-only diagnostics; continuous input is not forced on other game types. Probe limits bound a single diagnostic match. Tests also verify arbitrary player slots, configurable cadence, SDK lifecycle/ownership, alternate controller bindings and that platform runtime bundles have no concrete game-package dependencies.
+
+The multiplayer browser suite runs two clients for each networked game through a loopback WebSocket proxy with 500 ms RTT, deterministic jitter and periodic 200 ms stalls. HTTP assets and protocol handshakes remain unthrottled. Set `PLATFORM_TEST_RTT_MS=300` or `PLATFORM_TEST_GAMES=fight,pong` to select a scenario; set `CHROME_PATH` if Chrome is not installed at the existing macOS default. It checks actual browser inputs, queued acknowledgements, opponent updates, a seat-preserving reload and Draw history recovery. RTT uses acknowledged application probes; Engine.IO heartbeat receipt/response events are not round-trip measurements.
+
+High RTT still delays opponent information and server-confirmed damage, scoring and contacts. Prediction cannot make an unknown opponent action immediate. Socket.IO delivers ordered messages over a reliable transport; a stalled connection can hold newer updates behind older messages, and reconnect history needs explicit application recovery. See [delivery guarantees](https://socket.io/docs/v4/delivery-guarantees/) and the [snapshot interpolation reference](https://gafferongames.com/post/snapshot_interpolation/). Test real devices and the deployed host separately; these local correctness checks are not a server capacity benchmark.
 
 ## Upright 3D character movement
 
@@ -485,3 +563,35 @@ Slopes are constant during each controller call; games own angle, angular veloci
 `controlScale` and `speedScale` default to one. Use `controlScale:0` during game-owned knockback or dive recovery to disable both input acceleration and braking while retaining external velocity. Use `speedScale` for temporary target-speed changes. Both values are finite and nonnegative. A zero-duration call resolves penetration and support only; it preserves jump edges and all timers. For a post-step contact pass, supply platform geometry at that post-step instant.
 
 `resolveKinematicCharacterSeparation(bodies,{radius,height,iterations?})` separates vertically overlapping cylinders in deterministic array order and mutates only X/Z positions, preserving velocities. Callers filter finished/respawning actors. `iterations` defaults to six and must be an integer from one through 32. Coincident centers separate deterministically; crowded arrangements may retain a small overlap at the iteration limit. Revalidate world contacts afterwards, including when crowd separation pushes an actor past a platform edge. Contact iterations and penetration passes are bounded; contradictory solids or crushing geometry require a game-owned recovery rule.
+
+## Configurable 3D sphere bodies
+
+`/platform/shared/sphereBody.js` exports `createSphereBodyController(settings)`. It owns bounded swept sphere/AABB collision, gravity, drag, floor settling and restitution. Games supply static box solids and own moving-body interactions, scoring, contact effects and reset rules. It imports no game code and can simulate balls or projectiles in pure browser/server code.
+
+```js
+import { createSphereBodyController } from "/platform/shared/sphereBody.js";
+
+const sphereController = createSphereBodyController({
+  radius: 0.4,
+  gravity: 18,
+  restitution: 0.78,
+  floorRestitution: 0.62,
+  linearDamping: 0.12,
+  groundFriction: 1.6,
+  maxSpeed: 28,
+});
+const ballBody = { x: 0, y: 1, z: 0, vx: 8, vy: 0, vz: -12 };
+const walls = [{ minX: 10, maxX: 11, minY: 0, maxY: 5, minZ: -20, maxZ: 20 }];
+const { bounceCount } = sphereController.step(ballBody, 1 / 60, {
+  solids: walls,
+  floorY: 0,
+  onTravel(segment) {
+    // Observe actual swept travel, before a later rebound. Do not mutate it.
+    inspectGameOwnedTrigger(segment);
+  },
+});
+```
+
+`step` mutates the supplied six-coordinate body and returns its bounce count. Radius is positive, restitution values are in `[0,1]`, and all coordinates/settings must be finite. Solids use ordered finite bounds; at most 256 boxes are accepted. Invalid inputs throw before simulation changes the body. `floorY` is optional. `onTravel` receives `{startX,startY,startZ,endX,endY,endZ}` for actual swept segments; depenetration does not count as travel or trigger a crossing.
+
+Defaults are gravity `18`, restitution `0.72`, floor restitution equal to restitution, linear damping `0.12/sec`, ground friction `1.6 units/sec²`, rest speed `0.55`, maximum speed `64`, maximum step `0.05s`, eight substeps and eight contacts per substep. Radius defaults to `0.4`. Substeps are bounded to `[1,64]` and contacts to `[1,32]`; long positive durations clamp rather than running unlimited catch-up. `dtSec:0` performs contact recovery without advancing time. This controller covers static geometry; game-defined dynamic interactions still need their own bounded rules.

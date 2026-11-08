@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="800" viewBox="0 0 1200 800">
+  <defs>
+    <linearGradient id="room" x2="0" y2="1"><stop stop-color="#0b1526"/><stop offset="1" stop-color="#29445c"/></linearGradient>
+    <linearGradient id="court" x2="0" y2="1"><stop stop-color="#2c5368"/><stop offset="1" stop-color="#162c42"/></linearGradient>
+    <radialGradient id="glow"><stop stop-color="#ffedb6" stop-opacity=".45"/><stop offset="1" stop-color="#ffedb6" stop-opacity="0"/></radialGradient>
+    <linearGradient id="teal" x2="1" y2="1"><stop stop-color="#91fff0"/><stop offset="1" stop-color="#13b7b8"/></linearGradient>
+    <linearGradient id="coral" x2="1" y2="1"><stop stop-color="#ffbf9e"/><stop offset="1" stop-color="#e76361"/></linearGradient>
+  </defs>
+  <path fill="url(#room)" d="M0 0h1200v800H0z"/>
+  <path fill="#102030" d="M0 0h1200L840 235H360z"/>
+  <g stroke="#355165" stroke-width="8"><path d="M0 45l1200 110M0 175l1200-90M95 0l305 240M1105 0L800 240"/></g>
+  <g fill="#ffe6b2"><path d="M274 108l98 14 39 43-88-9zM826 108l-98 14-39 43 88-9zM454 173l62 6 10 24-58-5zM746 173l-62 6-10 24 58-5z"/></g>
+  <path fill="#1b3449" d="M0 320l360-85h480l360 85v480H0z"/>
+  <path fill="url(#court)" d="M75 800l329-453h392l329 453z"/>
+  <path fill="#34546a" d="M0 410l404-63L75 800H0zM1200 410l-404-63 329 453h75z"/>
+  <g fill="none" stroke="#c6dedb" stroke-width="4" opacity=".65"><path d="M164 800l267-432h338l267 432M295 585h610M401 403h398"/><ellipse cx="600" cy="583" rx="102" ry="33"/><path d="M389 437h422l-12-32H401z"/></g>
+  <g fill="#0f2032" stroke="#ff8b72" stroke-width="7"><path d="M505 347v-81h190v81z"/></g>
+  <g stroke="#ff8b72" stroke-width="1" opacity=".4"><path d="M525 269v78m23-78v78m24-78v78m24-78v78m24-78v78m24-78v78m24-78v78M509 288h182m-182 20h182m-182 20h182"/></g>
+  <g fill="#102032" opacity=".9"><path d="M0 423l300-48v14L0 450zM0 477l265-57v15L0 506zM1200 423l-300-48v14l300 61zM1200 477l-265-57v15l265 71z"/></g>
+  <ellipse cx="422" cy="732" rx="90" ry="22" fill="#071423" opacity=".6"/>
+  <g stroke-linecap="round" stroke-linejoin="round">
+    <path d="M405 570l-42 73-16 79M433 580l40 65 37 68" fill="none" stroke="#112c42" stroke-width="42"/>
+    <path d="M347 720l-23 16 34 6M510 712l15 13-43 8" fill="none" stroke="#e5f2ec" stroke-width="18"/>
+    <path d="M397 487l-25 85 75 19 18-86z" fill="url(#teal)"/>
+    <path d="M389 505l-45 33-31-23M453 508l43 16 49-42" fill="none" stroke="#ad826b" stroke-width="23"/>
+    <path d="M394 489l-18 45M453 505l18 17" fill="none" stroke="#1bd4c4" stroke-width="29"/>
+    <path d="M414 488v-22" fill="none" stroke="#ad826b" stroke-width="18"/>
+    <ellipse cx="420" cy="450" rx="24" ry="29" fill="#b68b72"/>
+    <path d="M397 447q-5-43 30-31 21 5 17 33l-13-17-33 7z" fill="#142130"/>
+  </g>
+  <ellipse cx="780" cy="467" rx="31" ry="10" fill="#081523" opacity=".6"/>
+  <g stroke-linecap="round" stroke-linejoin="round">
+    <path d="M773 409l-12 25-18 29M788 410l16 25 20 24" fill="none" stroke="#182b42" stroke-width="16"/>
+    <path d="M767 364l-4 46 34 3-1-43z" fill="url(#coral)"/>
+    <path d="M766 372l-21 11-12-13M797 374l17 9 13-12" fill="none" stroke="#bd927c" stroke-width="10"/>
+    <path d="M780 363v-10" stroke="#bd927c" stroke-width="9"/>
+    <ellipse cx="779" cy="347" rx="12" ry="15" fill="#bd927c"/>
+    <path d="M766 345q0-24 17-15l9 16-15-8z" fill="#301f27"/>
+  </g>
+  <path d="M752 452q-59 25-121 83" fill="none" stroke="#ffe7a4" stroke-width="11" opacity=".16"/>
+  <circle cx="622" cy="542" r="103" fill="url(#glow)"/>
+  <circle cx="622" cy="542" r="21" fill="#fff0bc"/>
+  <path d="M606 529q27 2 30 29m-31-2q17-22 36-21" stroke="#62776e" stroke-width="3" fill="none"/>
+  <g fill="#f2fbf7" text-anchor="middle" font-family="Arial, sans-serif"><text x="600" y="91" font-size="70" font-weight="900" letter-spacing="10">RIFTBALL</text><text x="600" y="140" font-size="24" letter-spacing="14" fill="#87d6d3">DUEL</text></g>
+</svg>

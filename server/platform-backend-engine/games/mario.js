@@ -1,27 +1,45 @@
 import { ROOM_START_COUNTDOWN_MS } from "../../../public/platform/shared/roomLifecycle.js";
 import { marioGameMeta, marioTouchGameMeta } from "./metadata.js";
 import { emitEvent, registerPluggableGame, scheduleStart } from "../core/index.js";
-import { buildOneOneTrack } from "../../../public/games/mario/levelData.js";
+import { createAuthoritativeInputSession } from "../core/authoritativeInputSession.js";
+import { INPUT_PROTOCOL, SOCKET_EVENT } from "../../../public/platform/shared/networkProtocol.js";
+import {
+  MARIO_EDGE_KEYS,
+  MARIO_FIXED_DT_SEC,
+  MARIO_INPUT_TEMPLATE,
+  MARIO_MOVEMENT_SETTINGS,
+  MARIO_PLAYER_IDS,
+  MARIO_START_POSITIONS,
+  MARIO_TRACK,
+} from "../../../public/games/mario/shared/config.js";
+import {
+  marioRectanglesIntersect,
+  resolveMarioHorizontalMovement,
+  resolveMarioVerticalMovement,
+  stepMarioPlayer,
+} from "../../../public/games/mario/shared/simulation.js";
 
-const FPS = 60;
-const DT = 1 / FPS;
+/** @typedef {import("../../../public/games/mario/shared/config.js").MarioPlayerId} MarioPlayerId */
+/** @typedef {import("../../../public/games/mario/shared/config.js").MarioInputState} MarioInputState */
+/**
+ * @typedef {import("../../../public/games/mario/shared/simulation.js").MarioMovementState &
+ *   import("../core/authoritativeInputSession.js").AuthoritativePlayerInputState<keyof MarioInputState> & {
+ *   connected: boolean, finished: boolean, finishMs: number|null, rank: number,
+ *   hurtCooldown: number, rejoinToken: string|null, movementEpoch: number
+ * }} MarioServerPlayerState
+ */
+
 const COUNTDOWN_MS = ROOM_START_COUNTDOWN_MS;
 const ROOM_CLEANUP_DELAY_MS = 30000;
+const TRACK = MARIO_TRACK;
+const START_POSITIONS = MARIO_START_POSITIONS;
+const { PLAYER_WIDTH: PLAYER_W, PLAYER_HEIGHT: PLAYER_H, JUMP_SPEED } = MARIO_MOVEMENT_SETTINGS;
+const marioInputSession = createAuthoritativeInputSession({
+  inputTemplate: MARIO_INPUT_TEMPLATE,
+  edgeKeys: MARIO_EDGE_KEYS,
+  fixedDtSec: MARIO_FIXED_DT_SEC,
+});
 
-const TRACK = buildOneOneTrack();
-
-const PLAYER_W = 16;
-const PLAYER_H = 16;
-const WALK_ACCEL = 920;
-const RUN_ACCEL = 1320;
-const AIR_ACCEL = 720;
-const GROUND_FRICTION = 1080;
-const AIR_DRAG = 180;
-const MAX_WALK_SPEED = 125;
-const MAX_RUN_SPEED = 175;
-const JUMP_SPEED = 460;
-const GRAVITY = 1450;
-const MAX_FALL_SPEED = 760;
 const HURT_COOLDOWN_SEC = 0.85;
 
 const ENEMY_GRAVITY = 1150;
@@ -31,38 +49,11 @@ const KOOPA_SPEED = 52;
 const GOOMBA_STOMP_MS = 320;
 const KOOPA_STOMP_MS = 850;
 
-const START_POSITIONS = {
-  p1: { x: TRACK.playerSpawn.x, y: TRACK.playerSpawn.y },
-  p2: { x: TRACK.playerSpawn.x + 24, y: TRACK.playerSpawn.y },
-};
-
-const DEFAULT_INPUT_STATE = {
-  left: false,
-  right: false,
-  run: false,
-  jump: false,
-  jumpQueued: false,
-};
-
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
 }
 
-function approach(value, target, step) {
-  if (value < target) return Math.min(target, value + step);
-  if (value > target) return Math.max(target, value - step);
-  return target;
-}
-
-function intersects(a, b) {
-  return (
-    a.x < b.x + b.w &&
-    a.x + a.w > b.x &&
-    a.y < b.y + b.h &&
-    a.y + a.h > b.y
-  );
-}
-
+/** @param {{x: number, y: number}} startPos @returns {MarioServerPlayerState} */
 function makePlayer(startPos) {
   return {
     x: startPos.x,
@@ -79,7 +70,12 @@ function makePlayer(startPos) {
     rank: 2,
     hurtCooldown: 0,
     rejoinToken: null,
-    input: { ...DEFAULT_INPUT_STATE },
+    input: { ...MARIO_INPUT_TEMPLATE },
+    inputEpoch: 0,
+    inputSimulationTick: 0,
+    lastInputSeqAck: 0,
+    jumpHeld: false,
+    movementEpoch: 0,
   };
 }
 
@@ -147,131 +143,44 @@ function isRaceActive(state) {
   return Boolean(state.started && !state.gameOver);
 }
 
-function resolveHorizontalMovement(entity, solids, dt) {
-  let nextX = entity.x + entity.vx * dt;
-  const rect = { x: nextX, y: entity.y, w: entity.width, h: entity.height };
-  let collided = false;
-
-  for (let i = 0; i < solids.length; i += 1) {
-    const solid = solids[i];
-    if (!intersects(rect, solid)) continue;
-    collided = true;
-    if (entity.vx > 0) {
-      nextX = solid.x - entity.width;
-      rect.x = nextX;
-      entity.vx = 0;
-    } else if (entity.vx < 0) {
-      nextX = solid.x + solid.w;
-      rect.x = nextX;
-      entity.vx = 0;
-    }
-  }
-
-  entity.x = nextX;
-  return collided;
-}
-
-function resolveVerticalMovement(entity, solids, dt) {
-  let nextY = entity.y + entity.vy * dt;
-  const rect = { x: entity.x, y: nextY, w: entity.width, h: entity.height };
-  let grounded = false;
-
-  for (let i = 0; i < solids.length; i += 1) {
-    const solid = solids[i];
-    if (!intersects(rect, solid)) continue;
-
-    if (entity.vy > 0) {
-      nextY = solid.y - entity.height;
-      rect.y = nextY;
-      entity.vy = 0;
-      grounded = true;
-    } else if (entity.vy < 0) {
-      nextY = solid.y + solid.h;
-      rect.y = nextY;
-      entity.vy = 0;
-    }
-  }
-
-  entity.y = nextY;
-  entity.onGround = grounded;
-}
-
 function runStartTransitionSystem({ state, nowMs }) {
   state.lastUpdate = nowMs;
   syncStartState(state, nowMs);
 }
 
+/** Respawn changes visual continuity, while retained commands keep their ownership. */
+function respawnMarioPlayer(playerState, playerId) {
+  playerState.x = Math.max(START_POSITIONS[playerId].x, playerState.x - 96);
+  playerState.y = START_POSITIONS[playerId].y;
+  playerState.vx = 0;
+  playerState.vy = 0;
+  playerState.onGround = true;
+  playerState.movementEpoch += 1;
+}
+
 function runPlayerSystem({ state, dt }) {
   const raceActive = isRaceActive(state);
-  const solids = TRACK.solids;
-  const worldWidth = TRACK.worldWidth;
-  const finishX = TRACK.finishX;
-  const groundY = TRACK.groundY;
-
-  for (const playerId of ["p1", "p2"]) {
-    const player = state.players[playerId];
-    if (!player) continue;
-
-    if (player.hurtCooldown > 0) {
-      player.hurtCooldown = Math.max(0, player.hurtCooldown - dt);
-    }
-
-    if (!raceActive || !player.connected || player.finished) {
-      player.vx = approach(player.vx, 0, GROUND_FRICTION * dt);
-      player.vy = 0;
-      player.onGround = true;
-      player.input.jumpQueued = false;
-      continue;
-    }
-
-    let moveDir = 0;
-    if (player.input.left && !player.input.right) moveDir = -1;
-    if (player.input.right && !player.input.left) moveDir = 1;
-
-    if (moveDir !== 0) {
-      const accel = player.onGround
-        ? player.input.run
-          ? RUN_ACCEL
-          : WALK_ACCEL
-        : AIR_ACCEL;
-      player.vx += moveDir * accel * dt;
-      player.facing = moveDir;
-    } else {
-      const drag = player.onGround ? GROUND_FRICTION : AIR_DRAG;
-      player.vx = approach(player.vx, 0, drag * dt);
-    }
-
-    const maxSpeed = player.input.run ? MAX_RUN_SPEED : MAX_WALK_SPEED;
-    player.vx = clamp(player.vx, -maxSpeed, maxSpeed);
-
-    if (player.input.jumpQueued && player.onGround) {
-      player.vy = -JUMP_SPEED;
-      player.onGround = false;
-    }
-    player.input.jumpQueued = false;
-
-    player.vy = clamp(player.vy + GRAVITY * dt, -JUMP_SPEED, MAX_FALL_SPEED);
-
-    resolveHorizontalMovement(player, solids, dt);
-    player.x = clamp(player.x, 0, worldWidth - player.width);
-
-    resolveVerticalMovement(player, solids, dt);
-
-    if (player.y > groundY + 260) {
-      player.x = Math.max(START_POSITIONS[playerId].x, player.x - 96);
-      player.y = START_POSITIONS[playerId].y;
-      player.vx = 0;
-      player.vy = 0;
-      player.onGround = true;
-    }
-
-    if (!player.finished && player.x + player.width >= finishX) {
-      player.finished = true;
-      player.finishMs = Date.now();
-      player.vx = 0;
-      player.vy = 0;
+  for (const playerState of Object.values(state.players)) {
+    if (playerState.hurtCooldown > 0) {
+      playerState.hurtCooldown = Math.max(0, playerState.hurtCooldown - dt);
     }
   }
+  marioInputSession.simulateRoom({
+    state,
+    dtSec: dt,
+    simulate: (playerState, inputState, fixedDtSec, playerId) => {
+      const active = raceActive && playerState.connected && !playerState.finished;
+      stepMarioPlayer(playerState, inputState, fixedDtSec, { active });
+      if (!active) return;
+      if (playerState.y > TRACK.groundY + 260) respawnMarioPlayer(playerState, playerId);
+      if (!playerState.finished && playerState.x + playerState.width >= TRACK.finishX) {
+        playerState.finished = true;
+        playerState.finishMs = Date.now();
+        playerState.vx = 0;
+        playerState.vy = 0;
+      }
+    },
+  });
 }
 
 function runEnemySystem({ state, dt, nowMs }) {
@@ -295,7 +204,7 @@ function runEnemySystem({ state, dt, nowMs }) {
     enemy.vy = clamp(enemy.vy + ENEMY_GRAVITY * dt, -ENEMY_MAX_FALL_SPEED, ENEMY_MAX_FALL_SPEED);
 
     const prevVx = enemy.vx;
-    const hitWall = resolveHorizontalMovement(enemy, solids, dt);
+    const hitWall = resolveMarioHorizontalMovement(enemy, solids, dt);
     if (hitWall || enemy.vx === 0) {
       const speed = enemyBaseSpeed(enemy.type);
       const nextDir = prevVx <= 0 ? 1 : -1;
@@ -304,7 +213,7 @@ function runEnemySystem({ state, dt, nowMs }) {
 
     enemy.facing = enemy.vx >= 0 ? 1 : -1;
 
-    resolveVerticalMovement(enemy, solids, dt);
+    resolveMarioVerticalMovement(enemy, solids, dt);
 
     if (enemy.x <= 0 || enemy.x + enemy.width >= worldWidth) {
       const speed = enemyBaseSpeed(enemy.type);
@@ -325,7 +234,7 @@ function runEnemyCollisionSystem({ state, nowMs }) {
   if (!isRaceActive(state)) return;
 
   const players = state.players;
-  for (const playerId of ["p1", "p2"]) {
+  for (const playerId of MARIO_PLAYER_IDS) {
     const player = players[playerId];
     if (!player || !player.connected || player.finished) continue;
 
@@ -347,7 +256,7 @@ function runEnemyCollisionSystem({ state, nowMs }) {
         h: enemy.height,
       };
 
-      if (!intersects(playerRect, enemyRect)) continue;
+      if (!marioRectanglesIntersect(playerRect, enemyRect)) continue;
 
       const playerBottom = player.y + player.height;
       const stomped =
@@ -376,11 +285,7 @@ function runEnemyCollisionSystem({ state, nowMs }) {
       }
 
       player.hurtCooldown = HURT_COOLDOWN_SEC;
-      player.x = Math.max(START_POSITIONS[playerId].x, player.x - 96);
-      player.y = START_POSITIONS[playerId].y;
-      player.vx = 0;
-      player.vy = 0;
-      player.onGround = true;
+      respawnMarioPlayer(player, playerId);
       break;
     }
   }
@@ -446,6 +351,11 @@ function sanitizePlayer(player) {
     finished: player.finished,
     rank: player.rank,
     hurtCooldown: player.hurtCooldown,
+    width: player.width,
+    height: player.height,
+    jumpHeld: player.jumpHeld,
+    movementEpoch: player.movementEpoch,
+    ...marioInputSession.getPlayerSnapshotMetadata(player),
   };
 }
 
@@ -465,8 +375,9 @@ function sanitizeEnemy(enemy) {
   };
 }
 
-function sanitizeStateForClients(state) {
+export function serializeMarioState(state) {
   return {
+    inputProtocol: INPUT_PROTOCOL.QUEUED,
     track: state.track,
     players: {
       p1: sanitizePlayer(state.players.p1),
@@ -493,10 +404,15 @@ function createMarioSystems() {
 function resetRaceStateInPlace(state, { keepConnections = true } = {}) {
   const nextState = createInitialGameState();
   if (keepConnections) {
-    nextState.players.p1.connected = Boolean(state.players?.p1?.connected);
-    nextState.players.p2.connected = Boolean(state.players?.p2?.connected);
-    nextState.players.p1.rejoinToken = state.players?.p1?.rejoinToken || null;
-    nextState.players.p2.rejoinToken = state.players?.p2?.rejoinToken || null;
+    for (const playerId of MARIO_PLAYER_IDS) {
+      const previousPlayer = state.players[playerId];
+      const nextPlayer = nextState.players[playerId];
+      nextPlayer.connected = Boolean(previousPlayer.connected);
+      nextPlayer.rejoinToken = previousPlayer.rejoinToken || null;
+      nextPlayer.inputEpoch = previousPlayer.inputEpoch;
+      nextPlayer.movementEpoch = previousPlayer.movementEpoch + 1;
+      marioInputSession.resetPlayer(nextPlayer);
+    }
   }
 
   state.track = nextState.track;
@@ -511,13 +427,15 @@ function resetRaceStateInPlace(state, { keepConnections = true } = {}) {
 }
 
 function registerMarioWithMeta(io, meta) {
-  registerPluggableGame({
+  return registerPluggableGame({
     io,
     meta,
     createState: createInitialGameState,
     systems: createMarioSystems(),
     onPlayerConnected: (state, playerId) => {
       state.players[playerId].connected = true;
+      marioInputSession.resetPlayer(state.players[playerId]);
+      state.players[playerId].jumpHeld = false;
       state.abandonedAt = null;
       if (state.gameOver) {
         resetRaceStateInPlace(state, { keepConnections: true });
@@ -525,40 +443,23 @@ function registerMarioWithMeta(io, meta) {
       scheduleMarioStart(state);
     },
     handleInput: ({ state, playerId, payload }) => {
-      const player = state.players[playerId];
-      if (!player || !payload || typeof payload !== "object") return;
-
-      const { type, value } = payload;
-      switch (type) {
-        case "left":
-        case "right":
-        case "run":
-          player.input[type] = Boolean(value);
-          break;
-        case "jump":
-          if (value && !player.input.jump) {
-            player.input.jumpQueued = true;
-          }
-          player.input.jump = Boolean(value);
-          break;
-        default:
-          break;
-      }
+      marioInputSession.receiveInput(state.players[playerId], payload);
     },
     handleDisconnect: (state, playerId) => {
       state.players[playerId].connected = false;
+      for (const playerState of Object.values(state.players)) {
+        marioInputSession.resetPlayer(playerState);
+        playerState.jumpHeld = false;
+        playerState.vx = 0;
+        playerState.vy = 0;
+      }
       const otherPlayerId = playerId === "p1" ? "p2" : "p1";
       const bothDisconnected = !state.players[otherPlayerId].connected;
 
-      if (bothDisconnected) {
-        resetRaceStateInPlace(state, { keepConnections: false });
-        state.abandonedAt = Date.now();
-      } else {
-        state.started = false;
-        state.startAt = null;
-        state.rematchRequests = { p1: false, p2: false };
-        state.abandonedAt = null;
-      }
+      state.started = false;
+      state.startAt = null;
+      state.rematchRequests = { p1: false, p2: false };
+      state.abandonedAt = bothDisconnected ? Date.now() : null;
     },
     handleRematch: ({ socket, games, nsp }) => {
       const { gameId, playerId } = socket.data;
@@ -570,7 +471,7 @@ function registerMarioWithMeta(io, meta) {
         state.rematchRequests = { p1: false, p2: false };
       }
       state.rematchRequests[playerId] = true;
-      emitEvent({ socket, gameId, type: "rematchRequested", payload: { playerId }, target: "others" });
+      emitEvent({ socket, gameId, type: SOCKET_EVENT.REMATCH_REQUESTED, payload: { playerId }, target: "others" });
 
       const bothReady =
         state.players.p1.connected &&
@@ -580,28 +481,33 @@ function registerMarioWithMeta(io, meta) {
       if (!bothReady) return;
 
       const nextState = createInitialGameState();
-      nextState.players.p1.connected = state.players.p1.connected;
-      nextState.players.p2.connected = state.players.p2.connected;
-      nextState.players.p1.rejoinToken = state.players.p1.rejoinToken || null;
-      nextState.players.p2.rejoinToken = state.players.p2.rejoinToken || null;
+      for (const playerId of MARIO_PLAYER_IDS) {
+        const previousPlayer = state.players[playerId];
+        const nextPlayer = nextState.players[playerId];
+        nextPlayer.connected = previousPlayer.connected;
+        nextPlayer.rejoinToken = previousPlayer.rejoinToken || null;
+        nextPlayer.inputEpoch = previousPlayer.inputEpoch;
+        nextPlayer.movementEpoch = previousPlayer.movementEpoch + 1;
+        marioInputSession.resetPlayer(nextPlayer);
+      }
       games.set(gameId, nextState);
-      emitEvent({ nsp, gameId, type: "rematchStarted", target: "game" });
+      emitEvent({ nsp, gameId, type: SOCKET_EVENT.REMATCH_STARTED, target: "game" });
     },
     beforeUpdate: scheduleMarioStart,
     shouldCleanup: (state, now) => {
       if (!state.abandonedAt) return false;
       return now - state.abandonedAt > ROOM_CLEANUP_DELAY_MS;
     },
-    serializeState: sanitizeStateForClients,
-    dtFallback: DT,
-    tickMs: 1000 / FPS,
+    serializeState: serializeMarioState,
+    dtFallback: MARIO_FIXED_DT_SEC,
+    tickMs: MARIO_FIXED_DT_SEC * 1000,
   });
 }
 
 export function registerMarioGame(io) {
-  registerMarioWithMeta(io, marioGameMeta);
+  return registerMarioWithMeta(io, marioGameMeta);
 }
 
 export function registerMarioTouchGame(io) {
-  registerMarioWithMeta(io, marioTouchGameMeta);
+  return registerMarioWithMeta(io, marioTouchGameMeta);
 }

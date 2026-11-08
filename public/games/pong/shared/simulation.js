@@ -15,8 +15,9 @@ import { createAxisMovementController } from "../../../platform/shared/simulatio
 /** @type {Readonly<PongInputState>} */
 export const PONG_INPUT_TEMPLATE = Object.freeze({ up: false, down: false });
 export const PONG_FIXED_DT_SEC = 1 / 60;
+export const PONG_ARENA_SETTINGS = Object.freeze({ WIDTH: 1280, HEIGHT: 720 });
 export const PONG_PADDLE_SETTINGS = Object.freeze({
-  HEIGHT: 720,
+  HEIGHT: PONG_ARENA_SETTINGS.HEIGHT,
   PADDLE_HEIGHT: 160,
   SPEED: 900,
 });

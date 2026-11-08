@@ -109,6 +109,25 @@ function readFullSnapshotField(snapshotPacket, fieldPath) {
   return snapshotPacket.v[snapshotPacket.p.indexOf(fieldPath)];
 }
 
+test("Pong advances ball identity on a point without resetting paddle ownership", () => {
+  const session = createPongTestSession();
+  session.connectPlayer();
+  session.connectPlayer();
+  const state = session.getState();
+  state.started = true;
+  state.startAt = null;
+  const previousEpoch = state.players.p1.inputEpoch;
+  const previousServeId = state.ball.serveId;
+  Object.assign(state.ball, { x: 1350, y: 40, vx: 450, vy: 0 });
+  session.advanceSimulation();
+  assert.equal(state.players.p1.score, 1);
+  assert.equal(state.ball.serveId, previousServeId + 1);
+  assert.equal(state.ball.x, 640);
+  assert.equal(state.players.p1.inputEpoch, previousEpoch);
+  const snapshotPacket = session.emitSnapshot();
+  assert.equal(readFullSnapshotField(snapshotPacket, "ball.serveId"), state.ball.serveId);
+});
+
 test("Pong joins and snapshots expose queued input ownership and acknowledgements", () => {
   const session = createPongTestSession();
   const client = session.connectPlayer();

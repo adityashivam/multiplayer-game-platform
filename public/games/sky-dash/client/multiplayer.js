@@ -6,7 +6,7 @@ import { updateConnectionState } from "/platform/frontend-engine/connectionBridg
 import { INPUT_PROTOCOL, SOCKET_EVENT } from "/platform/shared/networkProtocol.js";
 import { SKY_DASH_FIXED_DT_SEC, SKY_DASH_GAME_ID } from "../shared/config.js";
 import { stepSkyDashRunner } from "../shared/simulation.js";
-import { extractSkyDashPositions, stepSkyDashPrediction, composeSkyDashRenderPose } from "./snapshotPose.js";
+import { extractSkyDashPositions, extractSkyDashContinuityKeys, stepSkyDashPrediction, composeSkyDashRenderPose } from "./snapshotPose.js";
 
 const INTERPOLATION_DELAY_MS = 65;
 const MAX_SNAPSHOT_BUFFER_SIZE = 24;
@@ -18,7 +18,7 @@ const MAX_SNAPSHOT_BUFFER_SIZE = 24;
  */
 export function createSkyDashMultiplayerSession(options) {
   const socket = getGameSocket(SKY_DASH_GAME_ID);
-  const interpolator = createWorkerInterpolator({ extractPositions: extractSkyDashPositions, interpDelayMs: INTERPOLATION_DELAY_MS, maxBufferSize: MAX_SNAPSHOT_BUFFER_SIZE });
+  const interpolator = createWorkerInterpolator({ extractPositions: extractSkyDashPositions, extractContinuityKeys: extractSkyDashContinuityKeys, interpDelayMs: INTERPOLATION_DELAY_MS, maxBufferSize: MAX_SNAPSHOT_BUFFER_SIZE });
   let roomConnection = null;
   let disposed = false;
   const networkSession = createNetworkedGameSession({
@@ -34,6 +34,10 @@ export function createSkyDashMultiplayerSession(options) {
         return pose;
       },
       maxSmoothingDistance: 1.2,
+      correctionGroups: [
+        { name: "runner", fields: ["x", "y", "z"], maxSmoothingDistance: 1.2 },
+        { name: "course-clock", fields: ["courseTimeSec"], maxSmoothingDistance: 10 },
+      ],
     },
     readAuthority(snapshot) {
       const playerState = snapshot.players?.[roomConnection?.getPlayerId()];
@@ -46,6 +50,7 @@ export function createSkyDashMultiplayerSession(options) {
         context: {
           active: snapshot.started && !snapshot.gameOver && Object.values(snapshot.players).every((runner) => runner.connected),
           simulationTick: playerState.inputSimulationTick,
+          continuityKey: `${snapshot.roundId}:${playerState.respawnId}`,
           timeSec: snapshot.timeSec,
         },
       };
@@ -58,6 +63,7 @@ export function createSkyDashMultiplayerSession(options) {
       options.controls.reset();
       options.onReset();
     },
+    onInputOwnershipReset: () => options.controls.reset(),
     onDiagnostics: updateConnectionState,
     diagnosticsIntervalMs: 200,
   });
@@ -73,6 +79,7 @@ export function createSkyDashMultiplayerSession(options) {
   });
 
   return {
+    captureAndPredict: () => networkSession.captureAndPredict(),
     samplePose: (options) => networkSession.samplePose(options),
     getSnapshot: () => networkSession.getLatestSnapshot(),
     getPlayerId: () => roomConnection.getPlayerId(),

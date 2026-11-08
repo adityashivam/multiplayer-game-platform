@@ -7,6 +7,7 @@ import {
 } from "../core/index.js";
 import { createAuthoritativeInputSession } from "../core/authoritativeInputSession.js";
 import {
+  PONG_ARENA_SETTINGS,
   PONG_FIXED_DT_SEC,
   PONG_INPUT_TEMPLATE,
   PONG_PADDLE_SETTINGS,
@@ -36,6 +37,7 @@ import { INPUT_PROTOCOL, SOCKET_EVENT } from "../../../public/platform/shared/ne
  * @property {number} vx
  * @property {number} vy
  * @property {number} speed
+ * @property {number} serveId Distinguishes teleported ball resets from continuous travel.
  */
 
 /**
@@ -52,7 +54,7 @@ import { INPUT_PROTOCOL, SOCKET_EVENT } from "../../../public/platform/shared/ne
  * @property {number | null} [abandonedAt]
  */
 
-const WIDTH = 1280;
+const WIDTH = PONG_ARENA_SETTINGS.WIDTH;
 const HEIGHT = PONG_PADDLE_SETTINGS.HEIGHT;
 const PADDLE_W = 26;
 const PADDLE_H = PONG_PADDLE_SETTINGS.PADDLE_HEIGHT;
@@ -70,9 +72,10 @@ const pongInputSession = createAuthoritativeInputSession({
 
 /**
  * @param {number} [initialDir]
+ * @param {number} [serveId=0] Monotonic within a match, including abandoned-room resets.
  * @returns {PongBallState}
  */
-function createPongBall(initialDir = 1) {
+function createPongBall(initialDir = 1, serveId = 0) {
   const angle = (Math.random() * Math.PI) / 3 - Math.PI / 6; // -30deg..+30deg
   const speed = BALL_BASE_SPEED;
   return {
@@ -81,6 +84,7 @@ function createPongBall(initialDir = 1) {
     vx: Math.cos(angle) * speed * initialDir,
     vy: Math.sin(angle) * speed,
     speed,
+    serveId,
   };
 }
 
@@ -119,7 +123,7 @@ function createInitialGameState() {
  * @param {number} [direction]
  */
 function resetPongRound(state, direction = 1) {
-  state.ball = createPongBall(direction);
+  state.ball = createPongBall(direction, state.ball.serveId + 1);
   state.started = true; // keep the match flowing without a new countdown mid-game
   state.startAt = null;
 }
@@ -145,6 +149,7 @@ function serializePongState(state) {
     ball: {
       x: state.ball.x,
       y: state.ball.y,
+      serveId: state.ball.serveId,
     },
     gameOver: state.gameOver,
     winner: state.winner,
@@ -304,7 +309,7 @@ function receivePongPlayerInput({ state, playerId, payload }) {
 function disconnectPongPlayer(state, playerId) {
   const playerState = state.players[playerId];
   playerState.connected = false;
-  pongInputSession.resetPlayer(playerState);
+  for (const ownerState of Object.values(state.players)) pongInputSession.resetPlayer(ownerState);
   const otherPlayerId = playerId === "p1" ? "p2" : "p1";
   const bothDisconnected = !state.players[otherPlayerId].connected;
   if (bothDisconnected) {
@@ -312,7 +317,7 @@ function disconnectPongPlayer(state, playerId) {
     state.startAt = null;
     state.gameOver = false;
     state.winner = null;
-    state.ball = createPongBall();
+    state.ball = createPongBall(1, state.ball.serveId + 1);
     state.rematchRequests = { p1: false, p2: false };
     state.abandonedAt = Date.now();
   } else {

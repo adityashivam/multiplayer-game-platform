@@ -25,7 +25,7 @@ import {
   SOCKET_EVENT,
 } from "/platform/shared/networkProtocol.js";
 import { createInputLatch } from "/platform/frontend-engine/inputTimeline.js";
-import { createPluggablePoseRuntime } from "/platform/frontend-engine/pluggablePoseRuntime.js";
+import { createNetworkedGameRuntime } from "/platform/frontend-engine/networkedGameRuntime.js";
 import {
   createFightAnimationTrack,
   createFightInputController,
@@ -497,11 +497,12 @@ function initControllerNavigation() {
   };
   const pressFightKey = (event) => updateFightKeyboardInput(event, true);
   const releaseFightKey = (event) => updateFightKeyboardInput(event, false);
-  window.addEventListener("keydown", pressFightKey);
-  window.addEventListener("keyup", releaseFightKey);
+  // Capture intent before Kaboom's canvas listener cancels arrow-key navigation.
+  window.addEventListener("keydown", pressFightKey, true);
+  window.addEventListener("keyup", releaseFightKey, true);
   cleanups.push(() => {
-    window.removeEventListener("keydown", pressFightKey);
-    window.removeEventListener("keyup", releaseFightKey);
+    window.removeEventListener("keydown", pressFightKey, true);
+    window.removeEventListener("keyup", releaseFightKey, true);
   });
 
   return () => {
@@ -793,6 +794,7 @@ scene("fight", () => {
     },
     canCaptureInput: (serverSnapshot) => readyToPlay && !document.hidden && !serverSnapshot.gameOver,
     composeRenderPose: (remotePose, localPose) => remotePose ? createFightRenderPose(remotePose, localPose) : null,
+    onInputOwnershipReset: resetLocalInputState,
     onReset: resetFightPresentation,
     onDiagnostics: (sessionStats) => {
       latestNetStats = sessionStats.interpolation ?? {};
@@ -838,21 +840,12 @@ scene("fight", () => {
     };
   }
 
-  const movementRuntime = createPluggablePoseRuntime({
+  const movementRuntime = createNetworkedGameRuntime({
+    session: networkSession,
     fixedDtSec: FIGHT_FIXED_DT_SEC,
     maxFrameSec: 0.08,
     maxFixedSteps: 5,
     targetRenderFps: null,
-    samplePose: (runtimeContext) => {
-      if (!player1 || !player2) {
-        return;
-      }
-
-      return networkSession.samplePose({
-        nowMs: runtimeContext.nowMs,
-        deltaSec: runtimeContext.fixedDtSec,
-      });
-    },
     applyPose: (pose, runtimeContext) => {
       if (!player1 || !player2) return;
       const contactPose = fightRenderContact.sample(pose, {

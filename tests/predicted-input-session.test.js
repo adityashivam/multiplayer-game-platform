@@ -234,6 +234,43 @@ test("a newly attached client predicts beyond simulation time already covered by
   assert.equal(inputSession.getState().distance, 11);
 });
 
+test("a changed movement identity snaps rendering while retaining pending commands and ownership", () => {
+  const { inputSession, receiveAuthority, sentPackets } = createMovementSession();
+  receiveAuthority({ context: { continuityKey: "spawn-1" } });
+  inputSession.captureAndPredict();
+  inputSession.captureAndPredict();
+
+  receiveAuthority({
+    state: { distance: 100, hops: 0 },
+    acknowledgedSequence: 1,
+    context: { continuityKey: "spawn-2" },
+  });
+
+  assert.deepEqual(inputSession.getRenderPose(), { distance: 101 });
+  assert.equal(inputSession.getStats().pendingCommands, 1);
+  assert.equal(inputSession.getStats().lastReplayCount, 1);
+  inputSession.captureAndPredict();
+  assert.equal(sentPackets.at(-1).seq, 3);
+  assert.equal(sentPackets.at(-1).epoch, 7);
+  assert.equal(inputSession.getState().distance, 102);
+});
+
+test("unchanged or temporarily missing movement identity preserves visual correction smoothing", () => {
+  const { inputSession, receiveAuthority } = createMovementSession();
+  receiveAuthority({ context: { continuityKey: 4 } });
+  inputSession.captureAndPredict();
+  receiveAuthority({ state: { distance: 10, hops: 0 }, acknowledgedSequence: 1, context: { continuityKey: 4 } });
+  assert.equal(inputSession.getRenderPose().distance, 1);
+
+  receiveAuthority({ state: { distance: 20, hops: 0 }, acknowledgedSequence: 1 });
+  assert.equal(inputSession.getRenderPose().distance, 1);
+  receiveAuthority({ state: { distance: 30, hops: 0 }, acknowledgedSequence: 1, context: { continuityKey: 4 } });
+  assert.equal(inputSession.getRenderPose().distance, 1);
+
+  receiveAuthority({ state: { distance: 40, hops: 0 }, acknowledgedSequence: 1, context: { continuityKey: 5 } });
+  assert.equal(inputSession.getRenderPose().distance, 40);
+});
+
 for (const { tickRateHz, pauseSteps, movementPerStep } of [
   { tickRateHz: 30, pauseSteps: 3, movementPerStep: 2 },
   { tickRateHz: 60, pauseSteps: 6, movementPerStep: 1 },

@@ -1,5 +1,6 @@
 import { drawGameMeta } from "./metadata.js";
 import { allPlayersConnected, emitEvent, registerGame, scheduleStart } from "../core/index.js";
+import { DRAW_EVENT, DRAW_LIMITS, DRAW_SYNC_INPUT, normalizeDrawPoint, normalizeDrawSize, normalizeDrawColor } from "../../../public/games/draw/shared/drawing.js";
 
 /**
  * @typedef {"p1"|"p2"} DrawPlayerId
@@ -12,6 +13,7 @@ import { allPlayersConnected, emitEvent, registerGame, scheduleStart } from "../
  * @property {number} totalPoints
  * @property {number} nextStrokeSeq
  * @property {{p1:string|null,p2:string|null}} activeStrokeIds
+ * @property {number} revision
  * @property {number} clearVersion
  * @property {boolean} started
  * @property {number|null} startAt
@@ -24,45 +26,12 @@ const CANVAS_WIDTH = 1280;
 const CANVAS_HEIGHT = 720;
 const ROOM_CLEANUP_DELAY_MS = 30000;
 
-const MAX_STROKES = 180;
-const MAX_POINTS_PER_STROKE = 800;
-const MAX_TOTAL_POINTS = 36000;
-
-const DEFAULT_COLORS = {
-  p1: "#38bdf8",
-  p2: "#f97316",
-};
-
-function clamp(value, min, max) {
-  return Math.max(min, Math.min(max, value));
-}
-
-function quantize(value) {
-  return Math.round(value * 10000) / 10000;
-}
-
-function normalizePoint(raw) {
-  const x = Number(raw?.x);
-  const y = Number(raw?.y);
-  if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
-  return {
-    x: quantize(clamp(x, 0, 1)),
-    y: quantize(clamp(y, 0, 1)),
-  };
-}
-
-function normalizeSize(size) {
-  const parsed = Number(size);
-  if (!Number.isFinite(parsed)) return 4;
-  return quantize(clamp(parsed, 1, 24));
-}
-
-function normalizeColor(color, playerId) {
-  if (typeof color === "string" && /^#[0-9a-fA-F]{3,8}$/.test(color.trim())) {
-    return color.trim();
-  }
-  return DEFAULT_COLORS[playerId] || "#ffffff";
-}
+const MAX_STROKES = DRAW_LIMITS.strokes;
+const MAX_POINTS_PER_STROKE = DRAW_LIMITS.pointsPerStroke;
+const MAX_TOTAL_POINTS = DRAW_LIMITS.totalPoints;
+const normalizePoint = normalizeDrawPoint;
+const normalizeSize = normalizeDrawSize;
+const normalizeColor = normalizeDrawColor;
 
 function findStrokeById(state, strokeId) {
   if (!strokeId) return null;
@@ -101,6 +70,7 @@ function createInitialGameState() {
       p2: null,
     },
     clearVersion: 0,
+    revision: 0,
     started: false,
     startAt: null,
     gameOver: false,
@@ -109,7 +79,7 @@ function createInitialGameState() {
   };
 }
 
-/** @param {DrawRoomState} state Drawing values retain the existing wire shapes. */
+/** @param {DrawRoomState} state Compact lifecycle/revision state; history is recovered separately. */
 function serializeStateForClients(state) {
   return {
     started: state.started,
@@ -121,15 +91,23 @@ function serializeStateForClients(state) {
       p2: { connected: Boolean(state.players.p2.connected) },
     },
     clearVersion: state.clearVersion,
-    strokes: state.strokes.map((stroke) => ({
-      id: stroke.id,
-      owner: stroke.owner,
-      color: stroke.color,
-      size: stroke.size,
-      completed: Boolean(stroke.completed),
-      points: stroke.points,
-    })),
+    revision: state.revision,
   };
+}
+
+/**
+ * Send bounded history only for initial/reconnect recovery. Frequent snapshots
+ * carry lifecycle/revision metadata; incremental events carry live drawing.
+ * @param {DrawRoomState} state
+ * @param {import("socket.io").Socket} socket
+ * @returns {void}
+ */
+function sendDrawBoard(state, socket) {
+  socket.emit(DRAW_EVENT.BOARD, {
+    clearVersion: state.clearVersion,
+    revision: state.revision,
+    strokes: state.strokes.map((stroke) => ({ ...stroke, points: stroke.points.map((point) => ({ ...point })) })),
+  });
 }
 
 function createStrokeId(state, playerId, requestedId) {
@@ -145,22 +123,21 @@ function createStrokeId(state, playerId, requestedId) {
   return generated;
 }
 
-function emitDrawEventToOpponent(socket, payload) {
+function emitDrawEvent(state, socket, payload) {
   const gameId = socket?.data?.gameId;
   if (!gameId) return;
-  emitEvent({
-    socket,
-    gameId,
-    type: "drawEvent",
-    payload,
-    target: "others",
-  });
+  state.revision += 1;
+  const drawingEvent = { ...payload, clearVersion: state.clearVersion, revision: state.revision };
+  socket.emit(DRAW_EVENT.STROKE, drawingEvent);
+  emitEvent({ socket, gameId, type: DRAW_EVENT.STROKE, payload: drawingEvent, target: "others" });
 }
 
 function handleStrokeStart({ state, playerId, payload, socket }) {
   const point = normalizePoint(payload?.point || payload);
   if (!point) return;
 
+  // Ordered transport plus stable client IDs makes duplicate starts idempotent.
+  if (typeof payload?.strokeId === "string" && findStrokeById(state, payload.strokeId.trim().slice(0, 64))) return;
   const strokeId = createStrokeId(state, playerId, payload?.strokeId);
   const stroke = {
     id: strokeId,
@@ -176,7 +153,7 @@ function handleStrokeStart({ state, playerId, payload, socket }) {
   state.activeStrokeIds[playerId] = strokeId;
   applyStrokeLimits(state);
 
-  emitDrawEventToOpponent(socket, {
+  emitDrawEvent(state, socket, {
     action: "start",
     strokeId,
     owner: playerId,
@@ -213,7 +190,7 @@ function handleStrokeMove({ state, playerId, payload, socket }) {
   state.totalPoints += 1;
   applyStrokeLimits(state);
 
-  emitDrawEventToOpponent(socket, {
+  emitDrawEvent(state, socket, {
     action: "move",
     strokeId: stroke.id,
     owner: playerId,
@@ -231,7 +208,7 @@ function handleStrokeEnd({ state, playerId, payload, socket }) {
   }
   state.activeStrokeIds[playerId] = null;
 
-  emitDrawEventToOpponent(socket, {
+  emitDrawEvent(state, socket, {
     action: "end",
     strokeId: strokeId || null,
     owner: playerId,
@@ -244,7 +221,7 @@ function handleClear({ state, playerId, socket }) {
   state.activeStrokeIds = { p1: null, p2: null };
   state.clearVersion += 1;
 
-  emitDrawEventToOpponent(socket, {
+  emitDrawEvent(state, socket, {
     action: "clear",
     owner: playerId,
     clearVersion: state.clearVersion,
@@ -252,8 +229,12 @@ function handleClear({ state, playerId, socket }) {
 }
 
 function handleInput({ state, playerId, payload, socket }) {
-  if (!state.started || state.gameOver || !allPlayersConnected(state)) return;
   if (!payload || typeof payload !== "object") return;
+  if (payload.type === DRAW_SYNC_INPUT) {
+    sendDrawBoard(state, socket);
+    return;
+  }
+  if (!state.started || state.gameOver || !allPlayersConnected(state)) return;
 
   const type = payload.type;
   switch (type) {
@@ -306,7 +287,11 @@ export function registerDrawGame(io) {
       state.players[playerId].connected = false;
       state.started = false;
       state.startAt = null;
-      state.activeStrokeIds[playerId] = null;
+      for (const ownerId of ["p1", "p2"]) {
+        const activeStroke = findStrokeById(state, state.activeStrokeIds[ownerId]);
+        if (activeStroke) activeStroke.completed = true;
+        state.activeStrokeIds[ownerId] = null;
+      }
       const otherId = playerId === "p1" ? "p2" : "p1";
       const bothDisconnected = !state.players[otherId].connected;
       state.abandonedAt = bothDisconnected ? Date.now() : null;

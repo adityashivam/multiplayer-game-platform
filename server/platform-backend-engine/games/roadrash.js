@@ -1,21 +1,21 @@
 import { ROOM_START_COUNTDOWN_MS } from "../../../public/platform/shared/roomLifecycle.js";
 import { roadRashGameMeta } from "./metadata.js";
 import { emitEvent, registerPluggableGame, scheduleStart } from "../core/index.js";
+import { createAuthoritativeInputSession } from "../core/authoritativeInputSession.js";
+import { INPUT_PROTOCOL, SOCKET_EVENT } from "../../../public/platform/shared/networkProtocol.js";
+import {
+  ROAD_RASH_EDGE_INPUT_KEYS,
+  ROAD_RASH_FIXED_DT_SEC,
+  ROAD_RASH_INPUT_TEMPLATE,
+  ROAD_RASH_MOVEMENT_SETTINGS,
+  readRoadRashProgress,
+  stepRoadRashRider,
+} from "../../../public/games/roadrash/shared/simulation.js";
 
-const FPS = 60;
-const DT = 1 / FPS;
 const COUNTDOWN_MS = ROOM_START_COUNTDOWN_MS;
 const ROOM_CLEANUP_DELAY_MS = 30000;
 
-const TRACK_LENGTH = 120000;
-const TARGET_LAPS = 10;
-const MAX_SPEED = 28500;
-const ACCEL = 16500;
-const BRAKE_DECEL = 23000;
-const COAST_DECEL = 9000;
-const OFFROAD_DECEL = 18000;
-const STEER_SPEED_BASE = 0.9;
-const STEER_SPEED_GAIN = 1.5;
+const { TRACK_LENGTH, TARGET_LAPS, MAX_SPEED } = ROAD_RASH_MOVEMENT_SETTINGS;
 
 const KICK_COOLDOWN_SEC = 0.7;
 const KICK_ACTIVE_SEC = 0.18;
@@ -39,14 +39,32 @@ const START_LANE = {
   p2: 0.28,
 };
 
-const DEFAULT_INPUT_STATE = {
-  left: false,
-  right: false,
-  throttle: false,
-  brake: false,
-  kickLeft: false,
-  kickRight: false,
-};
+/** @typedef {"p1"|"p2"} RoadRashPlayerId */
+/** @typedef {import("../../../public/games/roadrash/shared/simulation.js").RoadRashInputState} RoadRashInputState */
+/**
+ * @typedef {import("../../../public/games/roadrash/shared/simulation.js").RoadRashRiderState &
+ * import("../core/authoritativeInputSession.js").AuthoritativePlayerInputState<keyof RoadRashInputState> & {
+ *   integrity: number, connected: boolean, finishMs: number|null, rank: number,
+ *   kickCooldown: number, kickTimer: number, kickSide: number,
+ *   kickHitThisSwing: boolean, collisionCooldown: number, rejoinToken?: string|null
+ * }} RoadRashServerRiderState
+ */
+/**
+ * @typedef {{id:string,type:"car",variant:number,x:number,z:number,progress:number,speed:number,phase:number}} RoadRashTrafficState
+ * @typedef {import("../core/authoritativeInputSession.js").AuthoritativeInputRoom<RoadRashPlayerId,RoadRashServerRiderState> & {
+ *   roundId:number,traffic:RoadRashTrafficState[],trackLength:number,lapsRequired:number,
+ *   started:boolean,startAt:number|null,gameOver:boolean,winner:RoadRashPlayerId|"tie"|null,
+ *   rematchRequests:{p1:boolean,p2:boolean},lastUpdate:number,abandonedAt:number|null
+ * }} RoadRashServerState
+ */
+
+/** @type {ReadonlyArray<RoadRashPlayerId>} */
+const ROAD_RASH_PLAYER_IDS = Object.freeze(["p1", "p2"]);
+const roadRashInputSession = createAuthoritativeInputSession({
+  inputTemplate: ROAD_RASH_INPUT_TEMPLATE,
+  edgeKeys: ROAD_RASH_EDGE_INPUT_KEYS,
+  fixedDtSec: ROAD_RASH_FIXED_DT_SEC,
+});
 
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
@@ -68,10 +86,15 @@ function randomChoice(list) {
   return list[Math.floor(Math.random() * list.length)];
 }
 
+/**
+ * @param {number} startLane
+ * @returns {RoadRashServerRiderState}
+ */
 function makePlayer(startLane) {
   return {
     x: startLane,
     z: 0,
+    progress: 0,
     lapsCompleted: 0,
     speed: 0,
     integrity: 100,
@@ -84,10 +107,18 @@ function makePlayer(startLane) {
     kickSide: 0,
     kickHitThisSwing: false,
     collisionCooldown: 0,
-    input: { ...DEFAULT_INPUT_STATE },
+    input: { ...ROAD_RASH_INPUT_TEMPLATE },
+    inputEpoch: 0,
+    inputSimulationTick: 0,
+    lastInputSeqAck: 0,
   };
 }
 
+/**
+ * @param {string} id
+ * @param {number} z
+ * @returns {RoadRashTrafficState}
+ */
 function makeTraffic(id, z) {
   // Keep only two bikes in the race (local + opponent). AI traffic is cars only.
   const type = "car";
@@ -97,6 +128,7 @@ function makeTraffic(id, z) {
     variant: randomChoice([0, 1]),
     x: randomRange(-0.88, 0.88),
     z,
+    progress: z,
     speed: randomRange(TRAFFIC_MIN_SPEED, TRAFFIC_MAX_SPEED),
     phase: randomRange(0, Math.PI * 2),
   };
@@ -113,8 +145,10 @@ function createTrafficField() {
   return traffic;
 }
 
+/** @returns {RoadRashServerState} */
 function createInitialGameState() {
   return {
+    roundId: 1,
     players: {
       p1: makePlayer(START_LANE.p1),
       p2: makePlayer(START_LANE.p2),
@@ -148,9 +182,7 @@ function isRaceActive(state) {
 }
 
 function progressOf(player, trackLength = TRACK_LENGTH) {
-  const laps = Number.isFinite(player?.lapsCompleted) ? player.lapsCompleted : 0;
-  const z = Number.isFinite(player?.z) ? player.z : 0;
-  return laps * trackLength + z;
+  return readRoadRashProgress(player, trackLength);
 }
 
 function tickKickState(player, dt) {
@@ -167,13 +199,9 @@ function tickKickState(player, dt) {
   }
 }
 
-function maybeStartKick(player) {
-  const wantsLeftKick = Boolean(player.input.kickLeft);
-  const wantsRightKick = Boolean(player.input.kickRight);
-
-  // Kick is an impulse action: consume it immediately.
-  player.input.kickLeft = false;
-  player.input.kickRight = false;
+function maybeStartKick(player, inputState) {
+  const wantsLeftKick = Boolean(inputState.kickLeft);
+  const wantsRightKick = Boolean(inputState.kickRight);
 
   if (!wantsLeftKick && !wantsRightKick) return;
   if (player.kickCooldown > 0) return;
@@ -185,66 +213,46 @@ function maybeStartKick(player) {
   player.kickHitThisSwing = false;
 }
 
+/** @param {{state:RoadRashServerState,nowMs:number}} context */
 function runStartTransitionSystem({ state, nowMs }) {
   state.lastUpdate = nowMs;
   syncStartState(state, nowMs);
 }
 
+/** @param {{state:RoadRashServerState,dt:number}} context */
 function runPlayerSystem({ state, dt }) {
   const raceActive = isRaceActive(state);
   const trackLength = state.trackLength || TRACK_LENGTH;
   const lapsRequired = state.lapsRequired || TARGET_LAPS;
 
-  for (const player of [state.players.p1, state.players.p2]) {
-    tickKickState(player, dt);
-    maybeStartKick(player);
-
-    if (player.collisionCooldown > 0) {
-      player.collisionCooldown = Math.max(0, player.collisionCooldown - dt);
-    }
-
-    if (!raceActive || player.finished) {
-      player.speed = Math.max(0, player.speed - COAST_DECEL * dt);
-      continue;
-    }
-
-    if (player.input.throttle && !player.input.brake) {
-      player.speed += ACCEL * dt;
-    } else if (player.input.brake && !player.input.throttle) {
-      player.speed -= BRAKE_DECEL * dt;
-    } else {
-      player.speed -= COAST_DECEL * dt;
-    }
-
-    let steerDir = 0;
-    if (player.input.left && !player.input.right) steerDir = -1;
-    else if (player.input.right && !player.input.left) steerDir = 1;
-
-    if (steerDir !== 0) {
-      const steerSpeed = STEER_SPEED_BASE + (player.speed / MAX_SPEED) * STEER_SPEED_GAIN;
-      player.x += steerDir * steerSpeed * dt;
-    }
-
-    if (player.x < -1 || player.x > 1) {
-      player.speed -= OFFROAD_DECEL * dt;
-    }
-
-    player.speed = clamp(player.speed, 0, MAX_SPEED);
-    player.x = clamp(player.x, -1.2, 1.2);
-
-    player.z += player.speed * dt;
-    while (player.z >= trackLength && !player.finished) {
-      player.z -= trackLength;
-      player.lapsCompleted += 1;
-      if (player.lapsCompleted >= lapsRequired) {
-        player.finished = true;
-        player.speed = 0;
-        if (!Number.isFinite(player.finishMs)) {
-          player.finishMs = Date.now();
-        }
+  roadRashInputSession.simulateRoom({
+    state,
+    dtSec: dt,
+    simulate: (player, inputState, fixedDtSec, _playerId, inputFrame) => {
+      tickKickState(player, fixedDtSec);
+      const hasKickImpulse = inputFrame !== null || player.inputProtocol !== INPUT_PROTOCOL.QUEUED;
+      if (raceActive && player.connected && !player.finished && hasKickImpulse) {
+        maybeStartKick(player, inputState);
       }
-    }
-  }
+      // Kicks are one-shot impulses; a rejected press must not start next step
+      // merely because held throttle subsequently crosses the minimum speed.
+      player.input.kickLeft = false;
+      player.input.kickRight = false;
+
+      if (player.collisionCooldown > 0) {
+        player.collisionCooldown = Math.max(0, player.collisionCooldown - fixedDtSec);
+      }
+
+      stepRoadRashRider(player, inputState, fixedDtSec, {
+        active: raceActive && player.connected,
+        trackLength,
+        lapsRequired,
+      });
+      if (player.finished && !Number.isFinite(player.finishMs)) {
+        player.finishMs = Date.now();
+      }
+    },
+  });
 }
 
 function runTrafficSystem({ state, dt, nowMs }) {
@@ -254,7 +262,8 @@ function runTrafficSystem({ state, dt, nowMs }) {
     const item = state.traffic[i];
     const wobble = Math.sin(nowMs / 1000 + item.phase) * 0.06;
     item.x = clamp(item.x + wobble * dt, -0.92, 0.92);
-    item.z = wrap(item.z + item.speed * dt, TRACK_LENGTH);
+    item.progress = (Number.isFinite(item.progress) ? item.progress : item.z) + item.speed * dt;
+    item.z = wrap(item.progress, state.trackLength || TRACK_LENGTH);
   }
 }
 
@@ -358,10 +367,12 @@ function runRaceRulesSystem({ state }) {
   decideWinner(state);
 }
 
-function sanitizePlayer(player) {
+/** @param {RoadRashServerRiderState} player */
+function serializeRoadRashPlayerState(player) {
   return {
     x: player.x,
     z: player.z,
+    progress: player.progress,
     lapsCompleted: player.lapsCompleted,
     speed: player.speed,
     integrity: player.integrity,
@@ -370,14 +381,22 @@ function sanitizePlayer(player) {
     rank: player.rank,
     kickSide: player.kickSide,
     kickActive: player.kickTimer > 0,
+    ...roadRashInputSession.getPlayerSnapshotMetadata(player),
   };
 }
 
-function sanitizeStateForClients(state) {
+/**
+ * Return owned presentation fields and SDK input metadata; never expose command buffers.
+ * @param {RoadRashServerState} state Borrowed authoritative room; never mutated.
+ * @returns {import("../../../public/games/roadrash/client/networkSession.js").RoadRashSnapshot}
+ */
+export function serializeRoadRashState(state) {
   return {
+    roundId: state.roundId,
+    inputProtocol: INPUT_PROTOCOL.QUEUED,
     players: {
-      p1: sanitizePlayer(state.players.p1),
-      p2: sanitizePlayer(state.players.p2),
+      p1: serializeRoadRashPlayerState(state.players.p1),
+      p2: serializeRoadRashPlayerState(state.players.p2),
     },
     traffic: state.traffic.map((item) => ({
       id: item.id,
@@ -385,6 +404,8 @@ function sanitizeStateForClients(state) {
       variant: item.variant,
       x: item.x,
       z: item.z,
+      progress: item.progress,
+      speed: item.speed,
     })),
     trackLength: state.trackLength,
     lapsRequired: state.lapsRequired,
@@ -407,14 +428,19 @@ function createRoadRashSystems() {
 
 function resetRaceStateInPlace(state, { keepConnections = true } = {}) {
   const nextState = createInitialGameState();
-  if (keepConnections) {
-    nextState.players.p1.connected = Boolean(state.players?.p1?.connected);
-    nextState.players.p2.connected = Boolean(state.players?.p2?.connected);
-    // Preserve rejoin tokens so reconnect flow stays intact.
-    nextState.players.p1.rejoinToken = state.players?.p1?.rejoinToken || null;
-    nextState.players.p2.rejoinToken = state.players?.p2?.rejoinToken || null;
+  nextState.roundId = (state.roundId || 0) + 1;
+  for (const playerId of ROAD_RASH_PLAYER_IDS) {
+    const previousPlayer = state.players[playerId];
+    const nextPlayer = nextState.players[playerId];
+    nextPlayer.inputEpoch = previousPlayer.inputEpoch;
+    roadRashInputSession.resetPlayer(nextPlayer);
+    if (keepConnections) {
+      nextPlayer.connected = previousPlayer.connected;
+      nextPlayer.rejoinToken = previousPlayer.rejoinToken || null;
+    }
   }
 
+  state.roundId = nextState.roundId;
   state.players = nextState.players;
   state.traffic = nextState.traffic;
   state.trackLength = nextState.trackLength;
@@ -425,10 +451,16 @@ function resetRaceStateInPlace(state, { keepConnections = true } = {}) {
   state.winner = nextState.winner;
   state.rematchRequests = nextState.rematchRequests;
   state.lastUpdate = nextState.lastUpdate;
+  state.abandonedAt = null;
 }
 
+/**
+ * Register shared rider movement while keeping traffic, combat and results on the server.
+ * @param {import("socket.io").Server} io
+ * @returns {ReturnType<typeof registerPluggableGame>}
+ */
 export function registerRoadRashGame(io) {
-  registerPluggableGame({
+  return registerPluggableGame({
     io,
     meta: roadRashGameMeta,
     createState: createInitialGameState,
@@ -440,43 +472,31 @@ export function registerRoadRashGame(io) {
       // If a player joins via room link after a finished match, auto-reset so race can start immediately.
       if (state.gameOver) {
         resetRaceStateInPlace(state, { keepConnections: true });
+      } else {
+        roadRashInputSession.resetPlayer(state.players[playerId]);
       }
       scheduleRoadRashStart(state);
     },
     handleInput: ({ state, playerId, payload }) => {
-      const player = state.players[playerId];
-      if (!player || !payload || typeof payload !== "object") return;
-
-      const { type, value } = payload;
-      switch (type) {
-        case "left":
-        case "right":
-        case "throttle":
-        case "brake":
-          player.input[type] = Boolean(value);
-          break;
-        case "kickLeft":
-        case "kickRight":
-          if (value) player.input[type] = true;
-          break;
-        default:
-          break;
-      }
+      roadRashInputSession.receiveInput(state.players[playerId], payload);
     },
     handleDisconnect: (state, playerId) => {
       state.players[playerId].connected = false;
       const otherPlayerId = playerId === "p1" ? "p2" : "p1";
       const bothDisconnected = !state.players[otherPlayerId].connected;
 
-      if (bothDisconnected) {
-        resetRaceStateInPlace(state, { keepConnections: false });
-        state.abandonedAt = Date.now();
-      } else {
-        state.started = false;
-        state.startAt = null;
-        state.rematchRequests = { p1: false, p2: false };
-        state.abandonedAt = null;
+      // A pause invalidates both command streams, including the connected rider's
+      // held throttle and any late kick pulse. Race progress and seat tokens survive.
+      for (const rider of Object.values(state.players)) {
+        roadRashInputSession.resetPlayer(rider);
+        rider.kickTimer = 0;
+        rider.kickSide = 0;
+        rider.kickHitThisSwing = false;
       }
+      state.started = false;
+      state.startAt = null;
+      state.rematchRequests = { p1: false, p2: false };
+      state.abandonedAt = bothDisconnected ? Date.now() : null;
     },
     handleRematch: ({ socket, games, nsp }) => {
       const { gameId, playerId } = socket.data;
@@ -488,7 +508,7 @@ export function registerRoadRashGame(io) {
         state.rematchRequests = { p1: false, p2: false };
       }
       state.rematchRequests[playerId] = true;
-      emitEvent({ socket, gameId, type: "rematchRequested", payload: { playerId }, target: "others" });
+      emitEvent({ socket, gameId, type: SOCKET_EVENT.REMATCH_REQUESTED, payload: { playerId }, target: "others" });
 
       const bothReady =
         state.players.p1.connected &&
@@ -498,20 +518,25 @@ export function registerRoadRashGame(io) {
       if (!bothReady) return;
 
       const nextState = createInitialGameState();
-      nextState.players.p1.connected = state.players.p1.connected;
-      nextState.players.p2.connected = state.players.p2.connected;
-      nextState.players.p1.rejoinToken = state.players.p1.rejoinToken || null;
-      nextState.players.p2.rejoinToken = state.players.p2.rejoinToken || null;
+      nextState.roundId = state.roundId + 1;
+      for (const slotId of ROAD_RASH_PLAYER_IDS) {
+        const previousPlayer = state.players[slotId];
+        const nextPlayer = nextState.players[slotId];
+        nextPlayer.connected = previousPlayer.connected;
+        nextPlayer.rejoinToken = previousPlayer.rejoinToken || null;
+        nextPlayer.inputEpoch = previousPlayer.inputEpoch;
+        roadRashInputSession.resetPlayer(nextPlayer);
+      }
       games.set(gameId, nextState);
-      emitEvent({ nsp, gameId, type: "rematchStarted", target: "game" });
+      emitEvent({ nsp, gameId, type: SOCKET_EVENT.REMATCH_STARTED, target: "game" });
     },
     beforeUpdate: scheduleRoadRashStart,
     shouldCleanup: (state, now) => {
       if (!state.abandonedAt) return false;
       return now - state.abandonedAt > ROOM_CLEANUP_DELAY_MS;
     },
-    serializeState: sanitizeStateForClients,
-    dtFallback: DT,
-    tickMs: 1000 / FPS,
+    serializeState: serializeRoadRashState,
+    dtFallback: ROAD_RASH_FIXED_DT_SEC,
+    tickMs: ROAD_RASH_FIXED_DT_SEC * 1000,
   });
 }

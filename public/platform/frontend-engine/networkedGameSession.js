@@ -39,17 +39,24 @@ const DEFAULT_DIAGNOSTICS_INTERVAL_MS = 120;
  * @property {Omit<import("./predictedInputSession.js").PredictedInputSessionConfig<State, InputState, string, PredictionContext>, "sendInput">} [prediction]
  * @property {(snapshot: Snapshot) => (import("./predictedInputSession.js").PlayerAuthority<State, PredictionContext>|null)} [readAuthority]
  *   Required with prediction. Return null while local ownership is unavailable.
- * @property {(remotePose: Record<string, number>|null, localPose: Record<string, number>|null, snapshot: Snapshot|null) => RenderPose} [composeRenderPose]
- *   Combine game poses without mutating retained snapshots or the remote pose.
+ * @property {(remotePose: Record<string, number>|null, localPose: Record<string, number>|null, snapshot: Snapshot|null, predictedState: Readonly<State>|null) => RenderPose} [composeRenderPose]
+ *   Combine poses without mutating snapshots, remote poses or the borrowed prediction
+ *   state. Use predictedState for discrete animation/serve identities; extractPose
+ *   should contain only continuous fields that may absorb correction offsets.
  * @property {(snapshot: Snapshot) => boolean} [canCaptureInput]
  * @property {(resetOptions: {preserveSequence: boolean}) => void} [onReset]
+ * @property {(ownershipReset: {previousEpoch: number, inputEpoch: number}) => void} [onInputOwnershipReset]
+ *   Reset game input latches after an accepted ownership change. Initial or
+ *   missing epochs do not notify; fresh authority and interpolation are retained.
  * @property {(sessionStats: NetworkedSessionStats) => void} [onDiagnostics]
  * @property {number} [diagnosticsIntervalMs=120] Positive interval for connection metrics and diagnostics callbacks.
  */
 
 /**
  * Own socket subscriptions, optional local prediction, and interpolation sampling.
- * Call samplePose once per game simulation step; it captures at most one command.
+ * Call captureAndPredict once per game simulation step, then samplePose with
+ * captureInput:false once per render. Legacy callers may use samplePose alone
+ * once per simulation step; it captures one command by default.
  * Destroy removes only this session's subscriptions and stops its prediction;
  * the supplied socket and interpolator remain usable by their owner.
  *
@@ -71,6 +78,8 @@ export function createNetworkedGameSession(sessionConfig) {
   /** @type {Snapshot|null} */
   let latestSnapshot = null;
   let hasCurrentAuthority = false;
+  /** @type {number|undefined} */
+  let lastAcceptedInputEpoch;
   let disposed = false;
   /** @type {number|null} */
   let lastDiagnosticsAtMs = null;
@@ -100,6 +109,9 @@ export function createNetworkedGameSession(sessionConfig) {
     interpolator.reset();
     latestSnapshot = null;
     hasCurrentAuthority = false;
+    if (!preserveSequence) {
+      lastAcceptedInputEpoch = undefined;
+    }
     sessionConfig.onReset?.({ preserveSequence });
   }
 
@@ -121,6 +133,14 @@ export function createNetworkedGameSession(sessionConfig) {
     }
     if (predictionSession.receiveAuthority(playerAuthority)) {
       hasCurrentAuthority = true;
+      const inputEpoch = playerAuthority.inputEpoch;
+      if (Number.isSafeInteger(inputEpoch) && inputEpoch >= 0) {
+        const previousEpoch = lastAcceptedInputEpoch;
+        lastAcceptedInputEpoch = inputEpoch;
+        if (previousEpoch !== undefined && previousEpoch !== inputEpoch) {
+          sessionConfig.onInputOwnershipReset?.({ previousEpoch, inputEpoch });
+        }
+      }
     }
   }
 
@@ -156,12 +176,28 @@ export function createNetworkedGameSession(sessionConfig) {
   }
 
   /**
+   * Capture one fixed command when connected and current game ownership permits it.
+   * Render-only sampling uses the same state but never captures another command.
+   * @returns {import("./inputTimeline.js").InputCommandFrame<InputState>|null}
+   */
+  function captureAndPredict() {
+    if (disposed || !predictionSession || !hasCurrentAuthority || latestSnapshot === null ||
+        !socket.isConnected() ||
+        (sessionConfig.canCaptureInput && !sessionConfig.canCaptureInput(latestSnapshot))) {
+      return null;
+    }
+    return predictionSession.captureAndPredict();
+  }
+
+  /**
    * Sample remote playback, optionally send/predict one command, and compose presentation.
    * The caller supplies its render clock and elapsed time; command duration stays fixed.
-   * @param {{nowMs?: number, deltaSec?: number}} [sampleOptions]
+   * @param {{nowMs?: number, deltaSec?: number, captureInput?: boolean, interpolationAlpha?: number}} [sampleOptions]
+   *   Pass the runtime's fixed-step alpha to interpolate local continuous poses.
+   *   Discrete state passed to composeRenderPose always uses the current command.
    * @returns {RenderPose|Record<string, number>|null}
    */
-  function samplePose({ nowMs = performance.now(), deltaSec = 0 } = {}) {
+  function samplePose({ nowMs = performance.now(), deltaSec = 0, captureInput = true, interpolationAlpha = 1 } = {}) {
     if (disposed) return null;
 
     const connectionMetrics = getCachedConnectionMetrics(nowMs);
@@ -173,15 +209,14 @@ export function createNetworkedGameSession(sessionConfig) {
       packetLossPct: connectionMetrics.packetLossPct ?? undefined,
     });
 
-    if (predictionSession && hasCurrentAuthority && latestSnapshot !== null && socket.isConnected() &&
-        (!sessionConfig.canCaptureInput || sessionConfig.canCaptureInput(latestSnapshot))) {
-      predictionSession.captureAndPredict();
+    if (captureInput) {
+      captureAndPredict();
     }
-    const localPose = hasCurrentAuthority ? predictionSession?.getRenderPose(deltaSec) ?? null : null;
+    const localPose = hasCurrentAuthority ? predictionSession?.getRenderPose(deltaSec, interpolationAlpha) ?? null : null;
     publishDiagnosticsWhenDue(nowMs);
 
     return sessionConfig.composeRenderPose
-      ? sessionConfig.composeRenderPose(remotePose, localPose, latestSnapshot)
+      ? sessionConfig.composeRenderPose(remotePose, localPose, latestSnapshot, hasCurrentAuthority ? predictionSession?.getState() ?? null : null)
       : remotePose;
   }
 
@@ -194,6 +229,7 @@ export function createNetworkedGameSession(sessionConfig) {
   ];
 
   return {
+    captureAndPredict,
     samplePose,
     getStats,
     /** @returns {Snapshot|null} Retained snapshot reference; callers must not mutate it. */
