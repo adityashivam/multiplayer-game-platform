@@ -1,4 +1,5 @@
 import { emitEvent } from "./events.js";
+import { createRoomLifecycleMetadata } from "../../../public/platform/shared/roomLifecycle.js";
 import {
   NETWORK_TIMING,
   SNAPSHOT_KIND,
@@ -153,7 +154,7 @@ function ensureStateSeq(state) {
   return state.__netSeq;
 }
 
-function decorateStatePayload(payload, state, now, tickMs, roomClock, loopLagMs) {
+function decorateStatePayload(payload, state, now, tickMs, roomClock, loopLagMs, roomId) {
   if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
     return payload;
   }
@@ -172,6 +173,7 @@ function decorateStatePayload(payload, state, now, tickMs, roomClock, loopLagMs)
       serverTime: Number.isFinite(existingNet.serverTime) ? existingNet.serverTime : now,
       tickRate: Number.isFinite(existingNet.tickRate) ? existingNet.tickRate : tickRate,
       simTick: roomClock.simTick,
+      room: createRoomLifecycleMetadata(state, roomId),
       server: {
         eventLoopLagMs: roundTo(loopLagMs, 2),
         tickDriftMs: roundTo(roomClock.accumulatorMs, 2),
@@ -421,7 +423,7 @@ export function tickGames({
 
     if (serializeState) {
       let snapshotPayload = serializeState(gameState);
-      snapshotPayload = decorateStatePayload(snapshotPayload, gameState, nowMs, tickMs, roomClock, loopLagMs);
+      snapshotPayload = decorateStatePayload(snapshotPayload, gameState, nowMs, tickMs, roomClock, loopLagMs, gameId);
       snapshotPayload = packStatePayload(gameState, snapshotPayload);
       if (snapshotPayload != null) {
         emitEvent({ nsp, gameId, type: stateEvent, payload: snapshotPayload, target: "game" });

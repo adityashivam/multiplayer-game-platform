@@ -1,4 +1,5 @@
 import { isSupportedPlayerSlotId } from "../../../public/platform/shared/gameIdentifiers.js";
+import { ROOM_START_COUNTDOWN_MS } from "../../../public/platform/shared/roomLifecycle.js";
 
 /**
  * @typedef {object} RoomPlayerState
@@ -13,6 +14,7 @@ import { isSupportedPlayerSlotId } from "../../../public/platform/shared/gameIde
  * @property {boolean} [started]
  * @property {boolean} [gameOver]
  * @property {number|null} [startAt]
+ * @property {{scheduledStartAtMs:number,countdownDurationMs:number}} [__roomStart] Platform-owned timing retained after startAt is cleared.
  */
 
 /**
@@ -57,16 +59,17 @@ export function bothPlayersConnected(state, playerIds) {
  * Schedule a ready room once; the game callback may prepare its countdown state.
  * @template {RoomState} GameState
  * @param {GameState} state Mutated in place.
- * @param {number} countdownMs
+ * @param {number} [countdownMs=5000]
  * @param {(state: GameState) => void} [onScheduleStart]
  * @param {readonly string[]} [playerIds]
  * @returns {void}
  */
-export function scheduleStart(state, countdownMs, onScheduleStart, playerIds) {
+export function scheduleStart(state, countdownMs = ROOM_START_COUNTDOWN_MS, onScheduleStart, playerIds) {
   if (!state.started && !state.gameOver && !state.startAt && allPlayersConnected(state, playerIds)) {
     if (onScheduleStart) {
       onScheduleStart(state);
     }
     state.startAt = Date.now() + countdownMs;
+    state.__roomStart = { scheduledStartAtMs: state.startAt, countdownDurationMs: countdownMs };
   }
 }

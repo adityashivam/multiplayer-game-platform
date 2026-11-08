@@ -6,8 +6,10 @@ import { marioTouchPresentation } from "../../../games/mario-touch/catalog.js";
 import { drawPresentation } from "../../../games/draw/catalog.js";
 import { webglSamplePresentation } from "../../../games/webgl-sample/catalog.js";
 import { deadShiftPresentation, deadShiftTouchControls } from "../../../games/dead-shift/catalog.js";
+import { skyDashPresentation, skyDashTouchControls } from "../../../games/sky-dash/catalog.js";
 
 export const gameTitles = {
+  "sky-dash": "Sky Dash",
   "dead-shift": "Dead Shift",
   fight: "Kaboom Fight",
   pong: "Kaboom Pong",
@@ -39,6 +41,19 @@ function makeWebglRuntime(id) {
 }
 
 export const fallbackGames = [
+  {
+    id: "sky-dash",
+    name: "Sky Dash",
+    description: "Jump, dash and dive through a sky-high obstacle race. Two friends, three bots, one crown.",
+    presentation: skyDashPresentation,
+    touchControls: skyDashTouchControls,
+    path: "/games/sky-dash",
+    engine: "webgl",
+    runtime: { kind: "module", mount: "canvas", entryUrl: "/games/sky-dash/dist/main.js", socketIo: true, kaboom: false },
+    tags: ["Racing", "2 players", "3D", "Platformer"],
+    startInLandscape: true,
+    platformControlButtons: true,
+  },
   {
     id: "dead-shift",
     name: "Dead Shift",

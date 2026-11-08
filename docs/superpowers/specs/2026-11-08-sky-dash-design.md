@@ -1,0 +1,17 @@
+# Sky Dash
+
+Build an original third-person 3D obstacle racer for two human players and three server-controlled bots. Players share the same course, see each other and race for ninety seconds. Finish times rank ahead of checkpoint progress; the round ends when both humans finish or time expires. Bots participate in the overall standings. Human capacity and bot count are game configuration, with bots separate from socket seats. Start with one polished course rather than several incomplete maps.
+
+The camera follows behind the runner looking down the course. Forward is negative Z, Y is up, positions are in meters and player Y is the bottom of the collider. Movement works with WASD/arrows, the standard shell left stick/D-pad, and the platform's customizable touch controls. A/Space jumps, B/Shift dashes, X/E dives; Y/R resets the camera. Camera control is optional. Starting play never changes the browser orientation, fullscreen state or outer shell.
+
+Responsive movement uses acceleration, air control, jump buffering and coyote time. Platform geometry, grounded support, moving-platform carry and bounded collision substeps belong to a focused configurable platform controller. Game-owned rules add dash, dive, obstacle impulses, brief hit recovery, progress, checkpoints and quick fall respawns. Bots use those same rules and controller. Server authority decides contacts, progress and results. Client prediction/reconciliation and remote interpolation use the existing network session SDK. No game-specific branches enter reusable engines.
+
+The course has wide introductory decks with jumpable rotating sweepers, moving stepping stones, swinging bumpers, an advancing finish runway and clear checkpoint gates. Obstacles have analytic time-based motion shared by simulation and rendering. All racers and snapshot leaves exist from the initial state. Counts, event history and simulation catch-up stay bounded. Pausing/rejoining retains course time, checkpoints and results; a rematch increments round identity and clears movement/actions/events.
+
+**Visual thesis:** a sunlit sky playground built from rounded candy-colored athletic obstacles, with expressive original toy-like racers and soft floating clouds.
+
+**Content plan:** the actual 3D course dominates the screen; a small race clock and position line orient the player; concise checkpoint/action feedback confirms progress; platform-owned invite, diagnostics and results retain existing dark/cyan chrome.
+
+**Interaction thesis:** anticipation and squash on jumps, a distinct stretched dive versus rolling tumble on impact, and a gently damped follow camera that snaps safely after a respawn. Render animation runs independently of authoritative physics. Reduced-motion preferences soften camera/effects. Quality profiles bound resolution, shadows and particles.
+
+Use existing Three.js, no new dependencies or hosted asset requirements. The first release is an arcade kinematic racer, not a general rigid-body/ragdoll simulation. Physics correctness means stable landing/carry, solid obstacle response, bounded impulses, no persistent interpenetration, fair checkpoints and identical bot/human movement rules. Verify those properties with pure simulation tests, room lifecycle integration and actual multi-client browser tests. Test shell and touch controls, falls/respawns, results/rematch/rejoin, and cleanup. Report measured limits without presenting a local session as a hosting capacity benchmark.

@@ -1,0 +1,28 @@
+.countdown {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 152px;
+  height: 152px;
+  outline: none;
+  margin: 23px auto 21px;
+
+  svg { position: absolute; inset: 0; width: 100%; height: 100%; transform: rotate(-90deg); }
+  circle { fill: none; stroke-width: 3; }
+  strong { color: var(--platform-accent, #00cee6); font: 600 72px/1 var(--platform-font-heading); font-variant-numeric: tabular-nums; animation: countIn 180ms ease-out; }
+}
+.track { stroke: var(--platform-border); }
+.progress { stroke: var(--platform-accent, #00cee6); stroke-linecap: round; transition: stroke-dashoffset 700ms linear; }
+.readiness { display: flex; align-items: center; justify-content: center; gap: 8px; color: var(--platform-text); font-size: 12px; }
+.readiness i { width: 7px; height: 7px; border-radius: 50%; background: var(--platform-text-muted); }
+.readiness .ready { background: var(--platform-accent, #00cee6); box-shadow: 0 0 16px #00cee644; }
+.startHint { color: var(--platform-text-muted); text-align: center; font-size: 11px; line-height: 1.6; margin: 10px 0 22px; }
+.waitingMark { width: 78px; height: 78px; margin: 25px auto; display: grid; place-items: center; border: 1px solid var(--platform-border); border-radius: 50%; background: #00cee609; color: var(--platform-accent, #00cee6); }
+.waitingMark span { font-size: 30px; }
+.goCue { position: absolute; inset: 0; z-index: 5; display: flex; flex-direction: column; align-items: center; justify-content: center; pointer-events: none; color: var(--platform-accent, #00cee6); text-shadow: 0 4px 28px #04151c; font-family: var(--platform-font-body); animation: goIn 160ms ease-out; }
+.goCue strong { font: 700 clamp(45px, 9vw, 110px)/1 var(--platform-font-heading); letter-spacing: -.06em; }
+.goCue span { color: #fff; font-weight: 700; font-size: 14px; margin-top: 10px; }
+@keyframes countIn { from { opacity: .5; transform: scale(.88); } to { opacity: 1; transform: scale(1); } }
+@keyframes goIn { from { opacity: 0; transform: scale(.85); } to { opacity: 1; transform: scale(1); } }
+@media (max-height: 450px) { .countdown { width: 100px; height: 100px; margin: 10px auto; } .countdown strong { font-size: 48px; } .waitingMark { margin: 12px auto; width: 54px; height: 54px; } .startHint { margin-bottom: 12px; } }
+@media (prefers-reduced-motion: reduce) { .countdown strong, .goCue { animation: none; } .progress { transition: none; } }

@@ -114,7 +114,6 @@ const FIGHT_EXTRAPOLATE_MS = 10;
 const FIGHT_SNAPSHOT_BUFFER_SIZE = 32;
 const FIGHT_MAX_SMOOTHING_DISTANCE = 250;
 const LOCAL_NET_HUD_ENABLED = false;
-let shareModalShown = false;
 let toggleNetworkDiagnostics = () => {};
 let cleanupNetworkDiagnostics = () => {};
 let destroyFightNetworkSession = () => {};
@@ -299,11 +298,6 @@ function setRoomLink(url) {
   roomUrl = url;
 }
 
-function openShareModalOnce() {
-  if (shareModalShown) return;
-  shareModalShown = true;
-  openShareModal();
-}
 
 function setupCopyButton() {
   // no-op; share UI removed
@@ -403,7 +397,6 @@ function announceRoomReady(roomId) {
   window.dispatchEvent(
     new CustomEvent(ROOM_READY_EVENT, { detail: { gameId: GAME_SLUG, roomId } }),
   );
-  openShareModalOnce();
 }
 
 function announceOpponentJoined() {

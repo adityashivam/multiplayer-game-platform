@@ -1,10 +1,11 @@
+import { ROOM_START_COUNTDOWN_MS } from "../../../public/platform/shared/roomLifecycle.js";
 import { marioGameMeta, marioTouchGameMeta } from "./metadata.js";
 import { emitEvent, registerPluggableGame, scheduleStart } from "../core/index.js";
 import { buildOneOneTrack } from "../../../public/games/mario/levelData.js";
 
 const FPS = 60;
 const DT = 1 / FPS;
-const COUNTDOWN_MS = 3000;
+const COUNTDOWN_MS = ROOM_START_COUNTDOWN_MS;
 const ROOM_CLEANUP_DELAY_MS = 30000;
 
 const TRACK = buildOneOneTrack();

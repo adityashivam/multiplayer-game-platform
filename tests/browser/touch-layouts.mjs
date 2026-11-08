@@ -208,8 +208,6 @@ try {
     await waitFor(id, "touchProbe.last");
     await evaluate(id, "[...document.querySelectorAll('[aria-modal=true] button')].find(button=>button.textContent.includes('Back to game'))?.click();");
     await sleep(160);
-    await click(id, ".ds-enter");
-    await evaluate(id, "document.exitPointerLock?.();");
   }
   await attachProbe(p1);
   const roomUrl = await evaluate(p1, "return location.href;");
@@ -217,6 +215,11 @@ try {
   await waitFor(p2, "document.querySelector('[data-dead-shift-hud]')");
   await attachProbe(p2);
   await waitFor(p1, "touchProbe.last.started&&!document.querySelector('[aria-modal=true]')");
+  await waitFor(p2, "touchProbe.last.started&&!document.querySelector('[aria-modal=true]')");
+  for (const page of [p1, p2]) {
+    await click(page, "#game-canvas");
+    await evaluate(page, "document.exitPointerLock?.();");
+  }
   await send("Emulation.setTouchEmulationEnabled", { enabled: true, maxTouchPoints: 5 }, p1);
   const playArea = await evaluate(p1, "return{presentation:document.querySelector('[data-platform-presentation]').dataset.platformPresentation,canvas:document.querySelector('#game-canvas').getBoundingClientRect().toJSON(),fullscreen:Boolean(document.fullscreenElement)};");
   assert.equal(playArea.presentation, "expanded");

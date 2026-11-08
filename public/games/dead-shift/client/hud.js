@@ -110,7 +110,7 @@ export function createDeadShiftHud({ host, onEnter, onSelectWeapon, onMute }) {
     },
     /** Update authoritative readouts at ten Hz; crosshair feedback remains render-smooth. */
     update({ snapshot, playerId, weapon, engaged, nowMs, pointerLocked, blocked, platformTouchActive = false }) {
-      hud.classList.toggle("ds-entered", engaged);
+      hud.classList.toggle("ds-entered", engaged || Boolean(snapshot?.startAt || snapshot?.started));
       hud.classList.toggle("ds-blocked", blocked);
       hud.classList.toggle("ds-captured", pointerLocked);
       hud.classList.toggle("ds-hit", nowMs < hitUntilMs);
@@ -160,9 +160,7 @@ export function createDeadShiftHud({ host, onEnter, onSelectWeapon, onMute }) {
         fields.roomStatus.textContent = roundInProgress ? "Rival disconnected · Round paused" : "Waiting for rival · START to invite";
         centerStatus = roundInProgress ? "ROUND PAUSED\nWaiting for your rival" : "WAITING FOR RIVAL\nSTART to share this room";
       } else if (!snapshot.started) {
-        const seconds = snapshot.startAt ? Math.max(1, Math.ceil((snapshot.startAt - Date.now()) / 1000)) : 3;
         fields.roomStatus.textContent = "Containment doors opening";
-        centerStatus = `GET READY\n${seconds}`;
       } else if (playerState?.health <= 0) {
         fields.roomStatus.textContent = "Operator down · Score preserved";
         centerStatus = `RESPAWNING\n${Math.max(1, Math.ceil(playerState.respawnRemaining))}`;

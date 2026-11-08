@@ -1,5 +1,10 @@
 # Game developer SDK
 
+Sky Dash is a third-person 3D integration using the same room, queued-input,
+prediction, touch layout and shell control contracts as the existing games.
+See [its package guide](../public/games/sky-dash/README.md) for controls, game
+configuration and two-human/three-bot capacity boundaries.
+
 The platform provides transport, room allocation, scheduling, input queues, snapshots, optional prediction/reconciliation, interpolation and diagnostics. A game supplies configuration, graphics and its own rules. Common movement and action mechanics can use platform controllers; custom simulation callbacks remain available.
 
 This is a trusted, in-process plugin contract. Loading uploaded third-party server code requires a separate isolation/hosting design. Registering a callback here does not create a sandbox.
@@ -234,6 +239,93 @@ const networkSession = createNetworkedGameSession({
 
 `socket` is the `getGameSocket(namespace)` facade. `localPlayerId` comes from its `gameJoined` event; game UI may also need that ID for labels and scoring. `interpolator` is created with `createWorkerInterpolator({extractPositions,extractVelocities?,interpDelayMs?,maxBufferSize?})`, using selectors appropriate to the game's snapshot shape. `controls` can use `createInputLatch(template,{edgeKeys,numericInputs})` so short boolean action presses survive between captures while numeric controls retain their magnitudes.
 
+### Shared room connection
+
+Use `createGameRoomConnection` alongside `createNetworkedGameSession` for games
+with standard `/games/<gameId>/<roomId>` routes. It owns room creation, URL
+publication, in-flight request deduplication and per-tab rejoin-token storage.
+It subscribes before joining, ignores stale joins for other rooms and cancels
+pending creation on disposal. The supplied socket remains caller-owned.
+
+```js
+import { createGameRoomConnection } from "/platform/frontend-engine/gameRoomConnection.js";
+
+const roomConnection = createGameRoomConnection({
+  gameId: "my-racer",
+  socket,
+  onJoined: ({ playerId }) => showAssignedRunner(playerId),
+  onError: (message, retry) => showConnectionError(message, retry),
+  onRematchRequested: () => showRematchOffer(),
+});
+// Read current ownership in the session's readAuthority callback.
+const localPlayerId = roomConnection.getPlayerId();
+// On explicit user action:
+roomConnection.requestRematch();
+// On runtime disposal, before destroying the socket:
+roomConnection.dispose();
+```
+
+`gameId` uses the registered identifier alphabet. Optional `roomFullMessage`
+customizes capacity feedback without assuming two players. Optional `storage`
+can supply a Storage-compatible object or `null` to disable persistence;
+`windowRef` and `fetchRoom` permit tests or embedding. Token access failures
+allow the current connection to continue. Automatic socket reconnection,
+bounded recovery and input epochs stay in the existing transport/input SDK.
+Dead Shift and Sky Dash use this component with different input schemas.
+
+### Platform readiness, invites and countdown
+
+For a standard module runtime declaring `socketIo: true`, the transport publishes
+a versioned `snapshot.net.room` contract independently
+of gameplay subscriptions and asset loading. The standard shell consumes this
+metadata automatically. Game packages must not automatically open an invite on
+room assignment or implement a second platform countdown. Manual invite actions
+remain available through the existing share bridge.
+
+```js
+import { scheduleStart } from "../core/index.js";
+import { ROOM_START_COUNTDOWN_MS } from "../../../public/platform/shared/roomLifecycle.js";
+
+function beforeUpdate(roomState) {
+  scheduleStart(roomState, ROOM_START_COUNTDOWN_MS);
+  if (!roomState.started && roomState.startAt !== null && Date.now() >= roomState.startAt) {
+    roomState.started = true;
+    roomState.startAt = null;
+  }
+}
+```
+
+The room state declares human `players` with `connected`, plus `started`,
+`startAt` and `gameOver`. `scheduleStart` schedules once after all configured
+human slots connect; its duration defaults to 5000 ms and remains an explicit
+parameter for custom rules. All bundled multiplayer games use that shared
+default, including Draw. Game input and simulation must remain inactive until
+authority starts. On disconnect, pause the round and clear `startAt` so a
+returning player gets a fresh shared countdown; preserve game progress.
+
+Metadata has `{ apiVersion: 1, roomId, phase, startAtMs, countdownDurationMs,
+connectedPlayers, requiredPlayers }`, with phase `waiting`, `countdown`,
+`playing` or `finished`. Bots outside the human ownership table do not consume
+seats. The transport adds `net.serverTime` and owns synchronization; clients use
+a monotonic local anchor with bounded latency adjustment, so device wall-clock
+skew and delayed ordered packets cannot rewind a countdown. Only an authoritative
+playing packet produces GO; expiration of a local timer never starts a game.
+
+Opening `/games/<id>` establishes new-room creator intent; after the room link
+exists, its creator gets one automatic invitation while waiting. A direct shared
+room URL joins without that invitation. Readiness, GO, terminal capacity errors,
+modal focus and shell stability are platform-owned. Single-player/non-networked
+packages keep their existing presentation. A terminal room-full error replaces
+joining or an already open invitation, while transient owned-seat overlap still
+uses the SDK's bounded recovery.
+
+Prefer the unsubscribe function returned by `socket.onEvent` for cleanup.
+`offEvent(event)` clears game subscribers for that event; transport-owned
+decoding, lifecycle and connection listeners remain active until socket disposal.
+The shell subscribes to the room lifecycle bridge without creating another socket.
+Non-networked and independently embedded runtimes are not forced into this flow;
+an iframe/other external runtime needs an explicit lifecycle adapter.
+
 ### Numeric controls and platform analog sticks
 
 Declare every numeric field with `{min,max,integer?}`. Templates contain the neutral state restored on reset, including nonzero numbers such as an initial weapon selection. Reuse the same template/ranges in the browser latch, authoritative session, and `meta.networking.inputTemplate` / `meta.networking.numericInputs` so advertised capabilities agree with command validation.
@@ -314,3 +406,82 @@ npm run net:probe -- --url http://localhost:3000 --game pong --seconds 30
 ```
 
 The probe reads the selected game's public capabilities. It alternates the first two boolean controls and preserves every numeric template value; use a game-owned diagnostic for a specific analog movement pattern. Set `inputProtocol` and `inputTemplate` to null and omit `numericInputs` for snapshot/RTT-only diagnostics; continuous input is not forced on other game types. Probe limits bound a single diagnostic match. Tests also verify arbitrary player slots, configurable cadence, SDK lifecycle/ownership, alternate controller bindings and that platform runtime bundles have no concrete game-package dependencies.
+
+## Upright 3D character movement
+
+`/platform/shared/kinematicCharacter.js` exports `createKinematicCharacterController(settings)` for pure browser/server movement against translating platforms with axis-aligned X/Z bounds and optional sloped tops. Coordinates use world units, positive Y up, X/Z at the character's horizontal center, and Y at the bottom of its cylinder. Games own obstacles, damage, abilities, checkpoints and results; the controller owns acceleration, gravity, jump edges, support, platform carry and solid contact.
+
+```js
+import {
+  createKinematicCharacterController,
+  getKinematicPlatformTopY,
+  resolveKinematicCharacterSeparation,
+} from "/platform/shared/kinematicCharacter.js";
+
+const characterController = createKinematicCharacterController({
+  radius: 0.4,
+  height: 1.4,
+  moveSpeed: 8,
+  jumpSpeed: 9,
+  gravity: 24,
+});
+const body = {
+  x: 0, y: 0, z: 0,
+  vx: 0, vy: 0, vz: 0,
+  grounded: true, supportId: 1,
+  coyoteSec: 0, jumpBufferSec: 0, jumpHeld: false,
+};
+const platforms = [{
+  id: 1, x: 0, z: 0,
+  width: 8, depth: 12, topY: 0, thickness: 1,
+  vx: 0, vy: 0, vz: 0,
+}];
+
+characterController.step(body, { x: 0, z: -0.5, jump: false }, 1 / 60, {
+  platforms,
+  controlScale: 1,
+  speedScale: 1,
+});
+
+// Pass only active actors; revalidate world contacts after positional push-outs.
+const activeCharacters = [body];
+resolveKinematicCharacterSeparation(activeCharacters, { radius: 0.4, height: 1.4, iterations: 12 });
+characterController.step(body, { x: 0, z: 0, jump: false }, 0, { platforms });
+```
+
+Settings are copied and validated at construction. Dimensions, `moveSpeed`, `jumpSpeed` and `maxDtSec` must be finite and positive; acceleration, braking, gravity and grace durations may be zero. The optional settings are:
+
+| Setting | Default | Meaning |
+| --- | --- | --- |
+| `radius`, `height` | `0.42`, `1.5` | Upright cylinder dimensions. |
+| `moveSpeed` | `8` | Full-intent horizontal units per second. |
+| `acceleration`, `airAcceleration` | `48`, `18` | Grounded and airborne input acceleration in units per second squared. |
+| `braking` | `40` | Deceleration when movement intent is zero. |
+| `gravity`, `jumpSpeed` | `24`, `9` | Downward acceleration and upward jump speed. |
+| `coyoteSec`, `jumpBufferSec` | `0.1`, `0.12` | Support grace and early jump-press retention, in seconds. |
+| `maxDtSec` | `0.1` | Maximum simulated duration per call; excess time is discarded. |
+| `maxSubsteps` | `12` | Integer work limit from 1 through 128. Continuous sweeps also protect thin walls/ceilings when the limit is reached. |
+
+`step(body,input,dtSec,{platforms,controlScale?,speedScale?})` returns `undefined` and mutates only the body's documented movement fields. Inputs are world-space `{x,z,jump}`: use finite axes, preserve analog magnitudes below one, and normalize longer diagonals. A held jump never retriggers after landing. Keep every body field in snapshots and prediction state so buffered jumps, support and edge ownership reconcile together. Invalid or negative durations and nonfinite/negative scale values throw `TypeError`.
+
+Every platform supplies a unique positive numeric `id`, center `x/z`, positive `width/depth`, center-top height `topY`, positive vertical `thickness`, and `vx/vy/vz`. Supply its pose at the **start** of the step. The controller projects geometry linearly using that step's velocity and leaves the platform unchanged. Games advance or analytically resample platform poses for the next step. Character `vx/vz` describe motion relative to support; grounded `vy` is zero. Carry adds platform velocity once during movement, so do not also add it to the body. Stepping beyond an edge or removing the supporting ID releases grounding.
+
+Optional `slopeX` and `slopeZ` default to zero and define `localTopY = topY + slopeX * (x - platform.x) + slopeZ * (z - platform.z)` at the sampled platform pose. Each gradient must be finite and within `[-1,1]`; invalid sampled gradients throw before the controller mutates the body. Width/depth stay projected horizontal extents, and the underside is the same local plane minus vertical thickness. The upright cylinder uses its center foot for plane contact, keeping horizontal speed while walking up or down. Top/underside sweeps and side contacts use the local plane rather than a taller enclosing box. This is arcade surface following; it does not implement rigid-body rotation or passive gravity sliding down ramps.
+
+Use the shared `getKinematicPlatformTopY(platform,x,z,elapsedSec=0)` export for rendering, foot markers, spawn placement and game-owned carry. It returns the local top height from the same plane definition, projecting `vx/vy/vz` from the supplied start pose when `elapsedSec` is nonzero. The sampler extrapolates the plane outside its footprint; callers still check bounds when selecting support. For example:
+
+```js
+const ramp = {
+  id: 2, x: 0, z: -12, topY: 1,
+  width: 6, depth: 8, thickness: 0.4,
+  vx: 0, vy: 0, vz: 0,
+  slopeX: Math.tan(0.2), slopeZ: 0,
+};
+const footY = getKinematicPlatformTopY(ramp, 2, -12);
+```
+
+Slopes are constant during each controller call; games own angle, angular velocity, weight and spring/damping rules. Sample their tilt before each step. A body already grounded on the same support can follow up to `0.08` units of sampled height change when its foot still overlaps the footprint and its own `vy` is nonpositive. This reattachment requires explicit slope fields, including explicit zero at neutral tilt, and also works during a zero-duration contact pass. Airborne/jumping bodies, different support IDs and larger gaps do not snap down to a surface. Game-owned tilt carry should move only prior supported actors and avoid adding the same height change twice.
+
+`controlScale` and `speedScale` default to one. Use `controlScale:0` during game-owned knockback or dive recovery to disable both input acceleration and braking while retaining external velocity. Use `speedScale` for temporary target-speed changes. Both values are finite and nonnegative. A zero-duration call resolves penetration and support only; it preserves jump edges and all timers. For a post-step contact pass, supply platform geometry at that post-step instant.
+
+`resolveKinematicCharacterSeparation(bodies,{radius,height,iterations?})` separates vertically overlapping cylinders in deterministic array order and mutates only X/Z positions, preserving velocities. Callers filter finished/respawning actors. `iterations` defaults to six and must be an integer from one through 32. Coincident centers separate deterministically; crowded arrangements may retain a small overlap at the iteration limit. Revalidate world contacts afterwards, including when crowd separation pushes an actor past a platform edge. Contact iterations and penetration passes are bounded; contradictory solids or crushing geometry require a game-owned recovery rule.

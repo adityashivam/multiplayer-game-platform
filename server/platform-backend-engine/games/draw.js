@@ -1,5 +1,24 @@
 import { drawGameMeta } from "./metadata.js";
-import { emitEvent, registerGame } from "../core/index.js";
+import { allPlayersConnected, emitEvent, registerGame, scheduleStart } from "../core/index.js";
+
+/**
+ * @typedef {"p1"|"p2"} DrawPlayerId
+ * @typedef {{x:number,y:number}} DrawPoint
+ * @typedef {{id:string,owner:DrawPlayerId,color:string,size:number,points:DrawPoint[],completed:boolean}} DrawStroke
+ * @typedef {object} DrawRoomState
+ * @property {{p1:{connected:boolean,rejoinToken:string|null},p2:{connected:boolean,rejoinToken:string|null}}} players
+ * @property {{width:number,height:number}} canvas
+ * @property {DrawStroke[]} strokes
+ * @property {number} totalPoints
+ * @property {number} nextStrokeSeq
+ * @property {{p1:string|null,p2:string|null}} activeStrokeIds
+ * @property {number} clearVersion
+ * @property {boolean} started
+ * @property {number|null} startAt
+ * @property {boolean} gameOver
+ * @property {number|null} abandonedAt
+ * @property {number} lastUpdate
+ */
 
 const CANVAS_WIDTH = 1280;
 const CANVAS_HEIGHT = 720;
@@ -63,6 +82,7 @@ function applyStrokeLimits(state) {
   }
 }
 
+/** @returns {DrawRoomState} New room-owned drawing and lifecycle state. */
 function createInitialGameState() {
   return {
     players: {
@@ -81,13 +101,20 @@ function createInitialGameState() {
       p2: null,
     },
     clearVersion: 0,
+    started: false,
+    startAt: null,
+    gameOver: false,
     abandonedAt: null,
     lastUpdate: Date.now(),
   };
 }
 
+/** @param {DrawRoomState} state Drawing values retain the existing wire shapes. */
 function serializeStateForClients(state) {
   return {
+    started: state.started,
+    startAt: state.startAt,
+    gameOver: state.gameOver,
     canvas: state.canvas,
     players: {
       p1: { connected: Boolean(state.players.p1.connected) },
@@ -225,6 +252,7 @@ function handleClear({ state, playerId, socket }) {
 }
 
 function handleInput({ state, playerId, payload, socket }) {
+  if (!state.started || state.gameOver || !allPlayersConnected(state)) return;
   if (!payload || typeof payload !== "object") return;
 
   const type = payload.type;
@@ -246,6 +274,23 @@ function handleInput({ state, playerId, payload, socket }) {
   }
 }
 
+/**
+ * Schedule the shared ready-room countdown and activate drawing only after its
+ * authoritative deadline. Existing strokes and drawing limits remain untouched.
+ * @param {DrawRoomState} state Mutated room-owned start state and update time.
+ * @returns {void}
+ */
+function advanceDrawRoomStart(state) {
+  scheduleStart(state);
+  const nowMs = Date.now();
+  if (!state.started && !state.gameOver && state.startAt !== null &&
+      nowMs >= state.startAt && allPlayersConnected(state)) {
+    state.started = true;
+    state.startAt = null;
+  }
+  state.lastUpdate = nowMs;
+}
+
 export function registerDrawGame(io) {
   registerGame({
     io,
@@ -254,18 +299,19 @@ export function registerDrawGame(io) {
     onPlayerConnected: (state, playerId) => {
       state.players[playerId].connected = true;
       state.abandonedAt = null;
+      scheduleStart(state);
     },
     handleInput,
     handleDisconnect: (state, playerId) => {
       state.players[playerId].connected = false;
+      state.started = false;
+      state.startAt = null;
       state.activeStrokeIds[playerId] = null;
       const otherId = playerId === "p1" ? "p2" : "p1";
       const bothDisconnected = !state.players[otherId].connected;
       state.abandonedAt = bothDisconnected ? Date.now() : null;
     },
-    beforeUpdate: (state) => {
-      state.lastUpdate = Date.now();
-    },
+    beforeUpdate: advanceDrawRoomStart,
     shouldCleanup: (state, now) => {
       if (!state.abandonedAt) return false;
       return now - state.abandonedAt > ROOM_CLEANUP_DELAY_MS;

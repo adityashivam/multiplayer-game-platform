@@ -4,6 +4,7 @@ import NetworkPanel from "./NetworkPanel.jsx";
 import EndGameModal from "./EndGameModal.jsx";
 import ExitConfirmModal from "./ExitConfirmModal.jsx";
 import ShareModal from "./ShareModal.jsx";
+import RoomStartOverlay from "./RoomStartOverlay.jsx";
 import { TOGGLE_NETWORK_PANEL_EVENT } from "../../constants/events.js";
 import styles from "../../PlatformApp.module.scss";
 import { TouchControlSurface, TouchLayoutEditor } from "../touch-controls/index.js";
@@ -30,6 +31,8 @@ function quantileFromSamples(samples, q) {
 }
 
 export default function GameView({
+  roomLifecycle,
+  roomCreatorEntry,
   runtimeSpec,
   game,
   touchProfile,
@@ -69,7 +72,9 @@ export default function GameView({
   const [networkPanelOpen, setNetworkPanelOpen] = useState(false);
   const [touchNotice, setTouchNotice] = useState("");
   const networkButtonRef = useRef(null);
-  const platformDialogOpen = shareOpen || endGameOpen || exitConfirmOpen || touchEditorOpen;
+  const roomStartBlocking = Boolean(roomLifecycle && !["playing", "finished"].includes(roomLifecycle.phase));
+  const roomStartHasPriority = roomLifecycle?.phase === "countdown" || roomLifecycle?.phase === "error";
+  const platformDialogOpen = roomStartBlocking || shareOpen || endGameOpen || exitConfirmOpen || touchEditorOpen;
   const allowTouchCustomization = Boolean(game?.touchControls?.customizable && touchProfile);
   useEffect(() => {
     if (touchEditorOpen || !touchProfileStatus) return undefined;
@@ -437,7 +442,10 @@ export default function GameView({
             icons={icons?.endGame}
           />
         )}
-        {shareOpen && !endGameOpen && !exitConfirmOpen && (
+        {roomLifecycle && (!shareOpen || roomStartHasPriority) && !endGameOpen && !exitConfirmOpen && !touchEditorOpen && !gameLoadError && (
+          <RoomStartOverlay room={roomLifecycle} gameName={game?.name} isCreatorEntry={roomCreatorEntry} onInvite={onOpenInvite} onLeave={roomLifecycle.phase === "error" ? onBackHome : onRequestHome} />
+        )}
+        {shareOpen && !endGameOpen && !exitConfirmOpen && !roomStartHasPriority && (
           <ShareModal
             roomLabel={roomLabel}
             shareUrl={shareUrl}

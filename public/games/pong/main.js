@@ -257,7 +257,8 @@ socket.onEvent("connect", () => {
 });
 
 socket.onEvent("roomFull", () => {
-  alert("Room is full!");
+  readyToPlay = false;
+  paddleInputLatch.reset();
 });
 
 socket.onEvent("gameJoined", ({ playerId, gameId: joinedGameId, rejoinToken: token }) => {

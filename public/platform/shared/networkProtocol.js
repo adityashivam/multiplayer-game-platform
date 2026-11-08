@@ -17,6 +17,7 @@
  * @property {number} [tickRate]
  * @property {number} [simTick]
  * @property {ServerTimingMetrics} [server]
+ * @property {import("./roomLifecycle.js").RoomLifecycleMetadata} [room] Platform-owned lifecycle, independent of game snapshot fields.
  */
 
 /**

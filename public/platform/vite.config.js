@@ -17,6 +17,7 @@ export default defineConfig({
         "/platform/frontend-engine/shareModalBridge.js",
         "/platform/frontend-engine/endGameBridge.js",
         "/platform/frontend-engine/connectionBridge.js",
+        "/platform/frontend-engine/roomLifecycleBridge.js",
       ],
     },
   },

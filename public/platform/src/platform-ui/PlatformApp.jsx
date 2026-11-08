@@ -15,6 +15,8 @@ import usePlatformGameUiState from "./hooks/usePlatformGameUiState.js";
 import usePlatformPresentation from "./hooks/usePlatformPresentation.js";
 import usePlatformRoute from "./hooks/usePlatformRoute.js";
 import useTouchProfile from "./hooks/useTouchProfile.js";
+import useRoomLifecycle from "./hooks/useRoomLifecycle.js";
+import { createRoomInvitePolicy } from "./services/roomInvitePolicy.js";
 import { getGameRuntimeSpec } from "./services/gameRuntime.js";
 import { readCatalogColumnCount, readNextCatalogIndex } from "./services/catalogNavigation.js";
 
@@ -31,12 +33,16 @@ export default function App() {
   const [catalogQuery, setCatalogQuery] = useState({ page: 1, q: "", genre: "all", sort: "name-asc" });
   const [touchEditorOpen, setTouchEditorOpen] = useState(false);
   const [configDialogOpen, setConfigDialogOpen] = useState(false);
+  const [roomCreatorEntry, setRoomCreatorEntry] = useState(false);
+  const roomInvitePolicyRef = useRef(createRoomInvitePolicy());
+  const countdownActiveRef = useRef(false);
 
   const cardRefs = useRef([]);
   const prevSelectedRef = useRef(0);
   const focusSelectedCardRef = useRef(false);
 
   const setShareModal = useCallback((nextOpen) => {
+    if (nextOpen !== false && countdownActiveRef.current) return;
     setShareOpen((prev) => (typeof nextOpen === "boolean" ? nextOpen : !prev));
   }, []);
 
@@ -64,6 +70,10 @@ export default function App() {
   const showPlatformControlButtons = !isGameView || activeGame?.platformControlButtons !== false;
   const showShareInvite = !isGameView || Boolean(activeGame && activeGame.shareRoom !== false);
   const showNetworkUi = !isGameView || Boolean(activeGame && activeGame.networked !== false);
+  const roomLifecycleEnabled = Boolean(isGameView && activeGame && activeGameRuntime.kind === "module" && activeGameRuntime.runtime?.socketIo === true && activeGame.networked !== false);
+  const roomLifecycle = useRoomLifecycle(activeGame, roomLifecycleEnabled);
+  countdownActiveRef.current = roomLifecycleEnabled && roomLifecycle.phase === "countdown";
+  const roomStartBlocking = roomLifecycleEnabled && !["playing", "finished"].includes(roomLifecycle.phase);
   const controllerMode = useMemo(() => {
     if (isGameView && startInLandscape && showPlatformControlButtons) return "split";
     if (showPlatformControlButtons) return "full";
@@ -131,30 +141,16 @@ export default function App() {
   }, [isGameView, endGameBridgeRef]);
 
   useEffect(() => {
-    if (!isGameView || !showShareInvite) {
-      setShareModal(false);
-      return;
-    }
-
-    const joined = window.__kaboomOpponentJoined;
-    if (joined && joined.gameId === route?.gameId && joined.roomId === route?.roomId) {
-      setShareModal(false);
-      return;
-    }
-
-    setShareModal(true);
-  }, [isGameView, route?.gameId, route?.roomId, setShareModal, showShareInvite]);
-
-  useEffect(() => {
-    const handleOpponentJoined = () => {
-      setShareModal(false);
-    };
-
-    window.addEventListener("kaboom:opponent-joined", handleOpponentJoined);
-    return () => {
-      window.removeEventListener("kaboom:opponent-joined", handleOpponentJoined);
-    };
-  }, [setShareModal]);
+    const decision = roomInvitePolicyRef.current.update({
+      ...roomLifecycle,
+      gameId: isGameView ? route?.gameId : null,
+      roomId: route?.roomId || null,
+      joined: Boolean(roomLifecycle.joined && roomLifecycle.roomId === route?.roomId),
+    });
+    setRoomCreatorEntry(decision.isCreatorEntry);
+    if (!isGameView || !showShareInvite || decision.closeInvite) setShareModal(false);
+    else if (decision.autoInvite) setShareModal(true);
+  }, [isGameView, route?.gameId, route?.roomId, roomLifecycle.phase, roomLifecycle.joined, roomLifecycle.roomId, roomLifecycle.connectedPlayers, roomLifecycle.requiredPlayers, setShareModal, showShareInvite]);
 
   const ensureLobbyMusicPlayback = useCallback(() => {
     if (!isGameView && !muted && musicVolume > 0) {
@@ -336,7 +332,7 @@ export default function App() {
       onDirectional={handleDirectionalInput}
       onAction={handleActionInput}
       immersive={isGameView && touchSettings.expanded}
-      controllerDisabled={Boolean(touchEditorOpen || configDialogOpen || shareOpen || exitConfirmOpen || endGameState.open)}
+      controllerDisabled={Boolean(roomStartBlocking || touchEditorOpen || configDialogOpen || shareOpen || exitConfirmOpen || endGameState.open)}
     >
       {!isGameView && activeTab !== "config" && (
         <LobbyHeader
@@ -385,6 +381,8 @@ export default function App() {
 
       {isGameView && (
         <GameView
+          roomLifecycle={roomLifecycleEnabled ? roomLifecycle : null}
+          roomCreatorEntry={roomCreatorEntry}
           runtimeSpec={activeGameRuntime}
           game={activeGame}
           touchProfile={touchSettings.profile}

@@ -1,3 +1,4 @@
+import { ROOM_START_COUNTDOWN_MS } from "../../../public/platform/shared/roomLifecycle.js";
 import { fightGameMeta } from "./metadata.js";
 import { emitEvent, registerPluggableGame, scheduleStart } from "../core/index.js";
 import { createAuthoritativeInputSession } from "../core/authoritativeInputSession.js";
@@ -59,7 +60,7 @@ import {
  */
 
 const GAME_DURATION_SEC = FIGHT_COMBAT.ROUND_DURATION_SEC;
-const COUNTDOWN_MS = 3000;
+const COUNTDOWN_MS = ROOM_START_COUNTDOWN_MS;
 const ROOM_CLEANUP_DELAY_MS = 30000;
 const COMBAT_EVENT_LIMIT = 16;
 // Fixed event slots preserve the packed snapshot schema as the history fills.

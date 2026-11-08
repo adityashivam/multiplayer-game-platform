@@ -1,5 +1,6 @@
 import msgpackParser from "/platform/frontend-engine/msgpackParser.js";
 import { createRoomJoinRecovery } from "./roomJoinRecovery.js";
+import { publishRoomJoined, publishRoomSnapshot, publishRoomDisconnected, publishRoomRematch, publishRoomJoinFailure, resetRoomLifecycle } from "./roomLifecycleBridge.js";
 import {
   NETWORK_TIMING,
   SNAPSHOT_KIND,
@@ -208,6 +209,7 @@ export function getGameSocket(namespace) {
     sendJoinRequest: (joinRequest) => raw.emit(SOCKET_EVENT.JOIN_GAME, joinRequest),
     isConnected: () => raw.connected,
     onRoomFull: (roomFullPayload) => {
+      publishRoomJoinFailure(namespace, SOCKET_EVENT.ROOM_FULL);
       const roomFullSubscribers = [...(eventWrappers.get(SOCKET_EVENT.ROOM_FULL)?.keys() ?? [])];
       for (const subscriber of roomFullSubscribers) subscriber(roomFullPayload);
     },
@@ -491,16 +493,26 @@ export function getGameSocket(namespace) {
 
   const handleDisconnectState = () => {
     roomJoinRecovery.reset();
+    publishRoomDisconnected(namespace);
     setConnectionState("disconnected");
   };
 
   const handleRoomFullRecovery = (roomFullPayload) => {
     if (roomJoinRecovery.receiveRoomFull(roomFullPayload)) {
       suppressedRoomFullPackets.add(roomFullPayload);
+    } else {
+      publishRoomJoinFailure(namespace, SOCKET_EVENT.ROOM_FULL);
     }
   };
 
-  const handleGameJoinedRecovery = () => roomJoinRecovery.reset();
+  const handleGameJoinedRecovery = (joinedRoom) => {
+    roomJoinRecovery.reset();
+    publishRoomJoined(namespace, joinedRoom);
+  };
+  const handleRematchStarted = () => {
+    resetSnapshotSession();
+    publishRoomRematch(namespace);
+  };
 
   const handleReconnectAttempt = () => {
     setConnectionState("reconnecting");
@@ -514,8 +526,9 @@ export function getGameSocket(namespace) {
   raw.on(SOCKET_EVENT.ROOM_FULL, handleRoomFullRecovery);
   raw.on(SOCKET_EVENT.GAME_JOINED, handleGameJoinedRecovery);
   // A rematch starts a fresh snapshot sequence and delta baseline on this socket.
-  raw.on(SOCKET_EVENT.REMATCH_STARTED, resetSnapshotSession);
+  raw.on(SOCKET_EVENT.REMATCH_STARTED, handleRematchStarted);
   raw.on(SOCKET_EVENT.DISCONNECT, handleDisconnectState);
+  raw.on(SOCKET_EVENT.STATE, receiveTransportSnapshot);
   raw.io.on(SOCKET_EVENT.RECONNECT_ATTEMPT, handleReconnectAttempt);
   raw.io.on(SOCKET_EVENT.RECONNECT, handleReconnect);
 
@@ -616,13 +629,13 @@ export function getGameSocket(namespace) {
   }
 
   /**
-   * Record accepted-state metrics once, then mark this subscriber's delivery.
-   * Older sequences are rejected before recording or invoking the subscriber.
+   * Own transport metrics and lifecycle independently of game subscriptions.
+   * Older sequences are rejected before recording; repeated delivery reuses the
+   * accepted snapshot's subscriber set and packed decoding baseline.
    * @param {{ net?: import("../shared/networkProtocol.js").SnapshotNetworkMetadata }} serverState
-   * @param {SocketEventHandler} subscriber
-   * @returns {boolean} Whether this subscriber should receive the snapshot.
+   * @returns {boolean} Whether this snapshot is accepted for delivery.
    */
-  function recordStateDelivery(serverState, subscriber) {
+  function recordAcceptedStateSnapshot(serverState) {
     let deliveredSubscribers = stateDeliveries.get(serverState);
     if (!deliveredSubscribers) {
       const sequenceNumber = toFiniteNumber(serverState?.net?.seq);
@@ -634,10 +647,23 @@ export function getGameSocket(namespace) {
       }
 
       recordStatePacket(serverState);
+      publishRoomSnapshot(namespace, serverState, { pingMs: ping });
       deliveredSubscribers = new Set();
       stateDeliveries.set(serverState, deliveredSubscribers);
     }
+    return true;
+  }
 
+  /** Decode baselines and lifecycle before any gameplay consumer needs a frame. */
+  function receiveTransportSnapshot(payload) {
+    const serverState = decodeStatePayload(payload);
+    if (serverState) recordAcceptedStateSnapshot(serverState);
+  }
+
+  /** Deliver each accepted snapshot once to each registered game subscriber. */
+  function recordStateDelivery(serverState, subscriber) {
+    if (!recordAcceptedStateSnapshot(serverState)) return false;
+    const deliveredSubscribers = stateDeliveries.get(serverState);
     if (deliveredSubscribers.has(subscriber)) {
       return false;
     }
@@ -694,7 +720,6 @@ export function getGameSocket(namespace) {
       }
 
       clearWrappedHandlers(event);
-      raw.off(event);
     },
     send(event, payload) {
       if (event === SOCKET_EVENT.JOIN_GAME) roomJoinRecovery.recordJoinRequest(payload);
@@ -719,6 +744,7 @@ export function getGameSocket(namespace) {
       return () => connectionListeners.delete(callback);
     },
     destroy() {
+      resetRoomLifecycle(namespace);
       roomJoinRecovery.reset();
       stopPingProbe();
       if (notifyTimer) {
@@ -731,8 +757,9 @@ export function getGameSocket(namespace) {
       removeListener(raw, SOCKET_EVENT.CONNECT, handleConnectState);
       removeListener(raw, SOCKET_EVENT.ROOM_FULL, handleRoomFullRecovery);
       removeListener(raw, SOCKET_EVENT.GAME_JOINED, handleGameJoinedRecovery);
-      removeListener(raw, SOCKET_EVENT.REMATCH_STARTED, resetSnapshotSession);
+      removeListener(raw, SOCKET_EVENT.REMATCH_STARTED, handleRematchStarted);
       removeListener(raw, SOCKET_EVENT.DISCONNECT, handleDisconnectState);
+      removeListener(raw, SOCKET_EVENT.STATE, receiveTransportSnapshot);
       removeListener(raw, SOCKET_EVENT.CONNECT, handleConnectProbe);
       removeListener(raw, SOCKET_EVENT.DISCONNECT, handleDisconnectProbe);
       removeListener(raw.io, SOCKET_EVENT.RECONNECT_ATTEMPT, handleReconnectAttempt);

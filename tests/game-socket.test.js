@@ -5,6 +5,7 @@ import { readFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { pathToFileURL } from "node:url";
 import { tickGames } from "../server/platform-backend-engine/core/gameLoop.js";
+import { subscribeRoomLifecycle } from "../public/platform/frontend-engine/roomLifecycleBridge.js";
 
 // Resolve browser and relative module imports when loading the client in Node.
 const require = createRequire(import.meta.url);
@@ -13,10 +14,28 @@ const gameSocketUrl = new URL("../public/platform/frontend-engine/gameSocket.js"
 const protocolUrl = new URL("../shared/networkProtocol.js", gameSocketUrl).href;
 const roomJoinRecoveryUrl = new URL("./roomJoinRecovery.js", gameSocketUrl).href;
 const gameSocketSource = (await readFile(gameSocketUrl, "utf8"))
+  .replace('"./roomLifecycleBridge.js"', JSON.stringify(new URL("./roomLifecycleBridge.js", gameSocketUrl).href))
   .replace('"./roomJoinRecovery.js"', JSON.stringify(roomJoinRecoveryUrl))
   .replace('"/platform/frontend-engine/msgpackParser.js"', JSON.stringify(parserUrl))
   .replace('"../shared/networkProtocol.js"', JSON.stringify(protocolUrl));
 const { getGameSocket } = await import(`data:text/javascript;base64,${Buffer.from(gameSocketSource).toString("base64")}`);
+
+test("transport publishes countdown state before gameplay subscribes and survives broad game unsubscription", (testContext) => {
+  const { rawSocket, socket } = createTestGameConnection(testContext);
+  const states = [];
+  const unsubscribe = subscribeRoomLifecycle("fight-test", (state) => states.push(state));
+  testContext.after(unsubscribe);
+  rawSocket.emit("gameJoined", { gameId: "room1", playerId: "p1" });
+  const createSnapshot = (sequence, phase) => ({ net: { seq: sequence, serverTime: 100000, room: { apiVersion: 1, roomId: "room1", phase, startAtMs: 105000, countdownDurationMs: 5000, connectedPlayers: 2, requiredPlayers: 2 } } });
+  rawSocket.emit("state", createSnapshot(1, "countdown"));
+  assert.equal(states.at(-1).phase, "countdown");
+  assert.equal(states.at(-1).secondsRemaining, 5);
+  socket.offEvent("state");
+  socket.offEvent("gameJoined");
+  rawSocket.emit("state", createSnapshot(2, "playing"));
+  assert.equal(states.at(-1).phase, "playing");
+  assert.equal(states.at(-1).showGo, true);
+});
 
 function createTestGameConnection(testContext) {
   const rawSocket = new EventEmitter();

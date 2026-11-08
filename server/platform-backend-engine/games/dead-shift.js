@@ -1,3 +1,4 @@
+import { ROOM_START_COUNTDOWN_MS } from "../../../public/platform/shared/roomLifecycle.js";
 import { deadShiftPresentation, deadShiftTouchControls } from "../../../public/games/dead-shift/catalog.js";
 import {
   DEAD_SHIFT_EDGE_KEYS,
@@ -32,7 +33,7 @@ import { emitEvent, registerPluggableGame, scheduleStart } from "../core/index.j
  * }} DeadShiftServerState
  */
 
-const COUNTDOWN_MS = 2500;
+const COUNTDOWN_MS = ROOM_START_COUNTDOWN_MS;
 const ROOM_CLEANUP_DELAY_MS = 30000;
 const PLAYER_SNAPSHOT_FIELDS = Object.freeze(Object.keys(createDeadShiftPlayer("p1")));
 const deadShiftInputSession = createAuthoritativeInputSession({

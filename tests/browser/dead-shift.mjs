@@ -131,8 +131,10 @@ try {
   const p2 = await newPage(roomUrl);
   await probePage(p2);
   await waitFor(p1, "dsProbe.last.started");
-  await click(p1, ".ds-enter");
-  await click(p2, ".ds-enter");
+  await waitFor(p1, "!document.querySelector('[aria-modal=true]')");
+  await waitFor(p2, "!document.querySelector('[aria-modal=true]')");
+  await click(p1, "#game-canvas");
+  await click(p2, "#game-canvas");
   await sleep(1000);
   await capture(p1, "arena");
   console.log("TWO CLIENTS STARTED", await evaluate(p1, "return {connected:Object.values(dsProbe.last.players).map(p=>p.connected),enemies:dsProbe.last.enemies.filter(e=>e.id).length,lock:Boolean(document.pointerLockElement)}"));
@@ -221,7 +223,8 @@ try {
   assert.ok(afterReload.timer <= beforeReload.timer && afterReload.timer > beforeReload.timer - 4, "Reload must preserve remaining round time");
   assert.ok(afterReload.epoch > beforeReload.epoch, "Reload must obtain a fresh input epoch for the same seat");
   assert.equal(await evaluate(p2, "return document.querySelector('.ds-error').hidden;"), true);
-  await click(p2, ".ds-enter");
+  await waitFor(p2, "!document.querySelector('[aria-modal=true]')");
+  await click(p2, "#game-canvas");
   await key(p2, "KeyA", "a", true); await sleep(800); await key(p2, "KeyA", "a", false);
   await key(p2, "KeyW", "w", true); await sleep(800); await key(p2, "KeyW", "w", false);
   await sleep(250);

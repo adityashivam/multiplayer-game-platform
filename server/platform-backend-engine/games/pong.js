@@ -1,3 +1,4 @@
+import { ROOM_START_COUNTDOWN_MS } from "../../../public/platform/shared/roomLifecycle.js";
 import { pongGameMeta } from "./metadata.js";
 import {
   emitEvent,
@@ -56,7 +57,7 @@ const HEIGHT = PONG_PADDLE_SETTINGS.HEIGHT;
 const PADDLE_W = 26;
 const PADDLE_H = PONG_PADDLE_SETTINGS.PADDLE_HEIGHT;
 const BALL_BASE_SPEED = 450;
-const COUNTDOWN_MS = 1500;
+const COUNTDOWN_MS = ROOM_START_COUNTDOWN_MS;
 const WIN_SCORE = 10;
 const ROOM_CLEANUP_DELAY_MS = 30000;
 

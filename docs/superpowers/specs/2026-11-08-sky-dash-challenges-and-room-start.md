@@ -1,0 +1,13 @@
+# Sky Dash challenges and shared room start
+
+The user requests harder Sky Dash obstacles including seesaws, jumps and circular gates, plus a platform-wide fix for invite recipients seeing the creator's share dialog. Both players should see a clear synchronized five-to-one countdown before gameplay.
+
+Keep all existing Sky Dash work in place. Add weight-reactive seesaws with bounded tilt, enforceable jumping hurdles, and circular portals with a visible rotating spoke/obstruction that players can jump or time. Geometry and contacts share the same pure course definitions. Bots continue using ordinary inputs and can finish the harder course. Checkpoints and quick respawns preserve approachability; no invisible walls or cosmetic-only collision promises.
+
+General sloped-top support belongs to the reusable character controller, configured by optional slopeX/slopeZ top gradients. Flat configurations preserve existing behavior. Game-owned seesaw states contain angle/angularVelocity, use bounded spring/damping and occupant weight, and appear at fixed snapshot paths. Local prediction extrapolates their bounded authoritative motion; renderers use the same samples.
+
+The platform owns room invitation/start presentation. Only a new room creator automatically receives an invite prompt while waiting for others. Opening a shared room link joins directly. No invite dialog flashes before creator/joiner intent is known. All ready-room starts use a shared five-second default; games remain configurable through explicit lifecycle parameters. Countdown displays the server deadline using synchronized monotonic timing, never a client-only game-start timer. A departing player cancels a pending start; reconnect and rematch use fresh applicable countdowns, and joining an already running room does not invent a countdown.
+
+Visual thesis: the existing calm dark/cyan platform chrome frames a large readable countdown over the live game scene. A concise joining/waiting state becomes 'Players ready', 5/4/3/2/1, then a brief non-blocking GO cue. Loading/runtime errors, exit/results and layout editing retain their priorities, focus stays in the topmost supported dialog, and the canvas/shell never remount or resize. Avoid duplicate game-owned countdown digits and introductory screens blocking the start cue.
+
+Verify creator versus invitee, different games/capacities, skewed device clocks, disconnect/rejoin and rematch. Test seesaw contact/tilt, jumping/gate collisions, bot completion, fixed snapshot shapes and delayed prediction. Run Node suite/build and actual two-browser flows for Sky Dash and a different game, including every countdown digit and no movement before authoritative start.
