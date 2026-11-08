@@ -1,76 +1,67 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { createFullscreenPresentationController } from "../services/fullscreenPresentation.js";
 
-export default function usePlatformPresentation() {
-  const [isFullscreen, setIsFullscreen] = useState(false);
-  const [pseudoFullscreen, setPseudoFullscreen] = useState(false);
+/**
+ * Keep fullscreen ownership at the platform root while game routes change.
+ * Call beginGameLaunch synchronously from Play; route effects only clean up.
+ * @param {{isGameView?:boolean}} [options]
+ */
+export default function usePlatformPresentation({ isGameView = false } = {}) {
+  const [presentationState, setPresentationState] = useState({
+    isFullscreen: false,
+    pseudoFullscreen: false,
+    fullscreenActive: false,
+  });
+  /** @type {import("react").RefObject<ReturnType<typeof createFullscreenPresentationController>|null>} */
+  const controllerRef = useRef(null);
+  const previousGameView = useRef(isGameView);
+
+  const getPresentationController = useCallback(() => {
+    if (!controllerRef.current) {
+      controllerRef.current = createFullscreenPresentationController({
+        document: typeof document === "undefined" ? undefined : document,
+        window: typeof window === "undefined" ? undefined : window,
+      });
+    }
+
+    return controllerRef.current;
+  }, []);
 
   useEffect(() => {
-    if (typeof document === "undefined") return () => {};
+    const controller = getPresentationController();
+    const unsubscribe = controller.subscribe(setPresentationState);
+    setPresentationState(controller.getState());
 
-    const handleFullscreenChange = () => {
-      setIsFullscreen(Boolean(document.fullscreenElement));
-    };
-
-    document.addEventListener("fullscreenchange", handleFullscreenChange);
     return () => {
-      document.removeEventListener("fullscreenchange", handleFullscreenChange);
+      unsubscribe();
+      if (controllerRef.current === controller) controllerRef.current = null;
+      void controller.dispose();
     };
-  }, []);
+  }, [getPresentationController]);
 
-  const applyPseudoFullscreen = useCallback((nextValue) => {
-    if (typeof document === "undefined") return;
+  const beginGameLaunch = useCallback(() => getPresentationController().beginGameLaunch(), [getPresentationController]);
 
-    const root = document.documentElement;
-    const body = document.body;
-
-    if (nextValue) {
-      root?.setAttribute("data-pseudo-fullscreen", "true");
-      body?.setAttribute("data-pseudo-fullscreen", "true");
-    } else {
-      root?.removeAttribute("data-pseudo-fullscreen");
-      body?.removeAttribute("data-pseudo-fullscreen");
-    }
-
-    setPseudoFullscreen(nextValue);
-  }, []);
-
+  /** Keep the existing Promise<void> contract used by landscape orientation. */
   const requestFullscreen = useCallback(() => {
-    if (typeof document === "undefined") return Promise.resolve();
+    return getPresentationController().requestFullscreen().then(() => {});
+  }, [getPresentationController]);
 
-    const target = document.getElementById("root") || document.documentElement;
-    if (!document.fullscreenEnabled || !target?.requestFullscreen) {
-      applyPseudoFullscreen(true);
-      return Promise.resolve();
-    }
-
-    return target.requestFullscreen().catch(() => {});
-  }, [applyPseudoFullscreen]);
-
-  const exitFullscreen = useCallback(() => {
-    if (typeof document === "undefined") return;
-
-    if (document.fullscreenElement && document.exitFullscreen) {
-      document.exitFullscreen().catch(() => {});
-      return;
-    }
-
-    applyPseudoFullscreen(false);
-  }, [applyPseudoFullscreen]);
-
+  const endGamePresentation = useCallback(() => getPresentationController().endGamePresentation(), [getPresentationController]);
   const toggleFullscreen = useCallback(() => {
-    const fullscreenActive = Boolean(document.fullscreenElement) || pseudoFullscreen;
-    if (fullscreenActive) {
-      exitFullscreen();
-    } else {
-      requestFullscreen();
-    }
-  }, [exitFullscreen, pseudoFullscreen, requestFullscreen]);
+    return getPresentationController().toggleFullscreen().then(() => {});
+  }, [getPresentationController]);
+
+  useEffect(() => {
+    if (previousGameView.current && !isGameView) void endGamePresentation();
+    previousGameView.current = isGameView;
+  }, [endGamePresentation, isGameView]);
 
   return {
-    isFullscreen,
-    pseudoFullscreen,
-    fullscreenActive: isFullscreen || pseudoFullscreen,
+    ...presentationState,
+    beginGameLaunch,
     requestFullscreen,
     toggleFullscreen,
+    endGamePresentation,
+    exitFullscreen: endGamePresentation,
   };
 }

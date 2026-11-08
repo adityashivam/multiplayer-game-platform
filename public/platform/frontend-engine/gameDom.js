@@ -1,4 +1,11 @@
 import { ANALOG_STICK_CHANGE_EVENT, getAnalogStickState } from "./analogStick.js";
+import { isVirtualGameControlHeld, subscribeVirtualGameControl } from "./virtualGameControls.js";
+
+/**
+ * @typedef {object} GameButtonControl
+ * @property {(handler: (event?: Event) => void) => () => void} onPress Subscribe to direct clicks and virtual press edges.
+ * @property {(onDown: () => void, onUp: () => void) => () => void} onHold Subscribe to aggregate holds; cleanup releases this subscription.
+ */
 
 export function getGameDomRefs() {
   const canvas = document.getElementById("game-canvas") || document.querySelector("canvas");
@@ -8,20 +15,70 @@ export function getGameDomRefs() {
   };
 }
 
-function createControl(elements) {
+/**
+ * Combine direct shell input and optional virtual direction/action ownership.
+ * Subscribers must unsubscribe before the game runtime is disposed.
+ * @param {NodeListOf<HTMLElement>|HTMLElement[]} elements
+ * @param {import("./virtualGameControls.js").PlatformControlBinding} [platformBinding]
+ * @returns {GameButtonControl}
+ */
+function createControl(elements, platformBinding) {
   const list = Array.from(elements || []).filter(Boolean);
+  const inputWindow = list[0]?.ownerDocument?.defaultView ?? document.defaultView ??
+    (typeof window === "undefined" ? undefined : window);
   return {
     onPress(handler) {
-      if (typeof handler !== "function" || list.length === 0) return () => {};
-      list.forEach((el) => el.addEventListener("click", handler));
-      return () => list.forEach((el) => el.removeEventListener("click", handler));
-    },
-    onHold(onDown, onUp) {
-      if (typeof onDown !== "function" || typeof onUp !== "function" || list.length === 0) {
+      if (typeof handler !== "function") {
         return () => {};
       }
-      const cleanups = list.map((el) => bindHold(el, onDown, onUp));
-      return () => cleanups.forEach((cleanup) => cleanup());
+      list.forEach((el) => el.addEventListener("click", handler));
+      const unsubscribeVirtual = platformBinding ? subscribeVirtualGameControl(platformBinding, (controlChange) => {
+        if (controlChange.pressed) {
+          handler();
+        }
+      }, inputWindow) : () => {};
+      return () => {
+        list.forEach((el) => el.removeEventListener("click", handler));
+        unsubscribeVirtual();
+      };
+    },
+    onHold(onDown, onUp) {
+      if (typeof onDown !== "function" || typeof onUp !== "function") {
+        return () => {};
+      }
+      /** @type {Set<HTMLElement|symbol>} */
+      const heldSources = new Set();
+      const virtualSource = Symbol("virtual-control-subscription");
+      /** @param {HTMLElement|symbol} source @param {boolean} active */
+      function updateHeldSource(source, active) {
+        const wasHeld = heldSources.size > 0;
+        if (active) {
+          heldSources.add(source);
+        } else {
+          heldSources.delete(source);
+        }
+        if (!wasHeld && heldSources.size > 0) {
+          onDown();
+        } else if (wasHeld && heldSources.size === 0) {
+          onUp();
+        }
+      }
+
+      const cleanups = list.map((el) => bindHold(el, () => updateHeldSource(el, true), () => updateHeldSource(el, false)));
+      const unsubscribeVirtual = platformBinding ? subscribeVirtualGameControl(platformBinding, (controlChange) => {
+        updateHeldSource(virtualSource, controlChange.held);
+      }, inputWindow) : () => {};
+      if (platformBinding && isVirtualGameControlHeld(platformBinding, inputWindow)) {
+        updateHeldSource(virtualSource, true);
+      }
+      return () => {
+        cleanups.forEach((cleanup) => cleanup());
+        unsubscribeVirtual();
+        if (heldSources.size > 0) {
+          heldSources.clear();
+          onUp();
+        }
+      };
     },
   };
 }
@@ -97,10 +154,10 @@ export function getGameControls() {
       right: createStickControl(document.querySelectorAll('[data-stick="right"]')),
     },
     dpad: {
-      up: createControl(document.querySelectorAll('[data-dir="up"]')),
-      down: createControl(document.querySelectorAll('[data-dir="down"]')),
-      left: createControl(document.querySelectorAll('[data-dir="left"]')),
-      right: createControl(document.querySelectorAll('[data-dir="right"]')),
+      up: createControl(document.querySelectorAll('[data-dir="up"]'), "up"),
+      down: createControl(document.querySelectorAll('[data-dir="down"]'), "down"),
+      left: createControl(document.querySelectorAll('[data-dir="left"]'), "left"),
+      right: createControl(document.querySelectorAll('[data-dir="right"]'), "right"),
     },
     menu: {
       select: createControl(homeButtons),
@@ -108,10 +165,10 @@ export function getGameControls() {
       start: createControl(document.querySelectorAll('[data-action="start"]')),
     },
     actions: {
-      x: createControl(document.querySelectorAll('[data-action="x"]')),
-      a: createControl(document.querySelectorAll('[data-action="a"]')),
-      b: createControl(document.querySelectorAll('[data-action="b"]')),
-      y: createControl(document.querySelectorAll('[data-action="y"]')),
+      x: createControl(document.querySelectorAll('[data-action="x"]'), "x"),
+      a: createControl(document.querySelectorAll('[data-action="a"]'), "a"),
+      b: createControl(document.querySelectorAll('[data-action="b"]'), "b"),
+      y: createControl(document.querySelectorAll('[data-action="y"]'), "y"),
     },
   };
 }

@@ -102,3 +102,32 @@ test("old preferences cannot override a developer lock or removed control", (tes
   storage.set([...storage.keys()][0], "not JSON");
   assert.doesNotThrow(() => loadTouchProfile("relay", descriptor, "portrait"));
 });
+
+test("stored version-one profiles migrate under the existing storage key and preserve later explicit choices", (testContext) => {
+  const { storage } = installSettingsEnvironment(testContext);
+  const storageKey = "platform.touch-controls.v1:relay:landscape";
+  storage.set(storageKey, JSON.stringify({
+    version: 1,
+    presetId: "four-finger",
+    mode: "off",
+    hideShell: false,
+    layouts: { "four-finger": { steer: { x: 0.28, y: 0.76, size: 96, opacity: 0.85 } } },
+  }));
+  const migratedProfile = loadTouchProfile("relay", descriptor, "landscape");
+  assert.equal(migratedProfile.version, 2);
+  assert.equal(migratedProfile.hideShell, true);
+  assert.equal(migratedProfile.mode, "auto");
+  assert.equal(migratedProfile.presetId, "four-finger");
+  assert.deepEqual(migratedProfile.layouts["four-finger"].steer, { x: 0.28, y: 0.76, size: 96, opacity: 0.4 });
+
+  const editedProfile = updateTouchControl(migratedProfile, "steer", { opacity: 0.85 });
+  editedProfile.hideShell = false;
+  editedProfile.mode = "off";
+  saveTouchProfile("relay", descriptor, "landscape", editedProfile);
+  assert.deepEqual([...storage.keys()], [storageKey]);
+  assert.equal(JSON.parse(storage.get(storageKey)).version, 2);
+  const reloadedProfile = loadTouchProfile("relay", descriptor, "landscape");
+  assert.equal(reloadedProfile.hideShell, false);
+  assert.equal(reloadedProfile.mode, "off");
+  assert.equal(reloadedProfile.layouts["four-finger"].steer.opacity, 0.85);
+});

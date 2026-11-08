@@ -1,4 +1,5 @@
 import { normalizeAnalogStick } from "./analogStick.js";
+import { createVirtualGameControlSource } from "./virtualGameControls.js";
 
 /** Window event boundary shared by independently bundled shell and game modules. */
 export const PLATFORM_TOUCH_INPUT_EVENT = "platformtouchinput";
@@ -12,16 +13,19 @@ const INTERACTIVE_INPUT_SELECTOR = [
   '[role="toolbar"]', "[data-platform-chrome]", "[data-platform-touch-editor]",
 ].join(", ");
 const TOUCH_STICK_VISUAL_TRAVEL = 0.28;
+const PLATFORM_STICK_DIRECTION_THRESHOLD = 0.25;
 const HOST_TOUCH_GESTURE_OWNERS = Symbol.for("platform.touch-control-host-gestures.v1");
+const TOUCH_SURFACE_ACTIVE_OWNERS = Symbol.for("platform.touch-control-surface-owners.v1");
 
 /**
  * @typedef {import("../shared/touchControls.js").TouchControlsDescriptor} TouchControlsDescriptor
  * @typedef {import("../shared/touchControls.js").TouchControlDescriptor} TouchControlDescriptor
  * @typedef {import("../shared/touchControls.js").ResolvedTouchControl} ResolvedTouchControl
- * @typedef {{gameId: string, type: "axis", controlId: string, x: number, y: number}|
- * {gameId: string, type: "look", controlId: string, deltaX: number, deltaY: number}|
- * {gameId: string, type: "action", controlId: string, active: boolean}|
- * {gameId: string, type: "reset"}} PlatformTouchInput
+ * @typedef {{type: "axis", controlId: string, x: number, y: number}|
+ * {type: "look", controlId: string, deltaX: number, deltaY: number}|
+ * {type: "action", controlId: string, active: boolean}|
+ * {type: "reset"}} PlatformTouchInputPayload
+ * @typedef {PlatformTouchInputPayload & {gameId: string}} PlatformTouchInput
  * @typedef {object} OwnedTouchPointer
  * @property {number} pointerId
  * @property {TouchControlDescriptor} control
@@ -103,6 +107,9 @@ export function bindTouchControlSurface({ element, gameId, descriptor, layout, d
     }
   }
   const enabledControlIds = new Set(layout.map((control) => control.id));
+  const virtualControlSources = new Map(descriptor.controls
+    .filter((control) => control.platformBinding && enabledControlIds.has(control.id))
+    .map((control) => [control.id, createVirtualGameControlSource(inputWindow)]));
   const lookControl = descriptor.controls.find((control) => control.type === "look" && enabledControlIds.has(control.id));
   /** @type {Map<number, OwnedTouchPointer>} */
   const ownedPointers = new Map();
@@ -112,11 +119,22 @@ export function bindTouchControlSurface({ element, gameId, descriptor, layout, d
   let bindingDisabled = Boolean(disabled);
   let disposed = false;
   element.dataset.platformTouchGame = gameId;
-  element.dataset.active = String(!bindingDisabled);
 
   /** Restore the original inline gesture policy only after the final active binding releases it. */
   function updateHostGestureOwnership() {
     const shouldOwnHostGestures = !bindingDisabled && !disposed;
+    const surfaceOwners = element[TOUCH_SURFACE_ACTIVE_OWNERS] ?? new Set();
+    if (shouldOwnHostGestures) {
+      surfaceOwners.add(hostGestureOwner);
+      element[TOUCH_SURFACE_ACTIVE_OWNERS] = surfaceOwners;
+    } else {
+      surfaceOwners.delete(hostGestureOwner);
+      if (surfaceOwners.size === 0) {
+        delete element[TOUCH_SURFACE_ACTIVE_OWNERS];
+      }
+    }
+    element.dataset.active = String(surfaceOwners.size > 0);
+
     if (shouldOwnHostGestures === ownsHostGestures) {
       return;
     }
@@ -144,8 +162,33 @@ export function bindTouchControlSurface({ element, gameId, descriptor, layout, d
 
   updateHostGestureOwnership();
 
-  /** @param {Omit<PlatformTouchInput, "gameId">} inputEvent */
+  /**
+   * Bound primitives use standard subscriptions; custom game adapters receive
+   * the existing intent event. Never deliver the same action through both paths.
+   * @param {PlatformTouchInputPayload} inputEvent
+   */
   function publishTouchInput(inputEvent) {
+    if (inputEvent.type === "reset") {
+      for (const virtualSource of virtualControlSources.values()) {
+        virtualSource.release();
+      }
+    } else {
+      const control = declaredControls.get(inputEvent.controlId);
+      const virtualSource = virtualControlSources.get(inputEvent.controlId);
+      if (virtualSource && inputEvent.type === "action" && control.type === "button") {
+        virtualSource.setHeld(control.platformBinding, inputEvent.active);
+        return;
+      }
+      if (virtualSource && inputEvent.type === "axis" && control.type === "stick") {
+        const acceptsHorizontal = control.platformBinding === "horizontal" || control.platformBinding === "directions";
+        const acceptsVertical = control.platformBinding === "vertical" || control.platformBinding === "directions";
+        virtualSource.setHeld("up", acceptsVertical && inputEvent.y < -PLATFORM_STICK_DIRECTION_THRESHOLD);
+        virtualSource.setHeld("down", acceptsVertical && inputEvent.y > PLATFORM_STICK_DIRECTION_THRESHOLD);
+        virtualSource.setHeld("left", acceptsHorizontal && inputEvent.x < -PLATFORM_STICK_DIRECTION_THRESHOLD);
+        virtualSource.setHeld("right", acceptsHorizontal && inputEvent.x > PLATFORM_STICK_DIRECTION_THRESHOLD);
+        return;
+      }
+    }
     inputWindow.dispatchEvent(new inputWindow.CustomEvent(PLATFORM_TOUCH_INPUT_EVENT, {
       detail: { gameId, ...inputEvent },
     }));
@@ -344,7 +387,6 @@ export function bindTouchControlSurface({ element, gameId, descriptor, layout, d
     reset,
     setDisabled(nextDisabled) {
       bindingDisabled = Boolean(nextDisabled);
-      element.dataset.active = String(!bindingDisabled && !disposed);
       updateHostGestureOwnership();
       if (bindingDisabled) {
         reset();
@@ -355,9 +397,11 @@ export function bindTouchControlSurface({ element, gameId, descriptor, layout, d
         return;
       }
       disposed = true;
-      element.dataset.active = "false";
       updateHostGestureOwnership();
       reset();
+      for (const virtualSource of virtualControlSources.values()) {
+        virtualSource.dispose();
+      }
       hostResizeObserver?.disconnect();
       for (const [eventName, listener] of hostListeners) {
         inputHost.removeEventListener(eventName, listener, true);

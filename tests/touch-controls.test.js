@@ -64,11 +64,33 @@ test("control roles remain placement hints for games with different primitive ma
   assert.equal(controls[1].role, "move");
 });
 
+test("optional platform bindings accept only compatible standard directions and actions", () => {
+  for (const platformBinding of ["horizontal", "vertical", "directions"]) {
+    assert.doesNotThrow(() => validateTouchControls(createDescriptor({ controls: [
+      { id: "drive", type: "stick", role: "move", label: "Move", platformBinding },
+    ] }), "synthetic"));
+  }
+  for (const platformBinding of ["up", "down", "left", "right", "a", "b", "x", "y"]) {
+    assert.doesNotThrow(() => validateTouchControls(createDescriptor({ controls: [
+      { id: "tool", type: "button", role: "primary", label: "Tool", platformBinding },
+    ] }), "synthetic"));
+  }
+  for (const control of [
+    { id: "drive", type: "stick", role: "move", label: "Move", platformBinding: "a" },
+    { id: "tool", type: "button", role: "primary", label: "Tool", platformBinding: "horizontal" },
+    { id: "view", type: "look", role: "look", label: "Look", platformBinding: "directions" },
+    { id: "tool", type: "button", role: "primary", label: "Tool", platformBinding: "start" },
+    { id: "tool", type: "button", role: "primary", label: "Tool", platformBinding: { action: "a" } },
+  ]) {
+    assert.throws(() => validateTouchControls(createDescriptor({ controls: [control] }), "synthetic"), TypeError);
+  }
+});
+
 test("presets move only declared actions and portrait layout has independent defaults", () => {
   const descriptor = createDescriptor();
   const profile = createDefaultTouchProfile(descriptor);
   assert.equal(profile.mode, "auto");
-  assert.equal(profile.hideShell, false);
+  assert.equal(profile.hideShell, true);
   const twoThumb = resolveTouchLayout(descriptor, profile, "landscape");
   const threeFinger = resolveTouchLayout(descriptor, { ...profile, presetId: "three-finger" }, "landscape");
   const fourFinger = resolveTouchLayout(descriptor, { ...profile, presetId: "four-finger" }, "landscape");
@@ -82,6 +104,7 @@ test("presets move only declared actions and portrait layout has independent def
   assert.notDeepEqual(portrait.find((control) => control.id === "drive"), twoThumb.find((control) => control.id === "drive"));
   assert.equal(twoThumb.find((control) => control.id === "hop").x, 0.6);
   assert.equal(twoThumb.find((control) => control.id === "hop").size, 60);
+  assert.ok(twoThumb.every((control) => control.opacity <= 0.4));
   twoThumb[0].defaultLayout = { x: 0 };
   assert.equal(descriptor.controls[0].defaultLayout, undefined);
 });
@@ -89,7 +112,7 @@ test("presets move only declared actions and portrait layout has independent def
 test("profile sanitization bounds finite values, drops stale controls and honors developer locks", () => {
   const descriptor = createDescriptor();
   const candidate = {
-    version: 1,
+    version: 2,
     presetId: "four-finger",
     mode: "on",
     hideShell: true,
@@ -119,6 +142,38 @@ test("profile sanitization bounds finite values, drops stale controls and honors
   assert.deepEqual(sanitizeTouchProfile(lockedDescriptor, candidate), createDefaultTouchProfile(lockedDescriptor));
   assert.deepEqual(sanitizeTouchProfile(descriptor, { ...candidate, version: 999 }), createDefaultTouchProfile(descriptor));
   assert.deepEqual(sanitizeTouchProfile(descriptor, { ...candidate, presetId: "obsolete", mode: "unsupported" }).presetId, "two-thumb");
+});
+
+test("legacy profiles retain authored layouts while adopting expanded low-opacity presentation", () => {
+  const descriptor = createDescriptor();
+  const legacyProfile = {
+    version: 1,
+    presetId: "three-finger",
+    mode: "off",
+    hideShell: false,
+    layouts: {
+      "two-thumb": { drive: { x: 0.22, y: 0.81, size: 90, opacity: 0.35 } },
+      "three-finger": { tool: { x: 0.24, y: 0.2, size: 72, opacity: 0.9 } },
+    },
+  };
+  const migratedProfile = sanitizeTouchProfile(descriptor, legacyProfile);
+  assert.equal(migratedProfile.version, 2);
+  assert.equal(migratedProfile.presetId, "three-finger");
+  assert.equal(migratedProfile.mode, "auto");
+  assert.equal(migratedProfile.hideShell, true);
+  assert.deepEqual(migratedProfile.layouts["two-thumb"].drive, { x: 0.22, y: 0.81, size: 90, opacity: 0.35 });
+  assert.deepEqual(migratedProfile.layouts["three-finger"].tool, { x: 0.24, y: 0.2, size: 72, opacity: 0.4 });
+
+  const explicitProfile = sanitizeTouchProfile(descriptor, {
+    ...migratedProfile,
+    mode: "off",
+    hideShell: false,
+    layouts: { "three-finger": { tool: { opacity: 0.95 } } },
+  });
+  assert.equal(explicitProfile.mode, "off");
+  assert.equal(explicitProfile.hideShell, false);
+  assert.equal(resolveTouchLayout(descriptor, explicitProfile).find((control) => control.id === "tool").opacity, 0.95);
+  assert.equal(legacyProfile.layouts["three-finger"].tool.opacity, 0.9);
 });
 
 test("editing one preset produces owned bounded overrides without changing other presets", () => {

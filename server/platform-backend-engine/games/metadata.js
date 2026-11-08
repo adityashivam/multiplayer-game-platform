@@ -3,13 +3,13 @@ import { PONG_FIXED_DT_SEC, PONG_INPUT_TEMPLATE } from "../../../public/games/po
 import { MARIO_FIXED_DT_SEC, MARIO_INPUT_TEMPLATE } from "../../../public/games/mario/shared/config.js";
 import { ROAD_RASH_FIXED_DT_SEC, ROAD_RASH_INPUT_TEMPLATE } from "../../../public/games/roadrash/shared/simulation.js";
 import { INPUT_PROTOCOL } from "../../../public/platform/shared/networkProtocol.js";
-import { fightPresentation } from "../../../public/games/fight/catalog.js";
-import { pongPresentation } from "../../../public/games/pong/catalog.js";
-import { roadRashPresentation } from "../../../public/games/roadrash/catalog.js";
-import { marioPresentation } from "../../../public/games/mario/catalog.js";
-import { marioTouchPresentation } from "../../../public/games/mario-touch/catalog.js";
-import { drawPresentation } from "../../../public/games/draw/catalog.js";
-import { webglSamplePresentation } from "../../../public/games/webgl-sample/catalog.js";
+import { fightPresentation, fightTouchControls } from "../../../public/games/fight/catalog.js";
+import { pongPresentation, pongTouchControls } from "../../../public/games/pong/catalog.js";
+import { roadRashPresentation, roadRashTouchControls } from "../../../public/games/roadrash/catalog.js";
+import { marioPresentation, marioTouchControls } from "../../../public/games/mario/catalog.js";
+import { marioTouchPresentation, marioTouchVariantControls } from "../../../public/games/mario-touch/catalog.js";
+import { drawPresentation, drawTouchControls } from "../../../public/games/draw/catalog.js";
+import { webglSamplePresentation, webglSampleTouchControls } from "../../../public/games/webgl-sample/catalog.js";
 
 const BUNDLED_GAME_TICK_RATE_HZ = 60;
 const BUNDLED_PLAYER_IDS = Object.freeze(["p1", "p2"]);
@@ -60,6 +60,7 @@ function makeWebglRuntime(id) {
 export const fightGameMeta = {
   id: "fight",
   presentation: fightPresentation,
+  touchControls: fightTouchControls,
   name: "Kaboom Fight",
   description: "Read your rival. Time your strike. Settle it in a two-player sword duel.",
   namespace: "/fight",
@@ -76,6 +77,7 @@ export const fightGameMeta = {
 export const pongGameMeta = {
   id: "pong",
   presentation: pongPresentation,
+  touchControls: pongTouchControls,
   name: "Kaboom Pong",
   description: "One ball. Two paddles. Keep the rally alive and find your winning angle.",
   namespace: "/pong",
@@ -92,6 +94,7 @@ export const pongGameMeta = {
 export const roadRashGameMeta = {
   id: "roadrash",
   presentation: roadRashPresentation,
+  touchControls: roadRashTouchControls,
   name: "Road Rash Online",
   description: "Road Rash-inspired 2-player race with kicking, traffic, and real-time multiplayer.",
   namespace: "/roadrash",
@@ -108,6 +111,7 @@ export const roadRashGameMeta = {
 export const marioGameMeta = {
   id: "mario",
   presentation: marioPresentation,
+  touchControls: marioTouchControls,
   name: "Mario Rival Rush",
   description: "Head-to-head 2-player Mario platform race. Reach the flag first to win.",
   namespace: "/mario",
@@ -124,6 +128,7 @@ export const marioGameMeta = {
 export const marioTouchGameMeta = {
   id: "mario-touch",
   presentation: marioTouchPresentation,
+  touchControls: marioTouchVariantControls,
   name: "Mario Rival Rush Touch",
   description: "Head-to-head Mario race tuned for fullscreen landscape and touch controls.",
   namespace: "/mario-touch",
@@ -140,6 +145,7 @@ export const marioTouchGameMeta = {
 export const drawGameMeta = {
   id: "draw",
   presentation: drawPresentation,
+  touchControls: drawTouchControls,
   name: "Live Draw Duel",
   description: "Draw with touch or mouse and mirror strokes live to your rival.",
   namespace: "/draw",
@@ -156,6 +162,7 @@ export const drawGameMeta = {
 export const webglSampleGameMeta = {
   id: "webgl-sample",
   presentation: webglSamplePresentation,
+  touchControls: webglSampleTouchControls,
   name: "WebGL Drift",
   description: "Find your line, dodge the traffic, and see how long you can last.",
   path: "/games/webgl-sample/play",

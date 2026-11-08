@@ -109,7 +109,7 @@ Supported types are `stick`, `look` and `button`. Roles are `move`, `look`, `pri
 
 `defaultLayout` may override any subset of `{ x, y, size, opacity }`: x/y are normalized centers from 0 to 1, size is 44–160 CSS pixels, and opacity is 0.25–1. The platform insets rendered controls to keep their full targets inside the host. Portrait and landscape have separate defaults and saved profiles. Individual default overrides apply to every preset; omit x/y to use each preset's placement.
 
-`public/platform/shared/touchControls.js` exports the descriptor/profile JSDoc types, `TOUCH_PRESET_IDS`, `TOUCH_CONTROL_LIMITS`, `createDefaultTouchProfile(descriptor)`, `sanitizeTouchProfile(descriptor, candidate)`, `resolveTouchLayout(descriptor, profile, orientation)`, and `updateTouchControl(profile, controlId, patch)`. Profiles are owned values with `{ version: 1, presetId, mode, hideShell, layouts }`. `mode` is `auto` by default and also accepts `on`/`off`; `hideShell` defaults to false. Layout maps hold partial overrides per preset. Sanitization discards removed/unknown/locked controls, ignores nonfinite or nonnumeric values, clamps finite values and preserves developer defaults for new controls. Editing an owned draft changes no saved data until Save.
+`public/platform/shared/touchControls.js` exports the descriptor/profile JSDoc types, `TOUCH_PRESET_IDS`, `TOUCH_CONTROL_LIMITS`, `createDefaultTouchProfile(descriptor)`, `sanitizeTouchProfile(descriptor, candidate)`, `resolveTouchLayout(descriptor, profile, orientation)`, and `updateTouchControl(profile, controlId, patch)`. Profiles are owned values with `{ version: 2, presetId, mode, hideShell, layouts }`. The descriptor API remains version 1; `TOUCH_PROFILE_VERSION` independently versions saved preferences. `mode` is `auto` by default and also accepts `on`/`off`; `hideShell` defaults to true and applies independently of touch detection. Visible controls default to about 40% opacity and brighten when pressed. Version-1 profiles retain preset/positions/sizes while adopting expanded play, automatic display and lower opacity. Explicit version-2 preferences remain respected; storage keys stay compatible. Layout maps hold partial overrides per preset. Sanitization discards removed/unknown/locked controls, ignores nonfinite or nonnumeric values, clamps finite values and preserves developer defaults for new controls. Editing an owned draft changes no saved data until Save.
 
 `touchControlSettings.js` supplies `loadTouchProfile(gameId, descriptor, orientation)`, `saveTouchProfile(gameId, descriptor, orientation, profile)` and `subscribeTouchProfile(gameId, descriptor, orientation, listener)`. Storage is local to this browser/device, game, orientation and preset; it does not sync through an account. Saving returns `{ profile, persisted }`. When quota or blocked storage prevents persistence, the returned profile remains usable for this page's session and `persisted` is false. Tell the player that these changes are session-only. Same-page saves and cross-tab updates notify subscribers; malformed stored JSON falls back safely. Unsubscribe when the owning view unmounts.
 
@@ -143,9 +143,20 @@ const unsubscribeTouch = subscribePlatformTouchInput(gameMetadata.id, (inputEven
 
 Merge these values into the game's existing input capture and consume queued actions once. Button `hold` (the default) emits true on press and false on release; `press` emits a true/false pulse on press, which games should latch until capture; `hold-look` also emits relative CSS pixel look deltas with that button's ID. Background right-half swipes use the declared look control ID. Stick axes use a circular deadzone, point right/down and have magnitude at most one. `isPlatformTouchControlsActive(gameId)` lets adapters suppress legacy touch controls while keeping keyboard/mouse behavior. Runtime teardown must call `unsubscribeTouch()`.
 
+Games already using `getGameControls()` can declare optional `platformBinding` values instead of adding a second touch adapter:
+
+```js
+controls: [
+  { id: "move", type: "stick", role: "move", label: "Move", platformBinding: "horizontal" },
+  { id: "jump", type: "button", role: "primary", label: "Jump", platformBinding: "a" },
+],
+```
+
+Stick bindings accept `horizontal`, `vertical` or `directions`; button bindings accept `up`, `down`, `left`, `right`, `a`, `b`, `x` or `y`. Look surfaces do not accept a binding. The SDK supplies held/press callbacks through a cross-bundle window boundary, without clicking hidden console DOM. Pointer source ownership keeps simultaneous controls independent and releases them on cancellation/disposal. Game-specific meanings stay in the package's existing control subscriptions. Custom numeric/aim adapters can omit `platformBinding` and continue using `platformtouchinput`.
+
 The shell's `TouchControlSurface` owns the DOM binding. Custom platform surfaces can call `bindTouchControlSurface({ element, gameId, descriptor, layout, disabled })` and must dispose the returned binding. Place the surface in the game frame with `[data-touch-control-id]` children. Empty surface/look space uses `pointer-events: none`; the binding captures look on its parent host and ignores interactive HUD targets and platform chrome. It updates pressed/knob feedback directly in the DOM. Independent pointer IDs support movement, look and actions together; a finger's release cannot clear another finger's action. Cancel/capture loss releases that owner, and blur, hidden pages, host resize, disabling or disposal clear all input. Set `disabled` while platform dialogs/editors own focus. Layout editing never remounts the game renderer, and the match continues during editing.
 
-Players can explicitly choose to expand the play area by hiding decorative console controls during touch play. Selecting a preset or editing controls does not itself resize the shell, request browser fullscreen or lock orientation. Returning to the library restores the console presentation.
+Games default to an expanded play area with the console hidden on desktop and touch devices. A current profile can explicitly restore the console; changing the control visibility mode does not shrink the play area. Selecting a preset or editing button positions does not request browser fullscreen, lock orientation or remount the game. Returning to the library restores the console presentation and releases platform-owned fullscreen.
 
 ## Browse large catalogs
 
@@ -161,15 +172,19 @@ Foreground artwork is contained within its frame so the entire image remains vis
 
 The current catalog index is built from trusted registered game metadata at server startup. It supports catalog browsing; it does not add dynamic uploads, a tenant database, or game-hosting capacity. A persistent catalog can later implement the same page/detail contract.
 
-## Preserve the console shell
+## Platform-owned game presentation
 
-Library and game views share the same outer console dimensions, bezel, and controller positions. Every game starts in landscape on touch devices through the platform's shared presentation layer. It attempts native landscape orientation; a portrait touch viewport waits before initial runtime loading or room joining and shows a rotate-device prompt. A labeled **Use landscape fullscreen** action can enable fullscreen and retry rotation where supported. Launch never silently requests fullscreen. The legacy `startInLandscape` hint does not select this policy or change shell geometry.
+The library uses the console shell; games default to a full-window play surface with the outer shell hidden. A landscape Play gesture requests native fullscreen synchronously before navigation, preserving the browser's transient user activation. Native denial or unsupported APIs fall back to the expanded viewport. A shared URL opens expanded without an unsolicited native request; players can use the labeled Fullscreen action. Escape exits native fullscreen without an automatic retry. Returning to the library restores the console and exits fullscreen owned by this game session, including late pending requests.
+
+Every game starts in landscape on touch devices through the platform's shared presentation layer. A portrait touch viewport waits before initial runtime loading or room joining and shows a rotate-device prompt. A labeled **Use landscape fullscreen** action can enable fullscreen and retry rotation where supported. The legacy `startInLandscape` hint does not select this policy. Browser requirements are described in [requestFullscreen](https://developer.mozilla.org/en-US/docs/Web/API/Element/requestFullscreen).
 
 After a game has started, later viewport changes keep its existing runtime, room and canvas. Returning to the library releases platform-owned orientation. This applies equally to shared-link entry and catalog launches, independently of the game's renderer or touch-customization capabilities. Games supply no orientation logic or new metadata fields.
 
 Render within the supplied game host. Size or rotate a game's own drawing surface using its host's measured bounds and observe host resizes when needed. Do not use browser viewport dimensions to expand a renderer beyond the screen, mutate the outer shell, or request fullscreen/orientation from game initialization and input handlers. Route transitions may fade screen content without translating or scaling the console.
 
-The platform's touch settings add an explicit **Expanded play area** preference. Players can select it in Config or the in-game Controls editor. The shell applies it without replacing the game canvas; game packages continue to fit the supplied host and do not toggle outer geometry themselves.
+The platform's touch settings expose the **Expanded play area** preference, enabled by default. Players can restore the console from Config or the in-game Controls editor. The shell applies this choice without replacing the game canvas; game packages continue to fit the supplied host and do not toggle outer geometry themselves. Game HUD layers stay within the runtime stacking context so platform controls remain accessible.
+
+Run `npm run test:presentation:browser` against the local server to verify landscape Play fullscreen, denied-request fallback, library restoration, saved-profile migration and translucent touch controls across the bundled catalog. Set `PLATFORM_PRESENTATION_GAMES=fight,pong` to select the touch games; native fullscreen/fallback checks still run. The suite uses an isolated Chrome profile and stores `game-presentation-*.png` screenshots in the OS temporary directory. `npm run test:orientation:browser` checks portrait startup, rotation restrictions and runtime continuity.
 
 ### Player control editor
 

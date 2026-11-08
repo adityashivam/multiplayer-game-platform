@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createDefaultTouchProfile, resolveTouchLayout } from "../public/platform/shared/touchControls.js";
 import { bindTouchControlSurface, isPlatformTouchControlsActive, subscribePlatformTouchInput } from "../public/platform/frontend-engine/touchControlSurface.js";
+import { getGameControls } from "../public/platform/frontend-engine/gameDom.js";
 
 const descriptor = {
   apiVersion: 1,
@@ -18,7 +19,7 @@ const descriptor = {
 };
 
 function createTouchEnvironment(testContext, options = {}) {
-  const { hostTouchAction = "", ...bindingOptions } = options;
+  const { hostTouchAction = "", controlDescriptor = descriptor, ...bindingOptions } = options;
   const previousWindow = globalThis.window;
   const previousDocument = globalThis.document;
   const touchWindow = new EventTarget();
@@ -59,13 +60,13 @@ function createTouchEnvironment(testContext, options = {}) {
   ]);
   surface.querySelectorAll = (selector) => selector === "[data-touch-control-id]" ? [...controls.values()] : [];
   surface.contains = (candidate) => [...controls.values()].includes(candidate);
-  touchDocument.querySelectorAll = () => [surface];
+  touchDocument.querySelectorAll = (selector) => selector === "[data-platform-touch-game]" ? [surface] : [];
   touchDocument.querySelector = () => touchDocument.modal ? {} : null;
   globalThis.window = touchWindow;
   globalThis.document = touchDocument;
   const events = [];
   const unsubscribe = subscribePlatformTouchInput("relay", (inputEvent) => events.push(inputEvent));
-  const binding = bindTouchControlSurface({ element: surface, gameId: "relay", descriptor, layout: resolveTouchLayout(descriptor, createDefaultTouchProfile(descriptor), "landscape"), ...bindingOptions });
+  const binding = bindTouchControlSurface({ element: surface, gameId: "relay", descriptor: controlDescriptor, layout: resolveTouchLayout(controlDescriptor, createDefaultTouchProfile(controlDescriptor), "landscape"), ...bindingOptions });
   events.length = 0;
   testContext.after(() => {
     binding.dispose();
@@ -255,7 +256,7 @@ test("initially disabled surfaces leave custom renderer host panning available",
 });
 
 test("replacing a host binding cannot restore panning while its replacement owns gestures", (testContext) => {
-  const { host, surface, binding } = createTouchEnvironment(testContext, { hostTouchAction: "pan-y" });
+  const { host, surface, binding, controls, events, pointer } = createTouchEnvironment(testContext, { hostTouchAction: "pan-y" });
   const replacementBinding = bindTouchControlSurface({
     element: surface,
     gameId: "relay",
@@ -265,6 +266,178 @@ test("replacing a host binding cannot restore panning while its replacement owns
   testContext.after(() => replacementBinding.dispose());
   binding.dispose();
   assert.equal(host.style.touchAction, "none");
+  assert.equal(isPlatformTouchControlsActive("relay"), true);
+  pointer("pointerdown", 88, controls.get("tool"));
+  assert.deepEqual(events.at(-1), { gameId: "relay", type: "action", controlId: "tool", active: true });
   replacementBinding.dispose();
   assert.equal(host.style.touchAction, "pan-y");
+});
+
+test("bound touch controls reach a separate game bundle without shell buttons or duplicate custom events", async (testContext) => {
+  const controlDescriptor = { ...descriptor, controls: [
+    { id: "drive", type: "stick", role: "move", label: "Move", platformBinding: "directions" },
+    { id: "hop", type: "button", role: "jump", label: "Jump", platformBinding: "a" },
+    { id: "cycle", type: "button", role: "utility", label: "Clear", behavior: "press", platformBinding: "x" },
+  ] };
+  const { controls, events, pointer } = createTouchEnvironment(testContext, { controlDescriptor });
+  const gameBundle = await import("../public/platform/frontend-engine/gameDom.js?virtual-game-bundle");
+  const gameControls = gameBundle.getGameControls();
+  const heldInputs = [];
+  let clearPresses = 0;
+  const cleanups = [
+    gameControls.dpad.right.onHold(() => heldInputs.push("right down"), () => heldInputs.push("right up")),
+    gameControls.dpad.up.onHold(() => heldInputs.push("up down"), () => heldInputs.push("up up")),
+    gameControls.actions.a.onHold(() => heldInputs.push("jump down"), () => heldInputs.push("jump up")),
+    gameControls.actions.x.onPress(() => clearPresses += 1),
+  ];
+  testContext.after(() => cleanups.forEach((cleanup) => cleanup()));
+
+  pointer("pointerdown", 1, controls.get("drive"), { clientX: 140, clientY: 220 });
+  pointer("pointerdown", 2, controls.get("hop"));
+  pointer("pointerdown", 3, controls.get("cycle"));
+  pointer("pointermove", 3, controls.get("cycle"));
+  assert.deepEqual(heldInputs, ["up down", "right down", "jump down"]);
+  assert.equal(clearPresses, 1);
+  assert.deepEqual(events, []);
+
+  pointer("pointerup", 1);
+  assert.deepEqual(heldInputs.slice(-2), ["up up", "right up"]);
+  pointer("pointercancel", 2);
+  assert.equal(heldInputs.at(-1), "jump up");
+});
+
+test("overlapping bindings retain each control's hold until its final source releases", (testContext) => {
+  const controlDescriptor = { ...descriptor, controls: [
+    { id: "drive", type: "stick", role: "move", label: "Move", platformBinding: "horizontal" },
+    { id: "hop", type: "button", role: "jump", label: "Right", platformBinding: "right" },
+  ] };
+  const { controls, pointer } = createTouchEnvironment(testContext, { controlDescriptor });
+  const heldInputs = [];
+  const unsubscribe = getGameControls().dpad.right.onHold(() => heldInputs.push(true), () => heldInputs.push(false));
+  testContext.after(unsubscribe);
+  pointer("pointerdown", 1, controls.get("drive"), { clientX: 140, clientY: 270 });
+  pointer("pointerdown", 2, controls.get("hop"));
+  assert.deepEqual(heldInputs, [true]);
+  pointer("pointerup", 1);
+  assert.deepEqual(heldInputs, [true]);
+  pointer("pointerup", 2);
+  assert.deepEqual(heldInputs, [true, false]);
+});
+
+test("disposing one surface releases only its sources across independently bundled surfaces", async (testContext) => {
+  const controlDescriptor = { ...descriptor, controls: [
+    { id: "hop", type: "button", role: "jump", label: "Jump", platformBinding: "a" },
+  ] };
+  const { binding, controls, createElement, pointer } = createTouchEnvironment(testContext, { controlDescriptor });
+  const heldInputs = [];
+  const unsubscribe = getGameControls().actions.a.onHold(() => heldInputs.push(true), () => heldInputs.push(false));
+  testContext.after(unsubscribe);
+  const peerSurfaceModule = await import("../public/platform/frontend-engine/touchControlSurface.js?virtual-peer-surface");
+  const peerHost = createElement();
+  const peerSurface = createElement();
+  const peerButton = createElement({ id: "hop", tag: "BUTTON" });
+  peerSurface.parentElement = peerHost;
+  peerSurface.querySelectorAll = () => [peerButton];
+  const peerBinding = peerSurfaceModule.bindTouchControlSurface({
+    element: peerSurface,
+    gameId: "relay",
+    descriptor: controlDescriptor,
+    layout: resolveTouchLayout(controlDescriptor, createDefaultTouchProfile(controlDescriptor)),
+  });
+  testContext.after(() => peerBinding.dispose());
+
+  pointer("pointerdown", 1, controls.get("hop"));
+  const peerPointer = Object.assign(new Event("pointerdown", { cancelable: true }), {
+    pointerId: 2, button: 0, pointerType: "touch", clientX: 700, clientY: 200,
+  });
+  Object.defineProperty(peerPointer, "target", { value: peerButton });
+  peerHost.dispatchEvent(peerPointer);
+  binding.dispose();
+  assert.deepEqual(heldInputs, [true]);
+  peerBinding.reset();
+  assert.deepEqual(heldInputs, [true, false]);
+});
+
+test("direct shell holds and clicks remain available alongside owned touch controls", (testContext) => {
+  const controlDescriptor = { ...descriptor, controls: [
+    { id: "hop", type: "button", role: "jump", label: "Jump", platformBinding: "a" },
+  ] };
+  const { touchDocument, controls, createElement, pointer } = createTouchEnvironment(testContext, { controlDescriptor });
+  const shellButton = createElement({ tag: "BUTTON" });
+  touchDocument.querySelectorAll = (selector) => selector === '[data-action="a"]' ? [shellButton] : [];
+  const gameControls = getGameControls();
+  const heldInputs = [];
+  let actionPresses = 0;
+  const cleanups = [
+    gameControls.actions.a.onHold(() => heldInputs.push(true), () => heldInputs.push(false)),
+    gameControls.actions.a.onPress(() => actionPresses += 1),
+  ];
+  testContext.after(() => cleanups.forEach((cleanup) => cleanup()));
+  shellButton.dispatchEvent(new Event("pointerdown", { cancelable: true }));
+  pointer("pointerdown", 1, controls.get("hop"));
+  pointer("pointerup", 1);
+  assert.deepEqual(heldInputs, [true]);
+  assert.equal(actionPresses, 1);
+  shellButton.dispatchEvent(new Event("pointerup", { cancelable: true }));
+  shellButton.dispatchEvent(new Event("click"));
+  assert.deepEqual(heldInputs, [true, false]);
+  assert.equal(actionPresses, 2);
+});
+
+test("a clear-only touch descriptor leaves canvas drawing gestures untouched", (testContext) => {
+  const controlDescriptor = { ...descriptor, controls: [
+    { id: "cycle", type: "button", role: "utility", label: "Clear", behavior: "press", platformBinding: "x" },
+  ] };
+  const { controls, pointer } = createTouchEnvironment(testContext, { controlDescriptor });
+  let clearPresses = 0;
+  const unsubscribe = getGameControls().actions.x.onPress(() => clearPresses += 1);
+  testContext.after(unsubscribe);
+  const drawingPointer = pointer("pointerdown", 1);
+  const drawingMove = pointer("pointermove", 1, undefined, { clientX: 750 });
+  assert.equal(drawingPointer.defaultPrevented, false);
+  assert.equal(drawingMove.defaultPrevented, false);
+  pointer("pointerdown", 2, controls.get("cycle"));
+  assert.equal(clearPresses, 1);
+});
+
+test("virtual control ownership and late subscriptions cross duplicate SDK module instances", async (testContext) => {
+  const { touchWindow } = createTouchEnvironment(testContext);
+  const shellBundle = await import("../public/platform/frontend-engine/virtualGameControls.js?shell-bundle");
+  const gameBundle = await import("../public/platform/frontend-engine/virtualGameControls.js?game-bundle");
+  const shellSource = shellBundle.createVirtualGameControlSource(touchWindow);
+  const gameSource = gameBundle.createVirtualGameControlSource(touchWindow);
+  testContext.after(() => { shellSource.dispose(); gameSource.dispose(); });
+  shellSource.setHeld("b", true);
+  const heldInputs = [];
+  const unsubscribe = getGameControls().actions.b.onHold(() => heldInputs.push(true), () => heldInputs.push(false));
+  testContext.after(unsubscribe);
+  assert.deepEqual(heldInputs, [true]);
+  gameSource.setHeld("b", true);
+  shellSource.dispose();
+  assert.deepEqual(heldInputs, [true]);
+  gameSource.release();
+  assert.deepEqual(heldInputs, [true, false]);
+  gameSource.setHeld("b", true);
+  unsubscribe();
+  assert.deepEqual(heldInputs, [true, false, true, false]);
+  gameSource.release();
+  assert.deepEqual(heldInputs, [true, false, true, false]);
+});
+
+test("temporary cancellation releases virtual holds and permits the next gesture", (testContext) => {
+  const controlDescriptor = { ...descriptor, controls: [
+    { id: "hop", type: "button", role: "jump", label: "Jump", platformBinding: "a" },
+  ] };
+  const { touchDocument, controls, pointer } = createTouchEnvironment(testContext, { controlDescriptor });
+  const heldInputs = [];
+  const unsubscribe = getGameControls().actions.a.onHold(() => heldInputs.push(true), () => heldInputs.push(false));
+  testContext.after(unsubscribe);
+  pointer("pointerdown", 1, controls.get("hop"));
+  touchDocument.modal = true;
+  pointer("pointermove", 1, controls.get("hop"));
+  assert.deepEqual(heldInputs, [true, false]);
+  touchDocument.modal = false;
+  pointer("pointerdown", 2, controls.get("hop"));
+  pointer("pointerup", 2);
+  assert.deepEqual(heldInputs, [true, false, true, false]);
 });

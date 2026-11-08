@@ -10,6 +10,7 @@
     "test:touch-controls:browser": "node tests/browser/touch-layouts.mjs",
     "test:config:browser": "node tests/browser/config-layout.mjs",
     "test:orientation:browser": "node tests/browser/game-orientation.mjs",
+    "test:presentation:browser": "node tests/browser/game-presentation.mjs",
     "test:sky-dash:browser": "node tests/browser/sky-dash.mjs",
     "test:riftball:browser": "node tests/browser/riftball.mjs",
     "test:room-start:browser": "node tests/browser/room-start.mjs",

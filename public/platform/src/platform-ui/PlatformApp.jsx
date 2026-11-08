@@ -60,7 +60,7 @@ export default function App() {
     playNavSound,
     triggerHaptic,
   } = useLobbyAudio({ isGameView });
-  const { fullscreenActive, toggleFullscreen, requestFullscreen } = usePlatformPresentation();
+  const { fullscreenActive, toggleFullscreen, requestFullscreen, beginGameLaunch, endGamePresentation } = usePlatformPresentation({ isGameView });
   const gameOrientation = useGameOrientation({ gameId: isGameView ? activeGame?.id || null : null, requestFullscreen });
   const { connectionState, endGameState, endGameBridgeRef } = usePlatformGameUiState(setShareModal);
   const { disposeGameSession, gameLoadError } = usePlatformGameLoader({
@@ -165,19 +165,21 @@ export default function App() {
       if (!path) return;
 
       triggerHaptic();
+      beginGameLaunch();
       navigateTo(path);
     },
-    [navigateTo, triggerHaptic],
+    [beginGameLaunch, navigateTo, triggerHaptic],
   );
 
   const returnToLobby = useCallback(() => {
     setExitConfirmOpen(false);
     setTouchEditorOpen(false);
+    endGamePresentation();
     if (route?.gameId) {
       disposeGameSession(route.gameId);
     }
     navigateTo("/");
-  }, [disposeGameSession, navigateTo, route?.gameId]);
+  }, [disposeGameSession, endGamePresentation, navigateTo, route?.gameId]);
 
   const handleDirectionalInput = useCallback(
     (direction) => {

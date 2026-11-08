@@ -1,5 +1,6 @@
 /** Versioned, renderer-independent touch controls declared by trusted game packages. */
 export const TOUCH_CONTROLS_API_VERSION = 1;
+export const TOUCH_PROFILE_VERSION = 2;
 export const TOUCH_PRESET_IDS = Object.freeze(["two-thumb", "three-finger", "four-finger"]);
 export const TOUCH_CONTROL_LIMITS = Object.freeze({
   x: Object.freeze({ min: 0, max: 1 }),
@@ -13,12 +14,16 @@ const MAX_CONTROL_TEXT_LENGTH = 64;
 const CONTROL_ID_PATTERN = /^[A-Za-z0-9_][A-Za-z0-9_-]{0,47}$/;
 const UNSAFE_CONTROL_IDS = new Set(["__proto__", "constructor", "prototype"]);
 const DESCRIPTOR_KEYS = new Set(["apiVersion", "customizable", "defaultPreset", "allowedPresets", "controls"]);
-const CONTROL_KEYS = new Set(["id", "type", "role", "label", "icon", "editable", "behavior", "defaultLayout"]);
+const CONTROL_KEYS = new Set(["id", "type", "role", "label", "icon", "editable", "behavior", "platformBinding", "defaultLayout"]);
 const LAYOUT_FIELDS = Object.freeze(["x", "y", "size", "opacity"]);
 const CONTROL_TYPES = new Set(["stick", "look", "button"]);
 const CONTROL_ROLES = new Set(["move", "look", "primary", "secondary", "reload", "jump", "utility"]);
 const BUTTON_BEHAVIORS = new Set(["hold", "press", "hold-look"]);
 const PROFILE_MODES = new Set(["auto", "on", "off"]);
+const PLATFORM_STICK_BINDINGS = new Set(["horizontal", "vertical", "directions"]);
+const PLATFORM_BUTTON_BINDINGS = new Set(["up", "down", "left", "right", "a", "b", "x", "y"]);
+const LEGACY_TOUCH_PROFILE_VERSION = 1;
+const DEFAULT_VISIBLE_CONTROL_OPACITY = 0.4;
 
 /**
  * @typedef {"two-thumb"|"three-finger"|"four-finger"} TouchPresetId
@@ -27,17 +32,23 @@ const PROFILE_MODES = new Set(["auto", "on", "off"]);
  * @typedef {"stick"|"look"|"button"} TouchControlType
  * @typedef {"move"|"look"|"primary"|"secondary"|"reload"|"jump"|"utility"} TouchControlRole
  * @typedef {"hold"|"press"|"hold-look"} TouchButtonBehavior
+ * @typedef {"horizontal"|"vertical"|"directions"} TouchPlatformStickBinding
+ * @typedef {"up"|"down"|"left"|"right"|"a"|"b"|"x"|"y"} TouchPlatformButtonBinding
+ * @typedef {TouchPlatformStickBinding|TouchPlatformButtonBinding} TouchPlatformBinding
  * @typedef {{x: number, y: number, size: number, opacity: number}} TouchControlLayout
  * @typedef {Partial<TouchControlLayout>} TouchLayoutPatch
- * @typedef {object} TouchControlDescriptor
+ * @typedef {object} TouchControlMetadata
  * @property {string} id Game-defined event identifier, at most 48 ASCII letters/digits/underscores/hyphens.
- * @property {TouchControlType} type
  * @property {TouchControlRole} role
  * @property {string} label
  * @property {string} [icon] Material symbol name or another game-owned plain icon identifier.
  * @property {boolean} [editable=true] Look surfaces are fixed regardless of this value.
- * @property {TouchButtonBehavior} [behavior="hold"] Buttons only.
  * @property {TouchLayoutPatch} [defaultLayout]
+ * @typedef {TouchControlMetadata & ({type: "stick", platformBinding?: TouchPlatformStickBinding, behavior?: never}|
+ * {type: "look", platformBinding?: never, behavior?: never}|
+ * {type: "button", platformBinding?: TouchPlatformButtonBinding, behavior?: TouchButtonBehavior})} TouchControlDescriptor
+ * Optional platformBinding uses standard game-control subscriptions instead of game-specific intent events.
+ * Button behavior defaults to hold; look surfaces always remain game-owned.
  * @typedef {TouchControlDescriptor} TouchControl
  * @typedef {object} TouchControlsDescriptor
  * @property {1} apiVersion
@@ -48,10 +59,10 @@ const PROFILE_MODES = new Set(["auto", "on", "off"]);
  * @typedef {Record<string, TouchLayoutPatch>} TouchPresetOverrides
  * @typedef {{"two-thumb": TouchPresetOverrides, "three-finger": TouchPresetOverrides, "four-finger": TouchPresetOverrides}} TouchPresetLayouts
  * @typedef {object} TouchProfile
- * @property {1} version
+ * @property {2} version Independent of the descriptor API version.
  * @property {TouchPresetId} presetId
  * @property {TouchControlMode} mode
- * @property {boolean} hideShell An explicit player presentation choice; defaults to false.
+ * @property {boolean} hideShell An explicit player presentation choice; defaults to true.
  * @property {TouchPresetLayouts} layouts
  * @typedef {TouchControlDescriptor & TouchControlLayout} ResolvedTouchControl
  */
@@ -77,6 +88,15 @@ function isValidDefaultTouchLayout(value) {
   return isTouchMetadataObject(value) && hasOnlyTouchMetadataKeys(value, new Set(LAYOUT_FIELDS)) &&
     Object.entries(value).every(([field, number]) => Number.isFinite(number) &&
       number >= TOUCH_CONTROL_LIMITS[field].min && number <= TOUCH_CONTROL_LIMITS[field].max);
+}
+
+/** @param {TouchControlDescriptor} control @returns {boolean} */
+function isValidTouchPlatformBinding(control) {
+  if (control.platformBinding === undefined) {
+    return true;
+  }
+  return control.type === "stick" ? PLATFORM_STICK_BINDINGS.has(control.platformBinding) :
+    control.type === "button" && PLATFORM_BUTTON_BINDINGS.has(control.platformBinding);
 }
 
 /**
@@ -112,6 +132,7 @@ export function validateTouchControls(descriptor, gameId) {
           !/^[A-Za-z0-9_-]{1,64}$/.test(control.icon))) ||
         (control.editable !== undefined && typeof control.editable !== "boolean") ||
         (control.behavior !== undefined && (control.type !== "button" || !BUTTON_BEHAVIORS.has(control.behavior))) ||
+        !isValidTouchPlatformBinding(control) ||
         (control.defaultLayout !== undefined && !isValidDefaultTouchLayout(control.defaultLayout))) {
       throw new TypeError(`Game ${gameId} has invalid touch control metadata`);
     }
@@ -125,16 +146,16 @@ function createEmptyTouchLayouts() {
 }
 
 /**
- * Create an owned profile without implicitly expanding the console or forcing touch input.
+ * Create an owned expanded-view profile with automatic touch-device detection.
  * @param {TouchControlsDescriptor|undefined} descriptor
  * @returns {TouchProfile}
  */
 export function createDefaultTouchProfile(descriptor) {
   return {
-    version: TOUCH_CONTROLS_API_VERSION,
+    version: TOUCH_PROFILE_VERSION,
     presetId: descriptor?.defaultPreset ?? "two-thumb",
     mode: "auto",
-    hideShell: false,
+    hideShell: true,
     layouts: createEmptyTouchLayouts(),
   };
 }
@@ -159,23 +180,31 @@ function sanitizeTouchLayoutPatch(candidate) {
  * Read only current declared editable controls from untrusted local preferences.
  * New/removed controls migrate to developer defaults; locks override old saved values.
  * Numeric strings and nonfinite values are discarded, finite values are clamped.
+ * Version-one profiles retain layout geometry and presets while adopting the
+ * expanded automatic presentation and lower opacity. Current player choices persist.
  * @param {TouchControlsDescriptor|undefined} descriptor
  * @param {unknown} candidate
  * @returns {TouchProfile} Independently owned, with no references into metadata or preferences.
  */
 export function sanitizeTouchProfile(descriptor, candidate) {
   const profile = createDefaultTouchProfile(descriptor);
-  if (!descriptor?.customizable || !isTouchMetadataObject(candidate) || candidate.version !== TOUCH_CONTROLS_API_VERSION) {
+  if (!descriptor?.customizable || !isTouchMetadataObject(candidate) ||
+      (candidate.version !== TOUCH_PROFILE_VERSION && candidate.version !== LEGACY_TOUCH_PROFILE_VERSION)) {
     return profile;
   }
 
   if (descriptor.allowedPresets.includes(candidate.presetId)) {
     profile.presetId = candidate.presetId;
   }
-  if (PROFILE_MODES.has(candidate.mode)) {
-    profile.mode = candidate.mode;
+  const isLegacyProfile = candidate.version === LEGACY_TOUCH_PROFILE_VERSION;
+  if (!isLegacyProfile) {
+    if (PROFILE_MODES.has(candidate.mode)) {
+      profile.mode = candidate.mode;
+    }
+    if (typeof candidate.hideShell === "boolean") {
+      profile.hideShell = candidate.hideShell;
+    }
   }
-  profile.hideShell = candidate.hideShell === true;
 
   if (!isTouchMetadataObject(candidate.layouts)) {
     return profile;
@@ -190,6 +219,9 @@ export function sanitizeTouchProfile(descriptor, candidate) {
         continue;
       }
       const layoutPatch = sanitizeTouchLayoutPatch(savedLayout[control.id]);
+      if (isLegacyProfile && layoutPatch.opacity !== undefined) {
+        layoutPatch.opacity = Math.min(DEFAULT_VISIBLE_CONTROL_OPACITY, layoutPatch.opacity);
+      }
       if (Object.keys(layoutPatch).length > 0) {
         profile.layouts[presetId][control.id] = layoutPatch;
       }
@@ -200,13 +232,13 @@ export function sanitizeTouchProfile(descriptor, candidate) {
 
 /** @type {Record<TouchControlRole, TouchControlLayout>} */
 const LANDSCAPE_ROLE_LAYOUTS = {
-  move: { x: 0.16, y: 0.77, size: 128, opacity: 0.65 },
+  move: { x: 0.16, y: 0.77, size: 128, opacity: DEFAULT_VISIBLE_CONTROL_OPACITY },
   look: { x: 0.75, y: 0.5, size: 160, opacity: 0.25 },
-  primary: { x: 0.85, y: 0.77, size: 80, opacity: 0.75 },
-  secondary: { x: 0.73, y: 0.62, size: 64, opacity: 0.65 },
-  reload: { x: 0.92, y: 0.47, size: 52, opacity: 0.6 },
-  jump: { x: 0.65, y: 0.79, size: 64, opacity: 0.65 },
-  utility: { x: 0.91, y: 0.29, size: 52, opacity: 0.6 },
+  primary: { x: 0.85, y: 0.77, size: 80, opacity: DEFAULT_VISIBLE_CONTROL_OPACITY },
+  secondary: { x: 0.73, y: 0.62, size: 64, opacity: DEFAULT_VISIBLE_CONTROL_OPACITY },
+  reload: { x: 0.92, y: 0.47, size: 52, opacity: DEFAULT_VISIBLE_CONTROL_OPACITY },
+  jump: { x: 0.65, y: 0.79, size: 64, opacity: DEFAULT_VISIBLE_CONTROL_OPACITY },
+  utility: { x: 0.91, y: 0.29, size: 52, opacity: DEFAULT_VISIBLE_CONTROL_OPACITY },
 };
 
 /** @type {Record<TouchControlRole, TouchLayoutPatch>} */
@@ -279,7 +311,9 @@ export function updateTouchControl(profile, controlId, patch) {
     ownedProfile.presetId = profile.presetId;
   }
   ownedProfile.mode = PROFILE_MODES.has(profile?.mode) ? profile.mode : "auto";
-  ownedProfile.hideShell = profile?.hideShell === true;
+  if (typeof profile?.hideShell === "boolean") {
+    ownedProfile.hideShell = profile.hideShell;
+  }
 
   for (const presetId of TOUCH_PRESET_IDS) {
     const overrides = profile?.layouts?.[presetId];

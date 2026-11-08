@@ -143,7 +143,7 @@ try {
   await click(p1, "[aria-label=\"Choose game for touch controls\"]");
   await waitFor(p1, "document.querySelector('[aria-label=\"Choose a game for touch controls\"]')?.textContent.includes('Dead Shift')");
   const pickerText = await evaluate(p1, "return document.querySelector('[aria-label=\"Choose a game for touch controls\"]').innerText;");
-  assert.ok(!pickerText.includes("Kaboom Pong"), "Games without developer opt-in must not appear");
+  assert.ok(pickerText.includes("Kaboom Pong"), "Bundled Pong now opts into the shared touch editor");
   await key(p1, "Escape", "Escape", true); await key(p1, "Escape", "Escape", false);
   await clickText(p1, "Edit layout");
   await waitFor(p1, "[...document.querySelectorAll('[role=dialog]')].some(dialog=>dialog.textContent.includes('Edit controls'))");
@@ -223,7 +223,7 @@ try {
   await send("Emulation.setTouchEmulationEnabled", { enabled: true, maxTouchPoints: 5 }, p1);
   const playArea = await evaluate(p1, "return{presentation:document.querySelector('[data-platform-presentation]').dataset.platformPresentation,canvas:document.querySelector('#game-canvas').getBoundingClientRect().toJSON(),fullscreen:Boolean(document.fullscreenElement)};");
   assert.equal(playArea.presentation, "expanded");
-  assert.equal(playArea.fullscreen, false);
+  assert.equal(playArea.fullscreen, true, "Landscape Play uses native fullscreen when the browser permits it");
   assert.ok(playArea.canvas.width >= 998 && playArea.canvas.height >= 598, "Explicit expanded mode must fill the host");
   const points = await evaluate(p1, `
     function point(controlId,id){const b=document.querySelector('[data-platform-touch-game] [data-touch-control-id="'+controlId+'"]').getBoundingClientRect();return{id,x:b.x+b.width/2,y:b.y+b.height/2,radiusX:2,radiusY:2,force:1};}
@@ -306,12 +306,13 @@ try {
   console.log("EXPANDED PORTRAIT, MODAL PRIORITY, RETURN AND CLEANUP PASSED");
   await evaluate(p1, "document.querySelector('[data-library-card-id=pong]').dispatchEvent(new MouseEvent('dblclick',{bubbles:true}));");
   await waitFor(p1, "document.querySelector('[aria-label=\"Landscape game startup\"]')");
-  assert.equal(await evaluate(p1, "return document.querySelectorAll('script[id^=game-runtime-pong-]').length;"), 0, "Landscape startup also applies to games without customizable touch controls");
+  assert.equal(await evaluate(p1, "return document.querySelectorAll('script[id^=game-runtime-pong-]').length;"), 0, "Landscape startup also applies to the platform-bound Pong layout");
   await send("Emulation.setDeviceMetricsOverride", { width: 844, height: 390, deviceScaleFactor: 1, mobile: true }, p1);
   await waitFor(p1, "location.pathname.startsWith('/games/pong/')&&typeof get==='function'&&document.querySelector('#game-canvas')", 25000);
-  assert.equal(await evaluate(p1, "return document.querySelectorAll('[aria-label=\"Customize touch controls\"],[data-platform-touch-game]').length;"), 0, "An existing game without opt-in must keep its own controls");
+  await waitFor(p1, "document.querySelector('[aria-label=\"Customize touch controls\"]')&&document.querySelector('[data-platform-touch-game=pong]')");
+  assert.equal(await evaluate(p1, "return Boolean(document.querySelector('[aria-label=\"Customize touch controls\"]')&&document.querySelector('[data-platform-touch-game=pong]'));"), true, "Pong now exposes its developer-approved layout through the shared editor");
   assert.equal(exceptions.length, 0, JSON.stringify(exceptions));
-  console.log("EXISTING GAME PERMISSIONS AND RUNTIME PASSED");
+  console.log("PLATFORM-BOUND GAME EDITOR AND RUNTIME PASSED");
 } finally {
   chrome.kill("SIGTERM");
   const closeTimeout = setTimeout(() => chrome.kill("SIGKILL"), 3000);

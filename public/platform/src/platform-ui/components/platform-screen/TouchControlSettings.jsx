@@ -6,7 +6,7 @@ import TouchGamePicker from "./TouchGamePicker.jsx";
 import styles from "./TouchControlSettings.module.scss";
 
 const PRESET_DETAILS = Object.freeze({
-  "two-thumb": { title: "Two thumbs", description: "Move and aim with thumbs", fingers: "2" },
+  "two-thumb": { title: "Two thumbs", description: "Thumbs handle movement and actions", fingers: "2" },
   "three-finger": { title: "Three fingers", description: "One index finger for actions", fingers: "3" },
   "four-finger": { title: "Four fingers", description: "Both index fingers for actions", fingers: "4" },
 });
@@ -72,7 +72,7 @@ export default function TouchControlSettings({ onDialogChange }) {
                 </select>
               </div>
               <div className={styles.preferenceRow}>
-                <div><label htmlFor="touch-expanded">Expanded play area</label><p>Hide the console frame while touch controls are active.</p></div>
+                <div><label htmlFor="touch-expanded">Expanded play area</label><p>Use the full play area without the console frame.</p></div>
                 <input id="touch-expanded" className={styles.switch} type="checkbox" checked={profile.hideShell} onChange={(event) => updatePreferences({ hideShell: event.target.checked })} />
               </div>
               <p className={styles.saveStatus} role="status">{status || `${previewOrientation === "landscape" ? "Landscape" : "Portrait"} settings · Portrait and landscape save separately`}</p>

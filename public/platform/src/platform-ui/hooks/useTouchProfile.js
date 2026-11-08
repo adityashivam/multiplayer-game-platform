@@ -31,7 +31,7 @@ function useMediaCondition(query) {
  */
 export default function useTouchProfile(game, { orientation: requestedOrientation } = {}) {
   const portrait = useMediaCondition("(orientation: portrait)");
-  const touchDevice = useMediaCondition("(pointer: coarse)");
+  const touchDevice = useMediaCondition("(pointer: coarse), (any-pointer: coarse)");
   const orientation = requestedOrientation || (portrait ? "portrait" : "landscape");
   const descriptor = game?.touchControls;
   const profileKey = descriptor ? `${game.id}:${orientation}` : null;
@@ -77,7 +77,7 @@ export default function useTouchProfile(game, { orientation: requestedOrientatio
     orientation,
     touchDevice,
     enabled,
-    expanded: Boolean(enabled && profile?.hideShell),
+    expanded: profile?.hideShell !== false,
     saveProfile,
     status: profileState.key === profileKey ? profileState.status : "",
   };

@@ -448,6 +448,8 @@ function bindTouchHold(button, onDown, onUp) {
 
 function initTouchOverlayControls() {
   if (!TOUCH_VARIANT_ENABLED) return () => {};
+  // The SDK owns both enabled and explicitly disabled touch controls in its host.
+  if (document.getElementById("game-view")?.contains(canvas)) return () => {};
   ensureTouchStyles();
 
   const host = canvas.parentElement || document.getElementById("game-view");

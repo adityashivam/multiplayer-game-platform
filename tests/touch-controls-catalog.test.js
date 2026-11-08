@@ -3,6 +3,9 @@ import assert from "node:assert/strict";
 import { createGameCatalog, parseGameCatalogQuery } from "../public/platform/shared/gameCatalog.js";
 import { createGameRegistry } from "../server/platform-backend-engine/core/gameRegistry.js";
 import { registerGameCatalogRoutes } from "../server/platform-backend-server/gameCatalogRoutes.js";
+import { createBuiltInGameRegistry } from "../server/platform-backend-engine/games/builtInGames.js";
+import { fallbackGames } from "../public/platform/src/data/games.js";
+import { createDefaultTouchProfile, resolveTouchLayout } from "../public/platform/shared/touchControls.js";
 
 function createTouchDescriptor(customizable = true) {
   return {
@@ -82,4 +85,40 @@ test("catalog page and direct lookup advertise owned optional touch metadata", (
   assert.equal(response.body.game.touchControls.controls[0].label, "Move paddle");
   handlers.get("/api/games/:gameId")({ ...request, params: { gameId: "relay-2" } }, response);
   assert.equal(Object.hasOwn(response.body.game, "touchControls"), false);
+});
+
+test("every bundled catalog entry advertises its supported customizable touch controls", () => {
+  const registry = createBuiltInGameRegistry();
+  const games = registry.listGames();
+  assert.equal(games.length, 10);
+  assert.equal(createGameCatalog(games).query({ customizable: true }).total, 10);
+  for (const game of games) {
+    assert.equal(game.touchControls?.customizable, true, `${game.id} must support touch layout editing`);
+    assert.equal(game.touchControls.apiVersion, 1);
+    const fallbackGame = fallbackGames.find((candidate) => candidate.id === game.id);
+    assert.deepEqual(fallbackGame.touchControls, game.touchControls, `${game.id} offline metadata must match the server`);
+    const layout = resolveTouchLayout(game.touchControls, createDefaultTouchProfile(game.touchControls));
+    assert.ok(layout.every((control) => control.opacity <= 0.4), `${game.id} controls must start translucent`);
+  }
+
+  const expectedBindings = {
+    fight: ["horizontal", "up", "down", "a", "x", "b", "y"],
+    pong: ["vertical"],
+    mario: ["horizontal", "a", "b"],
+    "mario-touch": ["horizontal", "a", "b"],
+    roadrash: ["horizontal", "up", "down", "x", "b"],
+    draw: ["x"],
+    "webgl-sample": ["horizontal", "a"],
+  };
+  for (const [gameId, bindings] of Object.entries(expectedBindings)) {
+    const game = registry.getGame(gameId);
+    assert.deepEqual(game.touchControls.controls.map((control) => control.platformBinding), bindings, `${gameId} should bind only supported inputs`);
+  }
+  const drawControls = registry.getGame("draw").touchControls.controls;
+  assert.equal(drawControls.length, 1);
+  assert.equal(drawControls[0].type, "button");
+  assert.equal(drawControls[0].label, "Clear");
+  for (const gameId of ["dead-shift", "sky-dash", "riftball"]) {
+    assert.ok(registry.getGame(gameId).touchControls.controls.every((control) => control.platformBinding === undefined));
+  }
 });

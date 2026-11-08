@@ -1,10 +1,10 @@
-import { fightPresentation } from "../../../games/fight/catalog.js";
-import { pongPresentation } from "../../../games/pong/catalog.js";
-import { roadRashPresentation } from "../../../games/roadrash/catalog.js";
-import { marioPresentation } from "../../../games/mario/catalog.js";
-import { marioTouchPresentation } from "../../../games/mario-touch/catalog.js";
-import { drawPresentation } from "../../../games/draw/catalog.js";
-import { webglSamplePresentation } from "../../../games/webgl-sample/catalog.js";
+import { fightPresentation, fightTouchControls } from "../../../games/fight/catalog.js";
+import { pongPresentation, pongTouchControls } from "../../../games/pong/catalog.js";
+import { roadRashPresentation, roadRashTouchControls } from "../../../games/roadrash/catalog.js";
+import { marioPresentation, marioTouchControls } from "../../../games/mario/catalog.js";
+import { marioTouchPresentation, marioTouchVariantControls } from "../../../games/mario-touch/catalog.js";
+import { drawPresentation, drawTouchControls } from "../../../games/draw/catalog.js";
+import { webglSamplePresentation, webglSampleTouchControls } from "../../../games/webgl-sample/catalog.js";
 import { deadShiftPresentation, deadShiftTouchControls } from "../../../games/dead-shift/catalog.js";
 import { skyDashPresentation, skyDashTouchControls } from "../../../games/sky-dash/catalog.js";
 import { riftballPresentation, riftballTouchControls } from "../../../games/riftball/catalog.js";
@@ -90,6 +90,7 @@ export const fallbackGames = [
   {
     id: "fight",
     presentation: fightPresentation,
+    touchControls: fightTouchControls,
     name: "Kaboom Fight",
     description: "Read your rival. Time your strike. Settle it in a two-player sword duel.",
     path: "/games/fight",
@@ -102,6 +103,7 @@ export const fallbackGames = [
   {
     id: "pong",
     presentation: pongPresentation,
+    touchControls: pongTouchControls,
     name: "Kaboom Pong",
     description: "One ball. Two paddles. Keep the rally alive and find your winning angle.",
     path: "/games/pong",
@@ -114,6 +116,7 @@ export const fallbackGames = [
   {
     id: "roadrash",
     presentation: roadRashPresentation,
+    touchControls: roadRashTouchControls,
     name: "Road Rash Online",
     description: "Road Rash-inspired two-player bike race with kicks and highway traffic.",
     path: "/games/roadrash",
@@ -126,6 +129,7 @@ export const fallbackGames = [
   {
     id: "mario",
     presentation: marioPresentation,
+    touchControls: marioTouchControls,
     name: "Mario Rival Rush",
     description: "Head-to-head Mario platform race. Beat your rival to the flag.",
     path: "/games/mario",
@@ -138,6 +142,7 @@ export const fallbackGames = [
   {
     id: "mario-touch",
     presentation: marioTouchPresentation,
+    touchControls: marioTouchVariantControls,
     name: "Mario Rival Rush Touch",
     description:
       "Mario race tuned for fullscreen landscape play with on-screen touch controls.",
@@ -151,6 +156,7 @@ export const fallbackGames = [
   {
     id: "draw",
     presentation: drawPresentation,
+    touchControls: drawTouchControls,
     name: "Live Draw Duel",
     description: "Touch and draw together. Your strokes appear live on your rival screen.",
     path: "/games/draw",
@@ -163,6 +169,7 @@ export const fallbackGames = [
   {
     id: "webgl-sample",
     presentation: webglSamplePresentation,
+    touchControls: webglSampleTouchControls,
     name: "WebGL Drift",
     description: "Find your line, dodge the traffic, and see how long you can last.",
     path: "/games/webgl-sample/play",

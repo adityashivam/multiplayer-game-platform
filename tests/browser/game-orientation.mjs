@@ -29,6 +29,18 @@ async function rotateToLandscape(page) {
   await send("Emulation.setDeviceMetricsOverride", { width: 844, height: 390, deviceScaleFactor: 1, mobile: true }, page);
 }
 
+/** Fullscreen needs a trusted pointer gesture; DOM click() has no user activation. */
+async function requestLandscapeFullscreen(page) {
+  const buttonPoint = await evaluate(page, `
+    const fullscreenButton = [...document.querySelectorAll('[aria-label="Landscape game startup"] button')]
+      .find(button => button.textContent.trim() === "Use landscape fullscreen");
+    const bounds = fullscreenButton.getBoundingClientRect();
+    return { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 };
+  `);
+  await send("Input.dispatchMouseEvent", { type: "mousePressed", button: "left", clickCount: 1, ...buttonPoint }, page);
+  await send("Input.dispatchMouseEvent", { type: "mouseReleased", button: "left", clickCount: 1, ...buttonPoint }, page);
+}
+
 try {
   for (const fixture of [{ gameId: "riftball", capability: "unsupported" }, { gameId: "pong", capability: "denied" }]) {
     let url = `${baseUrl}/games/${fixture.gameId}`;
@@ -47,10 +59,10 @@ try {
     assert.equal(await evaluate(page, "return matchMedia('(any-pointer:coarse)').matches;"), true);
     assert.equal(await evaluate(page, "return document.querySelectorAll('script[id^=game-runtime-]').length;"), 0, "Portrait startup must wait before loading a runtime");
     assert.equal(await evaluate(page, "return orientationProbe.newRooms;"), 0, "No room is created before landscape startup");
-    assert.equal(await evaluate(page, "return orientationProbe.fullscreen;"), 0, "Launching a game must not automatically enter fullscreen");
+    assert.equal(await evaluate(page, "return orientationProbe.fullscreen;"), 0, "Portrait startup waits for rotation or a labeled fullscreen action");
     await capture(page, `${fixture.gameId}-portrait-start`);
     if (fixture.capability === "denied") {
-      await clickText(page, "Use landscape fullscreen");
+      await requestLandscapeFullscreen(page);
       await waitFor(page, "document.querySelector('[aria-label=\"Landscape game startup\"]').textContent.includes('Automatic rotation isn’t available')");
       assert.equal(await evaluate(page, "return orientationProbe.fullscreen;"), 1);
     }
@@ -82,7 +94,7 @@ try {
   assert.ok(await evaluate(lockedPage, "return orientationProbe.unlocks>0;"));
   const pendingPage = await openTouchPage(`${baseUrl}/games/pong`, "pending");
   await waitFor(pendingPage, "document.querySelector('[aria-label=\"Landscape game startup\"]')&&orientationProbe.locks.length===1");
-  await clickText(pendingPage, "Use landscape fullscreen");
+  await requestLandscapeFullscreen(pendingPage);
   await waitFor(pendingPage, "orientationProbe.fullscreen===1&&orientationProbe.locks.length===2");
   await evaluate(pendingPage, "finishAutomaticOrientation();");
   assert.equal(await evaluate(pendingPage, "return orientationProbe.newRooms;"), 0);
