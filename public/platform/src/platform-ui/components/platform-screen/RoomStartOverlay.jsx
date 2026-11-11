@@ -28,6 +28,26 @@ export default function RoomStartOverlay({ room, gameName, isCreatorEntry, onInv
 
   const failed = room.phase === "error";
   const connecting = room.phase === "connecting" || room.phase === "reconnecting";
+  if (room.hasPlayed && !failed) {
+    const recoveryTitle = countingDown
+      ? room.secondsRemaining > 0 ? `Resuming in ${room.secondsRemaining}` : "Resuming your match…"
+      : connecting ? "Reconnecting…" : "Waiting for players to reconnect…";
+    const recoveryDescription = countingDown
+      ? "Everyone’s back. Your match will continue."
+      : connecting ? "Match paused. Reconnecting automatically." : "Your match is paused until everyone is back.";
+
+    return (
+      <div className={styles.recoveryNotice} data-platform-room-recovery={room.phase}>
+        <span className={`material-symbols-outlined ${styles.recoveryIcon}`} aria-hidden="true">{countingDown ? "sports_esports" : "wifi_find"}</span>
+        <div className={styles.recoveryMessage} role="status" aria-live="polite" aria-atomic="true">
+          <strong>{recoveryTitle}</strong>
+          <span>{recoveryDescription}</span>
+        </div>
+        <button type="button" className={styles.recoveryLeaveButton} onClick={onLeave}>Leave room</button>
+      </div>
+    );
+  }
+
   const title = failed ? "Room is full" : countingDown ? "Get ready" : room.phase === "reconnecting" ? "Rejoining your room" : connecting ? (isCreatorEntry ? "Preparing your room" : "Joining the room") : "Waiting for players";
   const description = failed ? room.errorMessage : countingDown ? "Everyone’s here. Your game is about to start." : connecting ? "Connecting you to the same game." : "The countdown begins when everyone has joined.";
   const remaining = room.secondsRemaining;

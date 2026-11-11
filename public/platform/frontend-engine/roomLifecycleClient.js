@@ -10,6 +10,7 @@ const SUPPORTED_PHASES = new Set(Object.values(ROOM_PHASE));
  * @property {string|null} roomId
  * @property {string|null} playerId
  * @property {boolean} joined
+ * @property {boolean} hasPlayed Whether this room ownership has entered authoritative play; retained during recovery.
  * @property {number|null} secondsRemaining
  * @property {number|null} startAtMs
  * @property {number} countdownDurationMs
@@ -22,7 +23,7 @@ const SUPPORTED_PHASES = new Set(Object.values(ROOM_PHASE));
 
 /** @returns {RoomLifecyclePresentation} */
 function createInitialPresentation() {
-  return { phase: "connecting", roomId: null, playerId: null, joined: false, secondsRemaining: null, startAtMs: null, countdownDurationMs: ROOM_START_COUNTDOWN_MS, connectedPlayers: 0, requiredPlayers: 0, showGo: false, errorCode: null, errorMessage: null };
+  return { phase: "connecting", roomId: null, playerId: null, joined: false, hasPlayed: false, secondsRemaining: null, startAtMs: null, countdownDurationMs: ROOM_START_COUNTDOWN_MS, connectedPlayers: 0, requiredPlayers: 0, showGo: false, errorCode: null, errorMessage: null };
 }
 
 /**
@@ -37,9 +38,10 @@ export function createRoomLifecycleClient({ nowFn = () => performance.now(), onC
   let localAnchorMs = 0;
   let goUntilMs = 0;
   let changeKey = "";
+  let seatRejoinToken = null;
 
   function publishPresentation() {
-    const key = `${presentation.phase}|${presentation.roomId}|${presentation.playerId}|${presentation.joined}|${presentation.secondsRemaining}|${presentation.startAtMs}|${presentation.countdownDurationMs}|${presentation.connectedPlayers}|${presentation.requiredPlayers}|${presentation.showGo}|${presentation.errorCode}`;
+    const key = `${presentation.phase}|${presentation.roomId}|${presentation.playerId}|${presentation.joined}|${presentation.hasPlayed}|${presentation.secondsRemaining}|${presentation.startAtMs}|${presentation.countdownDurationMs}|${presentation.connectedPlayers}|${presentation.requiredPlayers}|${presentation.showGo}|${presentation.errorCode}`;
     if (key === changeKey) return;
     changeKey = key;
     onChange?.({ ...presentation });
@@ -55,10 +57,24 @@ export function createRoomLifecycleClient({ nowFn = () => performance.now(), onC
   }
 
   return {
-    /** Accept current seat ownership before applying room-specific snapshots. */
+    /**
+     * Accept ownership without restarting presentation on repeated confirmations.
+     * A reconnect retains recovery until a fresh authoritative snapshot arrives.
+     * @param {{gameId:string,playerId:string,rejoinToken?:string}} joinedRoom
+     */
     recordJoined(joinedRoom) {
       if (typeof joinedRoom?.gameId !== "string" || typeof joinedRoom?.playerId !== "string") return;
       const { gameId, playerId } = joinedRoom;
+      const rejoinToken = typeof joinedRoom.rejoinToken === "string" ? joinedRoom.rejoinToken : null;
+      const sameSeat = presentation.roomId === gameId && presentation.playerId === playerId && seatRejoinToken === rejoinToken;
+      if (sameSeat && presentation.joined) return;
+      if (sameSeat && presentation.phase === "reconnecting") {
+        presentation = { ...presentation, joined: true };
+        publishPresentation();
+        return;
+      }
+
+      seatRejoinToken = rejoinToken;
       presentation = { ...createInitialPresentation(), roomId: gameId, playerId, joined: true };
       serverAnchorMs = null;
       goUntilMs = 0;
@@ -73,6 +89,7 @@ export function createRoomLifecycleClient({ nowFn = () => performance.now(), onC
           !Number.isSafeInteger(room.connectedPlayers) || !Number.isSafeInteger(room.requiredPlayers) ||
           room.requiredPlayers < 1 || room.connectedPlayers < 0 || room.connectedPlayers > room.requiredPlayers) return;
       const previousPhase = presentation.phase;
+      const wasPlaying = presentation.hasPlayed;
       const localNowMs = nowFn();
       const observedServerMs = serverTime + (Number.isFinite(pingMs) ? Math.min(MAX_CLOCK_LATENCY_ADJUSTMENT_MS, Math.max(0, pingMs / 2)) : 0);
       const sameCountdown = previousPhase === ROOM_PHASE.COUNTDOWN && room.phase === ROOM_PHASE.COUNTDOWN &&
@@ -82,12 +99,13 @@ export function createRoomLifecycleClient({ nowFn = () => performance.now(), onC
       presentation = {
         ...presentation,
         phase: room.phase,
+        hasPlayed: wasPlaying || room.phase === ROOM_PHASE.PLAYING,
         startAtMs: Number.isFinite(room.startAtMs) ? room.startAtMs : null,
         countdownDurationMs: Number.isFinite(room.countdownDurationMs) && room.countdownDurationMs >= 0 ? room.countdownDurationMs : ROOM_START_COUNTDOWN_MS,
         connectedPlayers: room.connectedPlayers,
         requiredPlayers: room.requiredPlayers,
       };
-      if (previousPhase === ROOM_PHASE.COUNTDOWN && room.phase === ROOM_PHASE.PLAYING) goUntilMs = localAnchorMs + GO_CUE_DURATION_MS;
+      if (!wasPlaying && previousPhase === ROOM_PHASE.COUNTDOWN && room.phase === ROOM_PHASE.PLAYING) goUntilMs = localAnchorMs + GO_CUE_DURATION_MS;
       if (room.phase !== ROOM_PHASE.PLAYING) goUntilMs = 0;
       refresh();
     },
@@ -105,7 +123,7 @@ export function createRoomLifecycleClient({ nowFn = () => performance.now(), onC
       publishPresentation();
     },
     restartRound() {
-      presentation = { ...presentation, phase: "connecting", secondsRemaining: null, startAtMs: null, showGo: false };
+      presentation = { ...presentation, phase: "connecting", hasPlayed: false, secondsRemaining: null, startAtMs: null, showGo: false };
       goUntilMs = 0;
       publishPresentation();
     },
@@ -113,6 +131,7 @@ export function createRoomLifecycleClient({ nowFn = () => performance.now(), onC
     getSnapshot: () => ({ ...presentation }),
     reset() {
       presentation = createInitialPresentation();
+      seatRejoinToken = null;
       serverAnchorMs = null;
       goUntilMs = 0;
       publishPresentation();

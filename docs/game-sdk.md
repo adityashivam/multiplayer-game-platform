@@ -344,8 +344,14 @@ connectedPlayers, requiredPlayers }`, with phase `waiting`, `countdown`,
 `playing` or `finished`. Bots outside the human ownership table do not consume
 seats. The transport adds `net.serverTime` and owns synchronization; clients use
 a monotonic local anchor with bounded latency adjustment, so device wall-clock
-skew and delayed ordered packets cannot rewind a countdown. Only an authoritative
-playing packet produces GO; expiration of a local timer never starts a game.
+skew and delayed ordered packets cannot rewind a countdown. Only the initial
+authoritative transition into play produces GO; expiration of a local timer
+never starts a game. Once the current seat has played, interrupted connections
+and the server's resume countdown use a compact recovery notice over the retained
+game surface, rather than reopening the initial joining dialog. Controls remain
+paused until fresh authority resumes. The local presentation's `hasPlayed` flag
+survives same-seat recovery and resets for rematches, new seats and recreated
+rooms with a different ownership token; it is not an extra wire field.
 
 Opening `/games/<id>` establishes new-room creator intent; after the room link
 exists, its creator gets one automatic invitation while waiting. A direct shared
@@ -405,6 +411,16 @@ socket.send("joinGame", {
 ```
 
 The server may still be waiting for the previous transport's disconnect. When the token identifies that occupied slot, it returns `roomFull` with `{gameId,rejoinPending:true}`. The facade retries the same room and token every 500 ms for at most 20 seconds, without allocating another slot or displacing the live owner. It delivers one final `roomFull` to game UI if recovery expires. Newcomers and invalid tokens receive ordinary full-room failures immediately. Success, disconnect, socket disposal or a new join request cancels pending retries. Game adapters should not add a second retry loop.
+
+Repeated `gameJoined` acknowledgements for the current room, player, token and
+input epoch on one connection are idempotent: the facade publishes ownership once,
+without resetting prediction, input or room presentation. A genuine reconnect
+still publishes fresh ownership. A different confirmed ownership discards the
+previous snapshot sequence and delta baseline so a new room's lower sequence
+cannot leave it stuck joining. Requesting another room invalidates the prior
+confirmation even if the target room is full, so returning can reacquire that
+seat. Adapters keep using the normal `gameJoined` and
+`state` subscriptions; no game-specific recovery code is needed.
 
 Prefer `createNetworkedGameRuntime()` for networked presentation. It captures/predicts input at the shared simulation cadence and samples remote interpolation/local presentation at the actual render cadence. It never interpolates discrete IDs through a second numeric pose buffer:
 

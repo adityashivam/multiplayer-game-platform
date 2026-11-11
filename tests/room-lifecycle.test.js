@@ -132,3 +132,69 @@ test("terminal room capacity errors replace joining state and clear stale countd
   client.recordJoined({ gameId: "room2", playerId: "seat" });
   assert.equal(client.getSnapshot().errorMessage, null);
 });
+
+test("duplicate seat confirmations cannot reset an active room or its countdown", () => {
+  const changes = [];
+  const client = createRoomLifecycleClient({ nowFn: () => 0, onChange: (state) => changes.push(state) });
+  const joinedRoom = { gameId: "room1", playerId: "west" };
+  client.recordJoined(joinedRoom);
+  client.recordSnapshot(createCountdownPacket());
+  const countdown = client.getSnapshot();
+  const countdownChanges = changes.length;
+  client.recordJoined({ ...joinedRoom });
+  assert.deepEqual(client.getSnapshot(), countdown);
+  assert.equal(changes.length, countdownChanges);
+
+  client.recordSnapshot(createCountdownPacket({ phase: "playing", serverTime: 105000 }));
+  const playing = client.getSnapshot();
+  client.recordJoined({ ...joinedRoom });
+  assert.deepEqual(client.getSnapshot(), playing, "An idempotent server acknowledgement cannot pause gameplay");
+});
+
+test("same-seat recovery stays distinct from initial joining until authoritative play resumes", () => {
+  const client = createRoomLifecycleClient({ nowFn: () => 0 });
+  const joinedRoom = { gameId: "room1", playerId: "west" };
+  client.recordJoined(joinedRoom);
+  client.recordSnapshot(createCountdownPacket({ phase: "playing" }));
+  assert.equal(client.getSnapshot().hasPlayed, true);
+
+  client.recordDisconnected();
+  client.recordSnapshot(createCountdownPacket({ phase: "playing" }));
+  assert.equal(client.getSnapshot().joined, false, "Old packets cannot restore ownership");
+  client.recordJoined(joinedRoom);
+  assert.equal(client.getSnapshot().phase, "reconnecting", "Rejoin acknowledgement must not reopen the initial join screen");
+  assert.equal(client.getSnapshot().joined, true);
+  assert.equal(client.getSnapshot().hasPlayed, true);
+
+  client.recordSnapshot(createCountdownPacket({ phase: "waiting", connectedPlayers: 1, startAtMs: null }));
+  assert.equal(client.getSnapshot().hasPlayed, true, "Waiting for an opponent is still recovery for this match");
+  client.recordSnapshot(createCountdownPacket());
+  assert.equal(client.getSnapshot().hasPlayed, true);
+  client.recordSnapshot(createCountdownPacket({ phase: "playing", serverTime: 105000 }));
+  assert.equal(client.getSnapshot().phase, "playing");
+  assert.equal(client.getSnapshot().showGo, false, "Recovery must not announce a new game");
+
+  client.restartRound();
+  assert.equal(client.getSnapshot().hasPlayed, false, "A rematch gets its own initial countdown");
+  client.recordSnapshot(createCountdownPacket());
+  client.recordSnapshot(createCountdownPacket({ phase: "playing", serverTime: 105000 }));
+  assert.equal(client.getSnapshot().showGo, true);
+  client.recordJoined({ gameId: "room2", playerId: "west" });
+  assert.equal(client.getSnapshot().hasPlayed, false, "History cannot leak into a different room");
+  client.reset();
+  assert.equal(client.getSnapshot().hasPlayed, false);
+});
+
+test("a recreated room with a new seat token gets fresh startup instead of old recovery history", () => {
+  const client = createRoomLifecycleClient({ nowFn: () => 0 });
+  client.recordJoined({ gameId: "room1", playerId: "west", rejoinToken: "old-seat" });
+  client.recordSnapshot(createCountdownPacket({ phase: "playing" }));
+  client.recordDisconnected();
+  client.recordJoined({ gameId: "room1", playerId: "west", rejoinToken: "new-seat" });
+  assert.equal(client.getSnapshot().hasPlayed, false);
+  assert.equal(client.getSnapshot().phase, "connecting");
+  client.recordSnapshot(createCountdownPacket());
+  client.recordSnapshot(createCountdownPacket({ phase: "playing", serverTime: 105000 }));
+  assert.equal(client.getSnapshot().showGo, true);
+  assert.equal(Object.hasOwn(client.getSnapshot(), "rejoinToken"), false, "Private ownership tokens stay out of UI state");
+});

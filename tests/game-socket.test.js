@@ -37,6 +37,101 @@ test("transport publishes countdown state before gameplay subscribes and survive
   assert.equal(states.at(-1).showGo, true);
 });
 
+test("duplicate room confirmations cannot reset gameplay consumers or room presentation", (testContext) => {
+  const { rawSocket, socket } = createTestGameConnection(testContext);
+  const receivedJoins = [];
+  const roomStates = [];
+  testContext.after(subscribeRoomLifecycle("fight-test", (state) => roomStates.push(state)));
+  socket.onEvent("gameJoined", (joinedRoom) => receivedJoins.push(joinedRoom));
+  const joinedRoom = { gameId: "room1", playerId: "p1", rejoinToken: "seat-token", inputEpoch: 2 };
+  rawSocket.emit("gameJoined", joinedRoom);
+  rawSocket.emit("state", { net: { seq: 1, serverTime: 100000, room: {
+    apiVersion: 1, roomId: "room1", phase: "playing", startAtMs: 95000,
+    countdownDurationMs: 5000, connectedPlayers: 2, requiredPlayers: 2,
+  } } });
+  const playingState = roomStates.at(-1);
+
+  rawSocket.emit("gameJoined", { ...joinedRoom });
+  rawSocket.emit("gameJoined", { ...joinedRoom });
+  assert.equal(receivedJoins.length, 1, "Retries must not reset game-owned input and animation state");
+  assert.deepEqual(roomStates.at(-1), playingState);
+
+  rawSocket.connected = false;
+  rawSocket.emit("disconnect", "transport close");
+  rawSocket.connected = true;
+  rawSocket.emit("connect");
+  rawSocket.emit("gameJoined", { ...joinedRoom });
+  assert.equal(receivedJoins.length, 2, "A real reconnect still delivers fresh ownership");
+  assert.equal(roomStates.at(-1).phase, "reconnecting");
+  assert.equal(roomStates.at(-1).joined, true);
+  rawSocket.emit("state", { net: { seq: 1, serverTime: 110000, room: {
+    apiVersion: 1, roomId: "room1", phase: "playing", startAtMs: 95000,
+    countdownDurationMs: 5000, connectedPlayers: 2, requiredPlayers: 2,
+  } } });
+  assert.equal(roomStates.at(-1).phase, "playing", "A fresh snapshot sequence is accepted after recovery");
+});
+
+test("room confirmation deduplication preserves changed ownership and caller-independent identity", (testContext) => {
+  const { rawSocket, socket } = createTestGameConnection(testContext);
+  const receivedJoins = [];
+  socket.onEvent("gameJoined", (joinedRoom) => receivedJoins.push(joinedRoom));
+  const joinedRoom = { gameId: "room1", playerId: "p1", rejoinToken: "seat-token", inputEpoch: 2 };
+  rawSocket.emit("gameJoined", joinedRoom);
+  joinedRoom.inputEpoch = 99;
+  rawSocket.emit("gameJoined", { ...joinedRoom, inputEpoch: 2 });
+  assert.equal(receivedJoins.length, 1, "A consumer cannot mutate the transport's retained ownership identity");
+
+  rawSocket.emit("gameJoined", { ...joinedRoom, inputEpoch: 3 });
+  rawSocket.emit("gameJoined", { ...joinedRoom, inputEpoch: 3, rejoinToken: "recreated-seat-token" });
+  rawSocket.emit("gameJoined", { ...joinedRoom, playerId: "p2" });
+  rawSocket.emit("gameJoined", { ...joinedRoom, gameId: "room2" });
+  assert.equal(receivedJoins.length, 5, "New epochs, tokens, seats and rooms must reach gameplay consumers");
+});
+
+test("new room ownership accepts its own snapshot baseline without a transport disconnect", (testContext) => {
+  const { rawSocket, socket } = createTestGameConnection(testContext);
+  const receivedStates = [];
+  socket.onEvent("state", (snapshot) => receivedStates.push(snapshot));
+  rawSocket.emit("gameJoined", { gameId: "room1", playerId: "p1", rejoinToken: "first-seat", inputEpoch: 7 });
+  rawSocket.emit("state", createFullSnapshot(100, 7));
+  rawSocket.emit("gameJoined", { gameId: "room2", playerId: "p1", rejoinToken: "second-seat", inputEpoch: 1 });
+  rawSocket.emit("state", createFullSnapshot(1, 1));
+  assert.equal(receivedStates.length, 2, "A previous room's sequence must not leave the new room stuck joining");
+  assert.equal(receivedStates.at(-1).players.p1.inputEpoch, 1);
+});
+
+test("returning after a rejected room switch restores ownership for games without input epochs", (testContext) => {
+  const { rawSocket, socket } = createTestGameConnection(testContext);
+  const receivedJoins = [];
+  const receivedStates = [];
+  const roomStates = [];
+  testContext.after(subscribeRoomLifecycle("fight-test", (state) => roomStates.push(state)));
+  socket.onEvent("gameJoined", (joinedRoom) => receivedJoins.push(joinedRoom));
+  socket.onEvent("state", (snapshot) => receivedStates.push(snapshot));
+  const joinedRoom = { gameId: "room1", playerId: "p1", rejoinToken: "retained-seat" };
+  const createPlayingSnapshot = (sequenceNumber) => ({
+    __packed: 1, k: "f", s: sequenceNumber, p: ["started"], v: [true],
+    n: { seq: sequenceNumber, serverTime: 100000, room: {
+      apiVersion: 1, roomId: "room1", phase: "playing", startAtMs: 95000,
+      countdownDurationMs: 5000, connectedPlayers: 2, requiredPlayers: 2,
+    } },
+  });
+  socket.send("joinGame", { gameId: "room1" });
+  rawSocket.emit("gameJoined", { ...joinedRoom });
+  rawSocket.emit("state", createPlayingSnapshot(100));
+  socket.send("joinGame", { gameId: "full-room" });
+  rawSocket.emit("roomFull", { gameId: "full-room" });
+  assert.equal(roomStates.at(-1).phase, "error");
+
+  socket.send("joinGame", { gameId: "room1", rejoinToken: "retained-seat" });
+  rawSocket.emit("gameJoined", { ...joinedRoom });
+  assert.equal(receivedJoins.length, 2, "Returning membership is not a duplicate acknowledgement of a released seat");
+  assert.equal(roomStates.at(-1).joined, true);
+  rawSocket.emit("state", createPlayingSnapshot(1));
+  assert.equal(receivedStates.length, 2, "The returned membership accepts a fresh snapshot baseline");
+  assert.equal(roomStates.at(-1).phase, "playing");
+});
+
 function createTestGameConnection(testContext) {
   const rawSocket = new EventEmitter();
   rawSocket.connected = true;

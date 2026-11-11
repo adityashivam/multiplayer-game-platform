@@ -9,6 +9,7 @@ import {
 } from "../shared/networkProtocol.js";
 
 /** @typedef {(...eventArguments: unknown[]) => void} SocketEventHandler */
+/** @typedef {{gameId:string,playerId:string,rejoinToken:string|undefined,inputEpoch:number|undefined}} JoinedRoomOwnership */
 
 /**
  * @typedef {object} SnapshotDecodeContext
@@ -204,6 +205,9 @@ export function getGameSocket(namespace) {
 
   const eventWrappers = new Map();
   const suppressedRoomFullPackets = new WeakSet();
+  const suppressedRoomJoinPackets = new WeakSet();
+  /** @type {JoinedRoomOwnership|null} Ownership confirmed on the current transport. */
+  let joinedRoomOwnership = null;
   const roomJoinRecovery = createRoomJoinRecovery({
     sendJoinRequest: (joinRequest) => raw.emit(SOCKET_EVENT.JOIN_GAME, joinRequest),
     isConnected: () => raw.connected,
@@ -491,6 +495,7 @@ export function getGameSocket(namespace) {
   };
 
   const handleDisconnectState = () => {
+    joinedRoomOwnership = null;
     roomJoinRecovery.reset();
     publishRoomDisconnected(namespace);
     setConnectionState("disconnected");
@@ -506,6 +511,24 @@ export function getGameSocket(namespace) {
 
   const handleGameJoinedRecovery = (joinedRoom) => {
     roomJoinRecovery.reset();
+    if (joinedRoom && typeof joinedRoom === "object") {
+      suppressedRoomJoinPackets.delete(joinedRoom);
+      const sameOwnership = joinedRoomOwnership && joinedRoomOwnership.gameId === joinedRoom.gameId &&
+        joinedRoomOwnership.playerId === joinedRoom.playerId && joinedRoomOwnership.rejoinToken === joinedRoom.rejoinToken &&
+        joinedRoomOwnership.inputEpoch === joinedRoom.inputEpoch;
+      if (sameOwnership) {
+        suppressedRoomJoinPackets.add(joinedRoom);
+        return;
+      }
+      resetSnapshotSession();
+      // Retain values rather than a subscriber-mutable acknowledgement object.
+      joinedRoomOwnership = {
+        gameId: joinedRoom.gameId,
+        playerId: joinedRoom.playerId,
+        rejoinToken: joinedRoom.rejoinToken,
+        inputEpoch: joinedRoom.inputEpoch,
+      };
+    }
     publishRoomJoined(namespace, joinedRoom);
   };
   const handleRematchStarted = () => {
@@ -647,6 +670,7 @@ export function getGameSocket(namespace) {
       const wrapped = (...args) => {
         const payload = args[0];
         if (event === SOCKET_EVENT.ROOM_FULL && suppressedRoomFullPackets.has(payload)) return;
+        if (event === SOCKET_EVENT.GAME_JOINED && suppressedRoomJoinPackets.has(payload)) return;
         const shouldDecode =
           isStateEvent ||
           (payload && typeof payload === "object" && !Array.isArray(payload) && payload.__packed === SNAPSHOT_PROTOCOL.PACKED);
@@ -686,7 +710,14 @@ export function getGameSocket(namespace) {
       clearWrappedHandlers(event);
     },
     send(event, payload) {
-      if (event === SOCKET_EVENT.JOIN_GAME) roomJoinRecovery.recordJoinRequest(payload);
+      if (event === SOCKET_EVENT.JOIN_GAME) {
+        roomJoinRecovery.recordJoinRequest(payload);
+        if (joinedRoomOwnership && typeof payload?.gameId === "string" && payload.gameId.length > 0 &&
+            payload.gameId !== joinedRoomOwnership.gameId) {
+          // A room switch releases the previous server seat even if the target is full.
+          joinedRoomOwnership = null;
+        }
+      }
       raw.emit(event, payload);
     },
     isConnected() {

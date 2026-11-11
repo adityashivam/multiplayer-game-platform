@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { ROOM_START_COUNTDOWN_MS } from "../../../shared/roomLifecycle.js";
 
-const INITIAL_ROOM_STATE = Object.freeze({ phase: "connecting", roomId: null, playerId: null, joined: false, secondsRemaining: null, startAtMs: null, countdownDurationMs: ROOM_START_COUNTDOWN_MS, connectedPlayers: 0, requiredPlayers: 0, showGo: false, errorCode: null, errorMessage: null });
+const INITIAL_ROOM_STATE = Object.freeze({ phase: "connecting", roomId: null, playerId: null, joined: false, hasPlayed: false, secondsRemaining: null, startAtMs: null, countdownDurationMs: ROOM_START_COUNTDOWN_MS, connectedPlayers: 0, requiredPlayers: 0, showGo: false, errorCode: null, errorMessage: null });
 
 /** Subscribe to transport-owned room state without opening a second game socket. */
 export default function useRoomLifecycle(game, enabled) {

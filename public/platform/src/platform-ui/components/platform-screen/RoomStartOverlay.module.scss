@@ -22,7 +22,55 @@
 .goCue { position: absolute; inset: 0; z-index: 5; display: flex; flex-direction: column; align-items: center; justify-content: center; pointer-events: none; color: var(--platform-accent, #00cee6); text-shadow: 0 4px 28px #04151c; font-family: var(--platform-font-body); animation: goIn 160ms ease-out; }
 .goCue strong { font: 700 clamp(45px, 9vw, 110px)/1 var(--platform-font-heading); letter-spacing: -.06em; }
 .goCue span { color: #fff; font-weight: 700; font-size: 14px; margin-top: 10px; }
+.recoveryNotice {
+  position: absolute;
+  top: 64px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: max-content;
+  max-width: calc(100% - 24px);
+  padding: 10px 12px;
+  border: 1px solid var(--platform-border);
+  border-radius: var(--platform-radius);
+  background: var(--platform-surface);
+  color: var(--platform-text);
+  font-family: var(--platform-font-body);
+}
+.recoveryIcon {
+  flex-shrink: 0;
+  color: var(--platform-accent);
+  font-size: 23px;
+}
+.recoveryMessage {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  line-height: 1.45;
+
+  strong { font-size: 13px; font-weight: 700; }
+  span { color: var(--platform-text-muted); font-size: 11px; }
+}
+.recoveryLeaveButton {
+  flex-shrink: 0;
+  min-height: 44px;
+  padding: 0 10px;
+  border: 1px solid var(--platform-border);
+  border-radius: var(--platform-radius);
+  background: transparent;
+  color: var(--platform-text);
+  font: 600 11px/1.4 var(--platform-font-body);
+  cursor: pointer;
+
+  &:hover { border-color: var(--platform-accent); }
+  &:focus-visible { outline: 2px solid var(--platform-accent); outline-offset: 3px; }
+}
 @keyframes countIn { from { opacity: .5; transform: scale(.88); } to { opacity: 1; transform: scale(1); } }
 @keyframes goIn { from { opacity: 0; transform: scale(.85); } to { opacity: 1; transform: scale(1); } }
+@media (max-width: 600px) { .recoveryNotice { top: 104px; } }
 @media (max-height: 450px) { .countdown { width: 100px; height: 100px; margin: 10px auto; } .countdown strong { font-size: 48px; } .waitingMark { margin: 12px auto; width: 54px; height: 54px; } .startHint { margin-bottom: 12px; } }
 @media (prefers-reduced-motion: reduce) { .countdown strong, .goCue { animation: none; } .progress { transition: none; } }
