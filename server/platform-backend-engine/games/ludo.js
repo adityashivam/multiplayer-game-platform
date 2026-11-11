@@ -1,15 +1,16 @@
-import { randomInt } from "node:crypto";
 import { allPlayersConnected, emitEvent, registerGame, scheduleStart } from "../core/index.js";
 import { SOCKET_EVENT } from "../../../public/platform/shared/networkProtocol.js";
 import { ROOM_START_COUNTDOWN_MS } from "../../../public/platform/shared/roomLifecycle.js";
 import { ludoPresentation, ludoTouchControls } from "../../../public/games/ludo/catalog.js";
 import { LUDO_LIMITS, LUDO_PLAYER_IDS } from "../../../public/games/ludo/shared/config.js";
+import { rollLudoDie } from "./ludoDice.js";
 import {
   advanceLudoRound,
   applyLudoMove,
   applyLudoRoll,
   createLudoRound,
   getLegalLudoTokenIndices,
+  isLudoEntryEligible,
 } from "../../../public/games/ludo/shared/rules.js";
 
 /** @typedef {import("../../../public/games/ludo/shared/config.js").LudoPlayerId} LudoPlayerId */
@@ -39,7 +40,7 @@ import {
 /**
  * Clock and die injection support deterministic server tests; clients cannot set them.
  * @typedef {object} LudoServerOptions
- * @property {() => number} [rollDie] Natural 1..6 sampler; shared quick-entry rules may award six.
+ * @property {(context:{entryBoosted:boolean}) => number} [rollDie] Random 1..6 sampler with server-selected entry odds.
  * @property {() => number} [nowFn] Defaults to the server wall clock.
  */
 /**
@@ -86,11 +87,6 @@ export const ludoGameMeta = {
   platformControlButtons: true,
 };
 
-/** @returns {number} Unbiased natural roll before quick-entry rules; no client entropy is used. */
-function rollServerLudoDie() {
-  return randomInt(1, 7);
-}
-
 /**
  * @param {{playerIds?:readonly LudoPlayerId[],roundId?:number,nowMs?:number}} [options]
  * @returns {LudoServerState} Fresh board and private room lifecycle state.
@@ -133,7 +129,6 @@ export function serializeLudoState(state) {
       finished: playerState.finished,
       captures: playerState.captures,
       seriesWins: playerState.seriesWins,
-      entryMisses: playerState.entryMisses,
     };
   }
 
@@ -185,10 +180,10 @@ function isLudoCommand(payload) {
  * @param {LudoServerState} state
  * @param {LudoPlayerId} playerId Socket-owned identity supplied by the platform.
  * @param {unknown} payload
- * @param {{rollDie?:()=>number,nowMs?:number}} [options] Server-side test dependencies.
+ * @param {{rollDie?:(context:{entryBoosted:boolean})=>number,nowMs?:number}} [options] Server-side test dependencies.
  * @returns {boolean}
  */
-export function applyLudoServerInput(state, playerId, payload, { rollDie = rollServerLudoDie, nowMs = Date.now() } = {}) {
+export function applyLudoServerInput(state, playerId, payload, { rollDie = rollLudoDie, nowMs = Date.now() } = {}) {
   if (!isLudoCommand(payload) || !state.started || state.gameOver ||
       !Object.hasOwn(state.players, playerId) || !state.players[playerId].connected ||
       !allPlayersConnected(state, state.playerIds) || state.currentPlayerId !== playerId ||
@@ -201,7 +196,8 @@ export function applyLudoServerInput(state, playerId, payload, { rollDie = rollS
     if (state.phase !== "roll") {
       return false;
     }
-    return applyLudoRoll(state, playerId, rollDie(), nowMs);
+    const entryBoosted = isLudoEntryEligible(state.players[playerId]);
+    return applyLudoRoll(state, playerId, rollDie({ entryBoosted }), nowMs);
   }
   if (state.phase !== "choose" || !getLegalLudoTokenIndices(state, playerId).includes(payload.tokenIndex)) {
     return false;
@@ -268,7 +264,7 @@ function resumeLudoRoom(state, nowMs) {
  * @param {LudoServerOptions & {playerIds?:readonly LudoPlayerId[]}} [options]
  * @returns {LudoServerController} Callbacks accepted by registerGame.
  */
-export function createLudoServerController({ rollDie = rollServerLudoDie, nowFn = () => Date.now(), playerIds = LUDO_PLAYER_IDS } = {}) {
+export function createLudoServerController({ rollDie = rollLudoDie, nowFn = () => Date.now(), playerIds = LUDO_PLAYER_IDS } = {}) {
   /** @returns {LudoServerState} */
   function createState() {
     return createLudoServerState({ playerIds, nowMs: nowFn() });

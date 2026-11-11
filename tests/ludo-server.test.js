@@ -14,12 +14,14 @@ function createLudoRoomSession(options = {}) {
   let nowMs = 10000;
   let diceValue = 6;
   let rollCount = 0;
+  const diceRequests = [];
   const events = [];
   const controller = createLudoServerController({
     ...options,
     nowFn: () => nowMs,
-    rollDie: () => {
+    rollDie: (diceContext) => {
       rollCount += 1;
+      diceRequests.push(diceContext);
       return diceValue;
     },
   });
@@ -69,6 +71,7 @@ function createLudoRoomSession(options = {}) {
   return {
     controller, getState, connectPlayer, advanceAt, activate, sendInput, command, events,
     getRollCount: () => rollCount,
+    getDiceRequests: () => diceRequests,
     setDiceValue: (nextValue) => { diceValue = nextValue; },
     setNow: (nextNowMs) => { nowMs = nextNowMs; },
     disconnectPlayer: (playerId) => invokeWithRoomClock(() => controller.handleDisconnect(getState(), playerId)),
@@ -129,37 +132,38 @@ test("Ludo validates command shape, authority and revision before consuming serv
   assert.equal(state.phase, "rolling");
 });
 
-test("Ludo preserves authoritative entry progress through pause and rejects forged assistance", () => {
+test("Ludo chooses entry odds from authoritative board state and rejects forged profiles", () => {
   const session = createLudoRoomSession();
   session.activate();
   session.setDiceValue(2);
   const state = session.getState();
-  for (let rollIndex = 0; rollIndex < 4; rollIndex += 1) {
+  for (let rollIndex = 0; rollIndex < 6; rollIndex += 1) {
     assert.equal(session.sendInput(state.currentPlayerId, session.command("roll")), true);
+    assert.equal(state.diceValue, 2, "no fixed third-roll guarantee remains");
     session.advanceAt(state.phaseEndsAtMs);
     session.advanceAt(state.phaseEndsAtMs);
   }
-  assert.equal(state.players.p1.entryMisses, 2);
-  assert.equal(state.players.p2.entryMisses, 2);
-  const publicState = serializeLudoState(state);
-  assert.equal(publicState.players.p1.entryMisses, 2);
+  assert.ok(session.getDiceRequests().every(request => request.entryBoosted === true));
   const oldCommand = session.command("roll");
-  const beforeForged = structuredClone(publicState);
+  const beforeForged = structuredClone(serializeLudoState(state));
   assert.equal(session.sendInput("p2", oldCommand), false);
-  assert.equal(session.sendInput("p1", { ...oldCommand, entryMisses: 2 }), false);
+  assert.equal(session.sendInput("p1", { ...oldCommand, entryBoosted: true }), false);
   assert.deepEqual(serializeLudoState(state), beforeForged);
-  assert.equal(session.getRollCount(), 4);
+  assert.equal(session.getRollCount(), 6);
 
   session.disconnectPlayer("p2");
   session.connectPlayer("p2");
   session.advanceAt(state.startAt);
-  assert.equal(state.players.p1.entryMisses, 2);
   assert.equal(session.sendInput("p1", oldCommand), false);
+  session.setDiceValue(6);
   assert.equal(session.sendInput("p1", session.command("roll")), true);
-  assert.equal(state.diceValue, 6);
-  assert.equal(state.players.p1.entryMisses, 0);
-  assert.equal(state.players.p2.entryMisses, 2);
-  assert.equal(serializeLudoState(state).players.p1.entryMisses, 0);
+  assert.equal(session.getDiceRequests().at(-1).entryBoosted, true);
+  session.advanceAt(state.phaseEndsAtMs);
+  assert.equal(session.sendInput("p1", session.command("move", { tokenIndex: 0 })), true);
+  session.advanceAt(state.phaseEndsAtMs);
+  session.setDiceValue(2);
+  assert.equal(session.sendInput("p1", session.command("roll")), true);
+  assert.equal(session.getDiceRequests().at(-1).entryBoosted, false, "active pieces restore ordinary odds");
 });
 
 test("Ludo accepts delayed discrete commands once and ignores duplicate roll and move packets", () => {
@@ -279,7 +283,6 @@ test("Ludo rematches require all connected humans and reset the board while pres
   const previous = session.getState();
   previous.players.p1.rejoinToken = "red-seat-token";
   previous.players.p2.rejoinToken = "yellow-seat-token";
-  previous.players.p2.entryMisses = 2;
   previous.players.p1.tokens = [56, 56, 56, 56];
   previous.players.p1.finished = 4;
   previous.players.p1.seriesWins = 2;
@@ -298,8 +301,6 @@ test("Ludo rematches require all connected humans and reset the board while pres
   assert.equal(next.gameOver, false);
   assert.deepEqual(next.players.p1.tokens, [-1, -1, -1, -1]);
   assert.equal(next.players.p1.finished, 0);
-  assert.equal(next.players.p1.entryMisses, 0);
-  assert.equal(next.players.p2.entryMisses, 0);
   assert.equal(next.players.p1.seriesWins, 2);
   assert.equal(next.players.p1.rejoinToken, "red-seat-token");
   assert.equal(next.players.p2.rejoinToken, "yellow-seat-token");
@@ -515,8 +516,6 @@ test("packed Ludo snapshots omit derived choices while selection grows from one 
   assert.ok(keyframes.length > 10);
   for (const keyframe of keyframes) {
     assert.equal(keyframe.payload.p.some((path) => path.startsWith("legalTokenIndices")), false);
-    assert.ok(keyframe.payload.p.includes("players.p1.entryMisses"));
-    assert.ok(keyframe.payload.p.includes("players.p2.entryMisses"));
   }
   assert.equal(Object.hasOwn(serializeLudoState(state), "legalTokenIndices"), false);
 });

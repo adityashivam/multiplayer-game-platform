@@ -1,8 +1,8 @@
 import http from "node:http";
 import https from "node:https";
-import { randomInt } from "node:crypto";
 import { Server } from "socket.io";
 import msgpackParser from "socket.io-msgpack-parser";
+import { rollLudoDie } from "../../../server/platform-backend-engine/games/ludoDice.js";
 import { registerLudoGame } from "../../../server/platform-backend-engine/games/ludo.js";
 import { getGamesStore } from "../../../server/platform-backend-engine/core/gameStore.js";
 import { advanceLudoRound } from "../../../public/games/ludo/shared/rules.js";
@@ -35,7 +35,7 @@ const socketServer = new Server(httpServer, {
   pingInterval: 5000,
   pingTimeout: 10000,
 });
-registerLudoGame(socketServer, { rollDie: () => diceQueue.shift() ?? randomInt(1, 7) });
+registerLudoGame(socketServer, { rollDie: (diceContext) => diceQueue.shift() ?? rollLudoDie(diceContext) });
 
 /** Install a valid late-match position without adding production cheat controls. */
 function prepareBoardFixture(roomState, fixtureKind) {
@@ -43,7 +43,6 @@ function prepareBoardFixture(roomState, fixtureKind) {
     player.tokens = [-1, -1, -1, -1];
     player.finished = 0;
     player.captures = 0;
-    player.entryMisses = 0;
   }
   Object.assign(roomState, {
     started: true,

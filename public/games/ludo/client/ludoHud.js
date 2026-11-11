@@ -1,5 +1,5 @@
 import { LUDO_LIMITS, LUDO_PALETTE } from "../shared/config.js";
-import { getLudoEntryRollsRemaining } from "../shared/rules.js";
+import { isLudoEntryEligible } from "../shared/rules.js";
 
 const HUD_SIDE_INSET_PX = 14;
 const COMPACT_SIDE_INSET_PX = 10;
@@ -82,7 +82,7 @@ export function createLudoHud({ host, onRoll, onTokenPick, onInvite, onRetry }) 
         <summary>How to play <span aria-hidden="true">?</span></summary>
         <div class="ludo-hud__rules">
           <p>Bring all four pieces home. Roll a six to leave your yard; land exactly to finish.</p>
-          <p><strong>Quick entry</strong> · No pieces out? A six is guaranteed within ${LUDO_LIMITS.ENTRY_ROLL_LIMIT} rolls, for every player.</p>
+          <p><strong>Entry boost</strong> · No pieces out? A six has a 1-in-3 chance for every player. Each roll is random; there is no guaranteed turn.</p>
           <p>A six, capture or finish earns another roll. Three sixes pass the turn.</p>
           <p>★ tiles are safe. A pair blocks rivals; a lone rival on other tiles is sent home.</p>
           <p><strong>Controls</strong> · Tap a glowing piece. Arrows or 1–4 select; A, Space or Enter confirms. Each decision has 30 seconds.</p>
@@ -261,17 +261,14 @@ export function getLudoTurnPresentation(view) {
   if (snapshot.phase === "rolling" || view.pendingRoll) return { title: view.isMyTurn ? "Rolling your dice" : `${currentPalette.label} is rolling`, description: "Let’s see where it lands.", actionLabel: "Rolling…" };
   if (snapshot.phase === "moving" || view.pendingAction) return { title: view.isMyTurn ? "On the move" : `${currentPalette.label} is moving`, description: "A little closer to home.", actionLabel: "Moving…" };
   if (snapshot.phase === "pass") return { title: "Next turn", description: snapshot.lastMessage || "The next player rolls.", actionLabel: "Next turn…" };
-  const entryRollsRemaining = getLudoEntryRollsRemaining(snapshot.players[view.playerId]);
   if (!view.isMyTurn) return {
     title: `${currentPalette.label}’s turn`,
-    description: entryRollsRemaining === 1 ? "Your next roll is guaranteed to be 6."
-      : snapshot.phase === "choose" ? `${currentPalette.label} rolled ${snapshot.diceValue}. Picking a piece.` : "Your next roll is coming up.",
+    description: snapshot.phase === "choose" ? `${currentPalette.label} rolled ${snapshot.diceValue}. Picking a piece.` : "Your next roll is coming up.",
     actionLabel: "Opponent’s turn",
   };
   if (snapshot.phase === "choose") return { title: "Choose your piece", description: `Rolled ${snapshot.diceValue}. Tap a glowing piece.`, actionLabel: "Choose a piece" };
-  const description = entryRollsRemaining === 0 ? "Roll to move a piece."
-    : entryRollsRemaining === 1 ? "Quick entry: your next roll is 6."
-      : `Quick entry: a six within ${entryRollsRemaining} rolls.`;
+  const description = isLudoEntryEligible(snapshot.players[view.playerId])
+    ? "Entry boost: better odds of a 6." : "Roll to move a piece.";
   return { title: "Your turn", description, actionLabel: "Roll dice" };
 }
 

@@ -18,7 +18,6 @@ export const LUDO_LIMITS = Object.freeze({
   HOME_START: 51,
   HOME_FINISH: 56,
   YARD: -1,
-  ENTRY_ROLL_LIMIT: 3,
   ROLL_DURATION_MS: 1050,
   STEP_DURATION_MS: 145,
   MOVE_LANDING_MS: 250,
@@ -28,6 +27,12 @@ export const LUDO_LIMITS = Object.freeze({
 });
 
 export const LUDO_ACTION = Object.freeze({ ROLL: "roll", MOVE: "move" });
+
+/** Face weights 1..6: ordinary rolls are uniform; entry sixes have probability 5/15. */
+export const LUDO_DICE_WEIGHTS = Object.freeze({
+  classic: Object.freeze([1, 1, 1, 1, 1, 1]),
+  entry: Object.freeze([2, 2, 2, 2, 2, 5]),
+});
 export const LUDO_START_INDICES = Object.freeze({ red: 0, green: 13, yellow: 26, blue: 39 });
 export const LUDO_SAFE_INDICES = Object.freeze([0, 8, 13, 21, 26, 34, 39, 47]);
 

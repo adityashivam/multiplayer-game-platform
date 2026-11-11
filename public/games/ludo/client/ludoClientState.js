@@ -221,8 +221,6 @@ function isCompleteLudoSnapshot(candidate) {
     const playerState = snapshot.players[seatId];
     return LUDO_SUPPORTED_PLAYER_IDS.includes(seatId) && playerState?.id === seatId &&
       LUDO_COLORS.includes(playerState.color) && typeof playerState.connected === "boolean" &&
-      (playerState.entryMisses === undefined || (Number.isInteger(playerState.entryMisses) &&
-        playerState.entryMisses >= 0 && playerState.entryMisses < LUDO_LIMITS.ENTRY_ROLL_LIMIT)) &&
       Array.isArray(playerState.tokens) && playerState.tokens.length === LUDO_LIMITS.TOKENS_PER_PLAYER &&
       playerState.tokens.every((progress) => Number.isInteger(progress) && progress >= LUDO_LIMITS.YARD && progress <= LUDO_LIMITS.HOME_FINISH);
   });

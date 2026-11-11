@@ -149,35 +149,45 @@ try {
   await capture(first, `rtt-${roundTripMs}-release`);
 
   await installFixture(roomId, "yard");
-  await fixtureServer.request({ type: "dice", values: [2, 3, 4, 5, 1, 2, 4] });
+  await fixtureServer.request({ type: "dice", values: [2, 3, 4, 5, 1, 2, 6, 2, 6] });
   for (let attempt = 1; attempt <= 2; attempt += 1) {
     for (const [page, playerId] of [[first, "p1"], [second, "p2"]]) {
       await waitFor(page, "!document.querySelector('[aria-label=\"Roll dice\"]').disabled");
+      const previousSerial = await evaluate(page, "return ludoProbe.snapshot.rollSerial;");
       await click(page, '[aria-label="Roll dice"]');
       for (const observer of pages) {
-        await waitFor(observer, `ludoProbe.snapshot.players.${playerId}.entryMisses === ${attempt} && ludoProbe.snapshot.phase === 'roll' && ludoProbe.snapshot.currentPlayerId !== '${playerId}'`);
+        await waitFor(observer, `ludoProbe.snapshot.rollSerial > ${previousSerial} && ludoProbe.snapshot.phase === 'roll' && ludoProbe.snapshot.currentPlayerId !== '${playerId}'`);
       }
     }
   }
-  await waitFor(first, "document.querySelector('[data-ludo-hud]').textContent.includes('Quick entry: your next roll is 6.')");
-  await capture(first, `rtt-${roundTripMs}-quick-entry`);
+  await waitFor(first, "document.querySelector('[data-ludo-hud]').textContent.includes('Entry boost: better odds of a 6.')");
+  await capture(first, `rtt-${roundTripMs}-entry-boost`);
   await send("Page.reload", { ignoreCache: true }, second);
   await observeLudo(second);
   for (const page of pages) {
     await waitForTurnInput(page);
-    assert.equal(await evaluate(page, "return ludoProbe.snapshot.players.p1.entryMisses;"), 2);
-    assert.equal(await evaluate(page, "return ludoProbe.snapshot.players.p2.entryMisses;"), 2);
+    assert.deepEqual(await evaluate(page, "return ludoProbe.snapshot.players.p1.tokens;"), [-1, -1, -1, -1]);
+    assert.deepEqual(await evaluate(page, "return ludoProbe.snapshot.players.p2.tokens;"), [-1, -1, -1, -1]);
   }
-  assert.equal((await rollAndChoose(first)).diceValue, 6, "the third entry roll overrides the natural one with six");
+  for (const [page, playerId, expectedDie] of [[first, "p1", 1], [second, "p2", 2]]) {
+    await waitFor(page, "!document.querySelector('[aria-label=\"Roll dice\"]').disabled");
+    const previousSerial = await evaluate(page, "return ludoProbe.snapshot.rollSerial;");
+    await click(page, '[aria-label="Roll dice"]');
+    for (const observer of pages) {
+      await waitFor(observer, `ludoProbe.snapshot.rollSerial > ${previousSerial} && ludoProbe.snapshot.phase === 'roll' && ludoProbe.snapshot.currentPlayerId !== '${playerId}'`);
+      assert.equal(await evaluate(observer, "return ludoProbe.snapshot.lastAction.diceValue;"), expectedDie, "neither seat gets a forced third-roll six after rejoining");
+    }
+  }
+  assert.equal((await rollAndChoose(first)).diceValue, 6);
   await movePiece(first, 0);
   await waitForSharedPosition("p1", 0, 0);
-  assert.equal((await rollAndChoose(first)).diceValue, 2, "active pieces keep their natural roll");
+  assert.equal((await rollAndChoose(first)).diceValue, 2, "active pieces retain their server-generated roll");
   await movePiece(first, 0);
   await waitForSharedPosition("p1", 0, 2);
-  assert.equal((await rollAndChoose(second)).diceValue, 6, "the other player receives the identical entry guarantee");
+  assert.equal((await rollAndChoose(second)).diceValue, 6);
   await movePiece(second, 0);
   await waitForSharedPosition("p2", 0, 0);
-  console.log("QUICK ENTRY / SEAT SYMMETRY / REJOIN COUNTERS / NATURAL ACTIVE ROLLS PASSED", { roundTripMs });
+  console.log("RANDOM ENTRY / NO FORCED THIRD ROLL / REJOIN / ACTIVE ROLLS PASSED", { roundTripMs });
 
   await installFixture(roomId, "yard", 4);
   await click(first, '[aria-label="Roll dice"]');
