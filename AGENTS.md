@@ -2,9 +2,25 @@
 
 ## Base and precedence
 
-Robert C. Martin's (Uncle Bob's) **Clean Code** and **Clean Architecture** are the baseline for this repository: SOLID, the Dependency Rule, component principles, Humble Object, small focused functions, intention-revealing names, and comments that explain why rather than what. This file records how they apply here, the project's own naming and layout choices, and the project rules they do not cover. Where this file and the generic guidance disagree, this file wins.
+This file wins wherever it differs from generic guidance. Its base is Robert C. Martin's (Uncle Bob's) **Clean Code** and **Clean Architecture**: SOLID, the Dependency Rule, component principles, Humble Object, small focused functions, intention-revealing names, and comments that explain why rather than what. This file records how they apply here, the project's own naming and layout choices, and the project rules they do not cover.
 
 Apply these rules to new and changed code, keep work within the requested scope, and preserve existing behavior during refactoring unless a behavior change is explicitly requested.
+
+### Intentional overrides of the base
+
+- **No unrequested cleanup.** Change scope (convention 8) wins over the "leave it cleaner" habit: do not rename, extract, or reformat code you were not asked to touch.
+- **Hot paths.** In simulation and rendering paths, in-place mutation, reused objects, and fewer calls beat small-function and immutability preferences when measurements support it.
+- **JSDoc is required** on public functions and non-obvious helpers (convention 2), even though the base distrusts comments.
+- **Framework coupling in `core/` is deliberate.** The engine core depends on Socket.IO (see the Dependency Rule section). Do not refactor Socket.IO out of it or add ports for it unless asked.
+- **Tests are required for changed behavior; test-first is not.**
+
+## Which sections apply
+
+- Server engine, SDK, networking, or a game's sync adapter: Dependency Rule, Game and networking rules, Platform SDK architecture.
+- Adding a game: Adding a game, Build outputs.
+- `public/platform/src/`, overlays, dialogs, touch controls: Platform UX.
+- Sprites and animation: Game animation and sprite art.
+- Every change: Coding conventions, Build outputs, Verification, Before you finish.
 
 ## Project context
 
@@ -14,20 +30,26 @@ JavaScript ES module project with a React platform UI, browser game clients, and
 |------|----------------|-------------------------|
 | `public/games/<game>/shared/` | Controller configuration and optional custom pure rules used by that game's browser client and authoritative server | Entities (game rules) |
 | `public/platform/shared/` | Game-independent contracts, configurable simulation controllers, and constants used by browser and server | Entities and contracts (platform) |
-| `server/platform-backend-engine/core/` | Authoritative room lifecycle, command processing, simulation, and snapshot handling | Use cases |
-| `server/platform-backend-engine/games/` | Server-side adapters for bundled games (`fight.js`, `pong.js`, …) | Interface adapters (server) |
+| `server/platform-backend-engine/core/` | Authoritative room lifecycle, command processing, simulation, and snapshot handling | Use cases and Socket.IO adapters (framework-coupled by design) |
 | `public/platform/frontend-engine/` | Reusable client timing, input, prediction, interpolation, and transport | Use cases and interface adapters (client) |
-| `public/games/` | Game-specific controls, rendering, assets, and synchronization adapters | Interface adapters and Humble Objects |
+| `server/platform-backend-engine/games/` | Server-side adapters for bundled games (`fight.js`, `pong.js`, …) | Interface adapters (server) |
+| `public/games/<game>/` (`main.js`, `client/`, `rendering/`) | Game-specific controls, rendering, assets, and synchronization adapters | Interface adapters and Humble Objects |
+| `public/games/<game>/catalog.js` | Presentation metadata and touch descriptors read by the browser catalog | Game metadata |
 | `server/platform-backend-server/` | HTTP/server entry points and operational endpoints | Frameworks and drivers |
-| `server/platform-backend-engine/games/builtInGames.js` | Trusted built-in game package list | Main (composition root) |
+| `server/platform-backend-engine/games/builtInGames.js` | Trusted built-in game package list | Main (server composition root) |
+| `public/platform/src/data/games.js` | Browser catalog fallback built from each game's `catalog.js` | Main (browser composition root) |
 | `scripts/` | Development and diagnostic tools | Tooling |
 | `tests/` | Node test runner regression and integration tests | Tooling |
 
+Newer games (Sky Dash, Riftball, Dead Shift) split into `shared/`, `client/`, and `rendering/`; older games keep most code in `main.js`.
+
 ### Dependency Rule in this repository
 
-- Dependencies point from game packages into the platform SDK. The engine core, `frontend-engine/`, and shared protocol modules must not import concrete games, contain game namespaces, or branch on game identities. Only the composition root (`builtInGames.js`) imports game adapters. The platform must remain usable when any bundled game is removed.
+- Build a reusable platform with loose coupling to games and clear extension points for game developers. Dependencies point from game packages into the platform SDK; the platform must remain usable when any bundled game is removed.
+- The engine core, `frontend-engine/`, and shared protocol modules must not import concrete games, contain game namespaces, or branch on game identities. Only the composition roots import concrete games: `builtInGames.js` (server packages) and `public/platform/src/data/games.js` (browser catalog). `tests/platform-boundaries.test.js` enforces this.
 - Shared simulation rules (entities) must run without browser or server globals.
-- Renderers, React components, and Socket.IO/Express handlers are Humble Objects: keep decisions in testable modules and keep these layers thin.
+- Renderers, React components, and Express route handlers are Humble Objects: keep decisions in testable modules and keep these layers thin. `gameLoop.js` and `authoritativeInputSession.js` are not humble; they own timing and recovery logic and have direct tests.
+- `core/` depends on Socket.IO by design (`rooms.js`, `gameLoop.js`, `registerGame.js`, `socketHandlers.js`, and the plugin `register(io)` contract).
 - Apply Clean Architecture pragmatically. Prefer small modules with clear boundaries over large entry functions or speculative abstraction layers, and do not add layers, interfaces, or indirection that no second implementation needs.
 
 ## Coding conventions
@@ -47,7 +69,7 @@ JavaScript ES module project with a React platform UI, browser game clients, and
 - Keep simulation cadence independent of rendering FPS. Preserve command sequence, simulation tick, input epoch, and snapshot baseline semantics.
 - Keep queues, histories, and catch-up work bounded. Prefer explicit units such as `delayMs`, `fixedDtSec`, and `sequenceNumber`.
 - Distinguish round-trip latency, snapshot delivery gaps, server scheduling delay, simulation cost, and dropped simulation steps. Snapshot sequence gaps are not measured IP packet loss.
-- Avoid unnecessary allocation, blocking work, or high-frequency UI updates in simulation and rendering paths. Optimize using measurements while keeping the code understandable.
+- Avoid unnecessary allocation, blocking work, or high-frequency UI updates in simulation and rendering paths. Optimize using measurements (for example `npm run net:probe` and the timing tests) while keeping the code understandable.
 
 ## Platform SDK architecture
 
@@ -58,13 +80,12 @@ JavaScript ES module project with a React platform UI, browser game clients, and
 
 ### Contracts and extension points
 
-- Build a reusable platform with loose coupling to games and clear extension points for game developers.
 - Connect games through documented, versioned registration and adapter contracts. New games supply metadata and callbacks without changing engine internals. Keep the trusted built-in package list at the application composition boundary.
 - Keep reusable engine contracts genre-independent. Make player slots, simulation cadence, input shapes, and networking capabilities game-configurable. Do not assume two players, six Fight controls, pixel coordinates, Kaboom rendering, or identical prediction needs. Use game-defined player identifiers within the documented snapshot-compatible format.
 - Define each game's supported inputs and player state explicitly in its own adapter or shared rules. Declare its inputs, simulation cadence, and controller settings once in shared game configuration and reuse them across browser, server, and advertised capabilities.
 - Keep game decisions behind focused callbacks rather than adding game-specific flags to core code.
-- Prefer configuration over game code for common mechanics: use the platform's axis movement, side-view movement, timed action, and separation controllers with parameters and input/state bindings. Keep game shared simulation files mostly configuration and controller composition, with custom callbacks for mechanics no controller covers. When a mechanic repeats across games, extract a focused, parameterized platform component rather than copying it into each game or growing a universal controller with game-specific flags. Keep extension hooks available for custom mechanics and renderers.
-- Use `createNetworkedGameSession` (browser) and `createAuthoritativeInputSession` (server) for networking orchestration. Prefer `simulateRoom` and `getPlayerSnapshotMetadata` over exposing scheduler internals or mapping protocol fields in game code.
+- Prefer configuration over game code for common mechanics: use the controllers in `public/platform/shared/simulationControllers.js` (`createAxisMovementController`, `createSideViewCharacterController`, `createTimedActionController`, `createHorizontalSeparationController`) with parameters and input/state bindings. Keep game shared simulation files mostly configuration and controller composition, with custom callbacks for mechanics no controller covers. When a mechanic repeats across games, extract a focused, parameterized platform component rather than copying it into each game or growing a universal controller with game-specific flags. Keep extension hooks available for custom mechanics and renderers.
+- Use `createNetworkedGameSession` (browser) and `createAuthoritativeInputSession` (server) for networking orchestration. Prefer the session's `simulateRoom()` and `getPlayerSnapshotMetadata()` methods over exposing scheduler internals or mapping protocol fields in game code.
 - Keep developer setup concise. Document supported parameters, defaults, state/input mappings, and ownership responsibilities in [the game SDK guide](docs/game-sdk.md). New public SDK behavior needs a usable configuration example.
 - Trusted in-process game plugins are not a sandbox for uploaded third-party code. External code execution and tenant isolation require an explicit hosting/isolation design; do not expose arbitrary module loading as a service API.
 
@@ -81,6 +102,10 @@ JavaScript ES module project with a React platform UI, browser game clients, and
 - Resolve shared-link game metadata through individual lookup instead of downloading the whole catalog. Abort stale requests and keep active runtime metadata stable while playing.
 - Keep catalog UI generic and metadata-driven. Games own cover assets and advertised controls; platform components must not branch on game identities or fabricate activity/player statistics. Use a browsable grid as the main large-catalog workspace and keep selected-game previews secondary.
 
+## Adding a game
+
+Add a game package under `public/games/<game>/` (`shared/`, `main.js`, `catalog.js`), a server adapter in `server/platform-backend-engine/games/`, an entry in `builtInGames.js`, an entry in `public/platform/src/data/games.js`, and a `build:<game>` script if the game is bundled. [The game SDK guide](docs/game-sdk.md) is authoritative; where the README and the SDK guide disagree, follow the SDK guide.
+
 ## Platform UX
 
 - **Presentation.** Keep library console geometry viewport-driven and independent of game identity. Games default to an expanded platform play surface with the outer console hidden, including with touch controls disabled or keyboard/mouse input; an explicit current profile preference can restore the console. Keep runtime/canvas identity stable through presentation changes.
@@ -91,12 +116,24 @@ JavaScript ES module project with a React platform UI, browser game clients, and
 - **Visual language.** All platform-owned UX uses the library's dark surfaces, subtle rounded borders, cyan primary actions, Space Grotesk headings, and Manrope body text, including in-game fullscreen controls, connection/ping status, diagnostics, settings, loading/errors, and invite/exit/results dialogs. Reuse platform design tokens and shared dialog chrome instead of copying styles into games. Game artwork and gameplay HUDs may use their own visual language; platform UX must not inherit game-specific pixel styling.
 - **Overlays and accessibility.** Keep overlays within the host screen without resizing or remounting the runtime or console shell. Provide labels, visible feedback, readable telemetry, keyboard focus containment for the topmost modal, Escape cancellation where dismissal is supported, and focus restoration. Do not announce every telemetry refresh to assistive technology or run platform shortcuts while a modal has focus.
 
-## Game animation and art
+## Game animation and sprite art
 
 - Advance animations at render cadence with stable action identities, independent of snapshot delivery. Faster animation playback must not change authoritative combat timing.
 - Give materially different moves distinct authored clips with explicit frame ranges and pivots; retiming one shared strike does not substitute for visibly different attack, jump, slide or dodge poses. Keep visual transforms separate from simulation coordinates.
-- Keep each fighter's face, costume, palette, proportions and pixel treatment consistent across idle, running, attacks, defense, mobility and defeat. Reuse a canonical character reference for related sprite sheets and calibrate visual size and contact pivots without changing physics.
 - Verify the actual sprite sequence and state transitions in the browser at game scale, not only the configuration.
+
+### Sprite fighters (Fight)
+
+- Keep each fighter's face, costume, palette, proportions and pixel treatment consistent across idle, running, attacks, defense, mobility and defeat. Reuse a canonical character reference for related sprite sheets and calibrate visual size and contact pivots without changing physics.
+
+## Build outputs
+
+`dist/` folders are gitignored and `postinstall` runs `npm run build`. After editing these, rebuild or the browser keeps serving stale code:
+
+- A game whose server adapter `entryUrl` points to `/games/<game>/dist/main.js` (currently Dead Shift, Sky Dash, Riftball, Ludo): `npm run build:<game>`.
+- `public/platform/src/`: `npm run platform:build` (the server serves `public/platform/dist/index.html`).
+
+Other games load `/games/<game>/main.js` as plain ES modules and need no rebuild. Run the server locally with `npm run dev` (port 3100).
 
 ## Verification
 
@@ -107,10 +144,18 @@ npm test
 npm run build
 ```
 
-- When relevant, verify affected games with multiple clients: movement, short action presses, contact, reconnects, rematches, and delayed delivery.
-- Verify networked adapters at 150, 300 and 500 ms RTT with jitter, ordered delivery stalls, short actions, neutral-input stability, reconnects and rematches.
+- Unit and integration tests are `tests/*.test.js` (Node test runner), with shared fixtures in `tests/helpers/`. Browser suites are `tests/browser/*.mjs`, run with `npm run test:<name>:browser`; they read settings such as `CHROME_PATH`, `PLATFORM_BASE_URL`, `PLATFORM_TEST_RTT_MS`, and `PLATFORM_TEST_GAMES`.
+- After changes to networking, input, rooms, or a game's sync adapter, verify the affected games with multiple clients (movement, short action presses, contact, reconnects, rematches, delayed delivery), for example with `npm run test:multiplayer:browser`. Verify networked adapters at 150, 300 and 500 ms RTT with jitter, ordered delivery stalls, short actions, and neutral-input stability.
 - Prove reusable contracts and shared SDK changes with different games and game configurations, input/state schemas, player capacities, and simulation rates. Fight and Pong are existing integrations. Verify lifecycle, latency, and reconnect behavior at the contract boundary, not only through Fight-specific tests.
 - Diagnostics select game configuration through the same public contracts. A game-specific probe must be labeled as such and kept with that game.
 - Use `npm run net:probe -- --url http://localhost:3100 --game pong --seconds 30` to inspect a selected match's server and network timing; it is not a capacity benchmark. See [the game SDK guide](docs/game-sdk.md) for configuration examples and integration coverage.
 
-Report what changed, what was verified, and any remaining limitation. A local rebuild does not update the deployed service.
+## Before you finish
+
+1. `npm test` passes.
+2. Affected bundles are rebuilt (see Build outputs).
+3. No engine or shared module imports a game or branches on a game identity.
+4. No unrelated renames or reformatting.
+5. Changed behavior has a regression test.
+6. New public SDK behavior is documented in [the game SDK guide](docs/game-sdk.md) with a configuration example.
+7. Report what changed, what was verified, and any remaining limitation. A local rebuild does not update the deployed service.
