@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { createBrowserTestSession, delay } from "./support/chrome.mjs";
 
-const baseUrl = process.env.PLATFORM_BASE_URL || "http://localhost:3000";
+const baseUrl = process.env.PLATFORM_BASE_URL || "http://localhost:3100";
 const gameIds = (process.env.VOICE_TEST_GAMES || "pong,fight").split(",");
 const browser = await createBrowserTestSession("platform-voice", {
   // Synthetic devices only: never capture the developer's actual microphone.

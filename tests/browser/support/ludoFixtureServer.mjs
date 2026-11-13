@@ -7,7 +7,7 @@ import { registerLudoGame } from "../../../server/platform-backend-engine/games/
 import { getGamesStore } from "../../../server/platform-backend-engine/core/gameStore.js";
 import { advanceLudoRound } from "../../../public/games/ludo/shared/rules.js";
 
-const targetOrigin = new URL(process.env.PLATFORM_BASE_URL || "http://localhost:3000");
+const targetOrigin = new URL(process.env.PLATFORM_BASE_URL || "http://localhost:3100");
 const assetTransport = targetOrigin.protocol === "https:" ? https : http;
 let diceQueue = [];
 

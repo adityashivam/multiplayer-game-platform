@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { createBrowserTestSession, delay } from "./support/chrome.mjs";
 
-const baseUrl = process.env.RIFTBALL_BASE_URL || "http://localhost:3000";
+const baseUrl = process.env.RIFTBALL_BASE_URL || "http://localhost:3100";
 const quickRun = process.env.RIFTBALL_BROWSER_QUICK === "1";
 const browser = await createBrowserTestSession("riftball");
 const { send, evaluate, waitFor, newPage, capture, click, clickText, key } = browser;

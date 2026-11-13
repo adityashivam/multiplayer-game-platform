@@ -9,7 +9,7 @@ npm run build
 npm start
 ```
 
-Open `http://localhost:3000`, choose **Riftball Duel**, and send the generated room link to another browser/device. On the same Wi-Fi, open `http://<your-computer-LAN-IP>:3000` first so the invitation uses an address the other device can reach. Both players get the platform’s five-second countdown. `localhost` links only work on the computer that created them.
+Open `http://localhost:3100`, choose **Riftball Duel**, and send the generated room link to another browser/device. On the same Wi-Fi, open `http://<your-computer-LAN-IP>:3100` first so the invitation uses an address the other device can reach. Both players get the platform’s five-second countdown. `localhost` links only work on the computer that created them.
 
 | Action | Keyboard / mouse | Console shell |
 | --- | --- | --- |
@@ -44,4 +44,4 @@ npm test
 npm run build
 ```
 
-The browser script uses an isolated Chrome profile and legal controls in two real clients. It requires the project server on port 3000; `RIFTBALL_BASE_URL` selects another local test server. See the [SDK guide](../../../docs/game-sdk.md) for shared contracts. Browser tests and local timing do not measure global capacity or update the deployed service.
+The browser script uses an isolated Chrome profile and legal controls in two real clients. It requires the project server on port 3100; `RIFTBALL_BASE_URL` selects another local test server. See the [SDK guide](../../../docs/game-sdk.md) for shared contracts. Browser tests and local timing do not measure global capacity or update the deployed service.

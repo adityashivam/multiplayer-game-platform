@@ -4,9 +4,9 @@ A two-player first-person zombie kill race in a shared containment chamber. The 
 
 ## Play locally
 
-Run `npm install`, `npm run build`, and `npm start`, then select **Dead Shift** in the library at `http://localhost:3000`. Use the platform's **START / Invite** control to share the generated room link. Open it in a separate browser profile, private window, or another device to join as the second operator. Reloading an existing tab restores that operator's seat.
+Run `npm install`, `npm run build`, and `npm start`, then select **Dead Shift** in the library at `http://localhost:3100`. Use the platform's **START / Invite** control to share the generated room link. Open it in a separate browser profile, private window, or another device to join as the second operator. Reloading an existing tab restores that operator's seat.
 
-For another device on your local Wi-Fi, replace `localhost` in the shared link with the server computer's LAN IP address. Both devices must reach port 3000. Starting the game does not request fullscreen or change the device's orientation.
+For another device on your local Wi-Fi, replace `localhost` in the shared link with the server computer's LAN IP address. Both devices must reach port 3100. Starting the game does not request fullscreen or change the device's orientation.
 
 | Action | Desktop | Platform controls |
 | --- | --- | --- |

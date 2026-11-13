@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { createBrowserTestSession, delay } from "./support/chrome.mjs";
 
-const baseUrl = process.env.SKY_DASH_BASE_URL || "http://localhost:3000";
+const baseUrl = process.env.SKY_DASH_BASE_URL || "http://localhost:3100";
 const quickRun = process.env.SKY_DASH_BROWSER_QUICK === "1";
 const browser = await createBrowserTestSession("sky-dash");
 const { send, evaluate, waitFor, newPage, capture, click, clickText, key } = browser;

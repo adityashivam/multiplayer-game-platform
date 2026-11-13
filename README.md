@@ -13,7 +13,7 @@ npm install
 node server/platform-backend-server/server.js
 ```
 
-Open `http://localhost:3000` in two browser tabs to play.
+Open `http://localhost:3100` in two browser tabs to play.
 
 Fight's attack, guard, dash and special controls are documented in [the gameplay guide](docs/fight-gameplay.md).
 
@@ -368,7 +368,7 @@ export const visualsByGame = {
 
 ### Done!
 
-Restart the server. Visit `http://localhost:3000` and your game appears in the lobby.
+Restart the server. Visit `http://localhost:3100` and your game appears in the lobby.
 
 ---
 
@@ -970,9 +970,9 @@ The shared interpolator keeps a monotonic remote playback clock, adapts its dela
 npm test
 npm run build
 npm start
-npm run net:probe -- --url http://localhost:3000 --game fight --seconds 30
-npm run net:probe -- --url http://localhost:3000 --game pong --seconds 30
-npm run net:probe -- --url http://localhost:3000 --game draw --seconds 10
+npm run net:probe -- --url http://localhost:3100 --game fight --seconds 30
+npm run net:probe -- --url http://localhost:3100 --game pong --seconds 30
+npm run net:probe -- --url http://localhost:3100 --game draw --seconds 10
 npm run net:probe -- --url https://your-service.onrender.com --game fight --seconds 30
 ```
 

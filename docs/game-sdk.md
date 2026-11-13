@@ -198,7 +198,7 @@ Config → Game controls offers a bounded searchable picker containing only deve
 
 Games with customization enabled also get a platform Controls button during play. The same editor sits over the existing renderer and explains that the session continues while editing; gameplay input is neutralized and higher-priority invitation/results/exit dialogs retain focus. The Options menu controls automatic/always/off display and Expanded play area. Layout changes do not request browser fullscreen, change device orientation or restart a room.
 
-Run `npm run test:touch-controls:browser` against the local server for the complete two-client UI/touch regression. It uses an isolated Chrome profile, saves `touch-layout-*.png` screenshots in the OS temporary directory, and removes its profile on exit. `CHROME_PATH` overrides the default macOS Chrome executable; `PLATFORM_BASE_URL` overrides `http://localhost:3000`.
+Run `npm run test:touch-controls:browser` against the local server for the complete two-client UI/touch regression. It uses an isolated Chrome profile, saves `touch-layout-*.png` screenshots in the OS temporary directory, and removes its profile on exit. `CHROME_PATH` overrides the default macOS Chrome executable; `PLATFORM_BASE_URL` overrides `http://localhost:3100`.
 
 ## Configure mechanics instead of rewriting them
 
@@ -514,7 +514,7 @@ Deterministic tests cover all continuous multiplayer games at **150, 300 and 500
 ```sh
 npm test
 npm run build
-npm run net:probe -- --url http://localhost:3000 --game pong --seconds 30
+npm run net:probe -- --url http://localhost:3100 --game pong --seconds 30
 npm run test:multiplayer:browser
 ```
 

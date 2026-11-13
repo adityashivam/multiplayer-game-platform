@@ -3,7 +3,7 @@ import { fork } from "node:child_process";
 import { createBrowserTestSession, delay } from "./support/chrome.mjs";
 import { createLatencyProxy } from "./support/latencyProxy.mjs";
 
-const targetUrl = process.env.PLATFORM_BASE_URL || "http://localhost:3000";
+const targetUrl = process.env.PLATFORM_BASE_URL || "http://localhost:3100";
 const roundTripMs = Number(process.env.LUDO_TEST_RTT_MS || 0);
 const fixtureServer = await startFixtureServer();
 const latencyProxy = await createLatencyProxy({

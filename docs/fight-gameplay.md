@@ -2,7 +2,7 @@
 
 Fight is a 90-second sword duel for two players. Health does not regenerate. Damage, defense, meters and the winner are authoritative on the server; the local client predicts movement/actions and renders independently.
 
-Open localhost:3000, launch Fight, and share the room link with a second browser/device. Refresh tabs that were open before the combat upgrade so client and server use the same rules.
+Open localhost:3100, launch Fight, and share the room link with a second browser/device. Refresh tabs that were open before the combat upgrade so client and server use the same rules.
 
 ## Controls
 

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { createBrowserTestSession, delay } from "./support/chrome.mjs";
 import { createLatencyProxy } from "./support/latencyProxy.mjs";
 
-const targetUrl = process.env.PLATFORM_BASE_URL || "http://localhost:3000";
+const targetUrl = process.env.PLATFORM_BASE_URL || "http://localhost:3100";
 const roundTripMs = Number(process.env.PLATFORM_TEST_RTT_MS || 500);
 const gameIds = (process.env.PLATFORM_TEST_GAMES || "fight,pong,mario,mario-touch,roadrash,dead-shift,sky-dash,riftball,draw").split(",");
 const latencyProxy = await createLatencyProxy({ targetUrl, roundTripMs, jitterMs: 40, stallEveryMs: 7000, stallDurationMs: 200 });

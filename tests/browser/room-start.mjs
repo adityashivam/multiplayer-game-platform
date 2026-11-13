@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { createBrowserTestSession, delay } from "./support/chrome.mjs";
 
-const baseUrl = process.env.PLATFORM_BASE_URL || "http://localhost:3000";
+const baseUrl = process.env.PLATFORM_BASE_URL || "http://localhost:3100";
 const delayedDelivery = process.env.PLATFORM_ROOM_TEST_DELAYED === "true";
 const browser = await createBrowserTestSession("room-start");
 const { newPage, evaluate, waitFor, capture, send } = browser;

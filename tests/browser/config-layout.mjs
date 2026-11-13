@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { createBrowserTestSession, delay } from "./support/chrome.mjs";
 
 const browser = await createBrowserTestSession("config-layout");
-const baseUrl = process.env.PLATFORM_BASE_URL || "http://localhost:3000";
+const baseUrl = process.env.PLATFORM_BASE_URL || "http://localhost:3100";
 const { send, evaluate, waitFor, newPage, capture, click, clickText } = browser;
 
 async function readSettingsGeometry(sessionId) {

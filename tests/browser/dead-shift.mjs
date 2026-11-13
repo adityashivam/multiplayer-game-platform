@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import assert from "node:assert/strict";
 
-const baseUrl = process.env.DEAD_SHIFT_BASE_URL || "http://localhost:3000";
+const baseUrl = process.env.DEAD_SHIFT_BASE_URL || "http://localhost:3100";
 const chromeExecutable = process.env.CHROME_PATH || "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
 const profile = await mkdtemp(path.join(tmpdir(), "dead-shift-chrome-"));
 const chrome = spawn(chromeExecutable, [
