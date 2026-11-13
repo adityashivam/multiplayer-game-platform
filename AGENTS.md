@@ -10,7 +10,7 @@ Apply these rules to new and changed code, keep work within the requested scope,
 
 - **No unrequested cleanup.** Change scope (convention 8) wins over the "leave it cleaner" habit: do not rename, extract, or reformat code you were not asked to touch.
 - **Hot paths.** In simulation and rendering paths, in-place mutation, reused objects, and fewer calls beat small-function and immutability preferences when measurements support it.
-- **JSDoc is required** on public functions and non-obvious helpers (convention 2), even though the base distrusts comments.
+- **Doc comments are required** on public functions and non-obvious helpers (convention 2), even though the base distrusts comments.
 - **Framework coupling in `core/` is deliberate.** The engine core depends on Socket.IO (see the Dependency Rule section). Do not refactor Socket.IO out of it or add ports for it unless asked.
 - **Tests are required for changed behavior; test-first is not.**
 
@@ -24,7 +24,7 @@ Apply these rules to new and changed code, keep work within the requested scope,
 
 ## Project context
 
-JavaScript ES module project with a React platform UI, browser game clients, and an Express/Socket.IO authoritative game server. Keep changes in the existing languages and architecture unless a migration is requested.
+ES module project with a React platform UI, browser game clients, and an Express/Socket.IO authoritative game server. The code is JavaScript and is migrating gradually to strict TypeScript (see convention 1). Keep changes in the existing architecture unless a migration is requested, and follow [the platform scale plan](docs/architecture/platform-scale-plan.md) for roadmap work.
 
 | Path | Responsibility | Clean Architecture role |
 |------|----------------|-------------------------|
@@ -54,8 +54,8 @@ Newer games (Sky Dash, Riftball, Dead Shift) split into `shared/`, `client/`, an
 
 ## Coding conventions
 
-1. **Types without TypeScript.** JSDoc is the type system. Use `@typedef`, `@template`, and typed parameters for input states, player states, command frames, options, and responses. Define closed shapes and literal unions when keys are known, and restrict key arguments with `keyof` where appropriate. Use dictionaries or generic key maps only for genuinely dynamic data, such as plugin-defined poses or snapshot schema paths. Do not introduce a TypeScript migration just to add types.
-2. **JSDoc on public functions and non-obvious helpers.** Document purpose, parameter shapes, return values, mutation/ownership rules, and important failure cases, using `@param`, `@returns`, and `@throws` where useful. Keep it aligned with parameter names and behavior; avoid comments that merely repeat the code.
+1. **Types and the TypeScript migration.** Strict TypeScript is the target language. Until the TypeScript toolchain exists (plan Step 6), write JavaScript with JSDoc types. After that, new modules are TypeScript, and existing modules migrate when a task touches them, shared contracts in `public/platform/shared/` first. Do not mix a migration into an unrelated change or convert files the task does not touch. In either language, type input states, player states, command frames, options, and responses explicitly (`@typedef`/`@template` in JSDoc, `type`/`interface` and generics in TypeScript). Define closed shapes and literal unions when keys are known, and restrict key arguments with `keyof` where appropriate. Use dictionaries or generic key maps only for genuinely dynamic data, such as plugin-defined poses or snapshot schema paths. Avoid `any`; use `unknown` and narrow it at boundaries.
+2. **Doc comments on public functions and non-obvious helpers** (JSDoc in JavaScript, TSDoc in TypeScript). Document purpose, parameter shapes, return values, mutation/ownership rules, and important failure cases, using `@param`, `@returns`, and `@throws` where useful. Keep it aligned with parameter names and behavior; avoid comments that merely repeat the code.
 3. **Domain vocabulary.** Name functions for their action and domain, for example `parseAndValidateProbeOptions`, `recordReceivedSnapshot`, or `resetPlayerInputSession`; avoid vague helpers such as `required`, `invalid`, `process`, or `handle` without a domain. Name objects for their role, for example `playerState`, `inputFrame`, `predictionContext`, `probeClient`, `socketPacket`, `healthResponse`, and `networkSummary`. Use plurals for collections, and avoid `data`, `result`, `obj`, and one-letter identifiers when a domain name would clarify the role. Established coordinates and wire identifiers such as `x`, `y`, `p1`, and `p2` are fine. Preserve established public APIs and wire field names when renaming would break callers.
 4. **Style and layout.** Follow the surrounding style; default to two-space indentation, double quotes, and semicolons in JavaScript. Keep related declarations together, separate setup, validation, processing, and returns with blank lines, and use ordinary multi-line branches and object declarations rather than dense one-line statements.
 5. **Where constants live.** Name protocol versions, event names, packet kinds, HTTP details, error codes, simulation settings, and limits. Keep each constant next to the domain that owns it, and share real client/server contracts from `public/platform/shared/`. Do not create a universal constants file or extract every incidental literal. Keep literal expected values in tests when they independently verify a contract.
