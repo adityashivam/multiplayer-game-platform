@@ -12,8 +12,11 @@ import { ludoPresentation, ludoTouchControls } from "../../../games/ludo/catalog
 import { edgeoutPresentation, edgeoutTouchControls } from "../../../games/edgeout/catalog.js";
 import { driftlinePresentation, driftlineTouchControls } from "../../../games/driftline/catalog.js";
 import { skybreakPresentation, skybreakTouchControls } from "../../../games/skybreak/catalog.js";
+import { lastFusePresentation, lastFuseTouchControls } from "../../../games/last-fuse/catalog.js";
 
 export const gameTitles = {
+  "last-fuse": "Last Fuse",
+  "last-fuse-practice": "Last Fuse Practice",
   skybreak: "Skybreak",
   "skybreak-practice": "Skybreak Practice",
   "skybreak-time-trial": "Skybreak Time Trial",
@@ -55,6 +58,32 @@ function makeWebglRuntime(id) {
 }
 
 export const fallbackGames = [
+  {
+    id: "last-fuse",
+    name: "Last Fuse",
+    description: "Bomb tag across night rooftops. Touch a runner to pass the lit bomb before it blows. Last runner standing wins the round.",
+    presentation: lastFusePresentation,
+    touchControls: lastFuseTouchControls,
+    path: "/games/last-fuse",
+    namespace: "/last-fuse",
+    engine: "webgl",
+    runtime: { kind: "module", mount: "canvas", entryUrl: "/games/last-fuse/dist/main.js", socketIo: true, kaboom: false },
+    tags: ["Party", "2 players", "Competitive", "3D"],
+    platformControlButtons: true,
+  },
+  {
+    id: "last-fuse-practice",
+    name: "Last Fuse Practice",
+    description: "Learn the jumps, the dash and the pass against five bot runners.",
+    presentation: lastFusePresentation,
+    touchControls: lastFuseTouchControls,
+    path: "/games/last-fuse-practice",
+    namespace: "/last-fuse-practice",
+    engine: "webgl",
+    runtime: { kind: "module", mount: "canvas", entryUrl: "/games/last-fuse/dist/practice.js", socketIo: true, kaboom: false },
+    tags: ["Party", "1 player", "Practice", "3D"],
+    platformControlButtons: true,
+  },
   {
     id: "skybreak",
     name: "Skybreak",

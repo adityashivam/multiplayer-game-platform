@@ -18,6 +18,7 @@ import {
   skybreakPracticeGameMeta,
   skybreakTimeTrialGameMeta,
 } from "./skybreak.js";
+import { lastFuseGameMeta, lastFusePracticeGameMeta, registerLastFuseGame, registerLastFusePracticeGame } from "./lastFuse.js";
 import {
   fightGameMeta,
   pongGameMeta,
@@ -40,6 +41,8 @@ export const legacyRoomRouteAliases = Object.freeze([
  */
 export function createBuiltInGameRegistry() {
   return createGameRegistry([
+    { apiVersion: GAME_PLUGIN_API_VERSION, meta: lastFuseGameMeta, register: registerLastFuseGame },
+    { apiVersion: GAME_PLUGIN_API_VERSION, meta: lastFusePracticeGameMeta, register: registerLastFusePracticeGame },
     { apiVersion: GAME_PLUGIN_API_VERSION, meta: skybreakGameMeta, register: registerSkybreakGame },
     { apiVersion: GAME_PLUGIN_API_VERSION, meta: skybreakPracticeGameMeta, register: registerSkybreakPracticeGame },
     { apiVersion: GAME_PLUGIN_API_VERSION, meta: skybreakTimeTrialGameMeta, register: registerSkybreakTimeTrialGame },

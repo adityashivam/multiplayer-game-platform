@@ -29,9 +29,10 @@
     "build:riftball": "esbuild public/games/riftball/main.js --bundle --format=esm --target=es2020 --external:/platform/* --outfile=public/games/riftball/dist/main.js --minify",
     "build:ludo": "esbuild public/games/ludo/main.js --bundle --format=esm --target=es2020 --external:/platform/* --outfile=public/games/ludo/dist/main.js --minify",
     "build:skybreak": "esbuild public/games/skybreak/main.js public/games/skybreak/practice.js public/games/skybreak/time-trial.js --bundle --format=esm --target=es2020 --external:/platform/* --outdir=public/games/skybreak/dist --minify",
+    "build:last-fuse": "esbuild public/games/last-fuse/main.js public/games/last-fuse/practice.js --bundle --format=esm --target=es2020 --external:/platform/* --outdir=public/games/last-fuse/dist --minify",
     "build:driftline": "esbuild public/games/driftline/main.js public/games/driftline/practice.js --bundle --format=esm --target=es2020 --external:/platform/* --outdir=public/games/driftline/dist --minify",
     "build:edgeout": "esbuild public/games/edgeout/main.js public/games/edgeout/practice.js --bundle --format=esm --target=es2020 --external:/platform/* --outdir=public/games/edgeout/dist --minify",
-    "build": "npm run build:msgpack && npm run build:dead-shift && npm run build:sky-dash && npm run build:riftball && npm run build:ludo && npm run build:edgeout && npm run build:driftline && npm run build:skybreak && npm run platform:build",
+    "build": "npm run build:msgpack && npm run build:dead-shift && npm run build:sky-dash && npm run build:riftball && npm run build:ludo && npm run build:edgeout && npm run build:driftline && npm run build:skybreak && npm run build:last-fuse && npm run platform:build",
     "postinstall": "npm run build"
   },
   "engines": {

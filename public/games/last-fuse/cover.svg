@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 360" role="img" aria-label="Last Fuse: a runner leaps between night rooftops holding a lit bomb">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0a0e1a"/>
+      <stop offset="1" stop-color="#2a1d2a"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#ffe2a8"/>
+      <stop offset="0.35" stop-color="#ff7a2e" stop-opacity="0.85"/>
+      <stop offset="1" stop-color="#ff3d1e" stop-opacity="0"/>
+    </radialGradient>
+    <pattern id="windows" width="16" height="18" patternUnits="userSpaceOnUse">
+      <rect width="16" height="18" fill="#1b1d25"/>
+      <rect x="4" y="5" width="8" height="8" fill="#0d0f15"/>
+    </pattern>
+  </defs>
+  <rect width="640" height="360" fill="url(#sky)"/>
+  <circle cx="520" cy="70" r="26" fill="#d7defa" opacity="0.85"/>
+  <g fill="#151824">
+    <rect x="0" y="170" width="70" height="190"/><rect x="80" y="140" width="60" height="220"/>
+    <rect x="500" y="150" width="70" height="210"/><rect x="580" y="120" width="60" height="240"/>
+  </g>
+  <g>
+    <rect x="40" y="230" width="210" height="130" fill="url(#windows)"/>
+    <rect x="36" y="224" width="218" height="8" fill="#5e5d5c"/>
+    <rect x="330" y="205" width="250" height="155" fill="url(#windows)"/>
+    <rect x="326" y="199" width="258" height="8" fill="#5e5d5c"/>
+    <rect x="70" y="262" width="8" height="8" fill="#ffd59a"/><rect x="118" y="298" width="8" height="8" fill="#ffd59a"/>
+    <rect x="182" y="262" width="8" height="8" fill="#bfe3ff"/><rect x="390" y="226" width="8" height="8" fill="#ffd59a"/>
+    <rect x="470" y="262" width="8" height="8" fill="#ffd59a"/><rect x="534" y="298" width="8" height="8" fill="#bfe3ff"/>
+    <rect x="420" y="250" width="70" height="14" rx="3" fill="#ff3d6e"/>
+  </g>
+  <g transform="translate(286 128) rotate(-12)">
+    <path d="M0 40 L18 2 L40 6 L36 52 Z" fill="#c24a2f"/>
+    <circle cx="22" cy="-8" r="11" fill="#7a2c1e"/>
+    <path d="M6 44 L-28 78 M30 50 L58 86" stroke="#23252b" stroke-width="12" stroke-linecap="round"/>
+    <path d="M36 14 L66 0" stroke="#c24a2f" stroke-width="9" stroke-linecap="round"/>
+    <path d="M4 14 L-20 32" stroke="#c24a2f" stroke-width="9" stroke-linecap="round"/>
+    <circle cx="72" cy="-4" r="13" fill="#16171b"/>
+    <path d="M78 -16 q6 -8 2 -14" stroke="#d9c39a" stroke-width="2.5" fill="none"/>
+  </g>
+  <circle cx="374" cy="88" r="44" fill="url(#glow)"/>
+  <text x="32" y="78" fill="#f3efe8" font-family="Space Grotesk, sans-serif" font-size="46" font-weight="700" letter-spacing="-2">LAST FUSE</text>
+  <text x="34" y="104" fill="#ff6a3d" font-family="Manrope, sans-serif" font-size="13" font-weight="800" letter-spacing="3">PASS IT ON. OR GO BOOM.</text>
+</svg>

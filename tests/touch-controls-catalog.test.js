@@ -90,8 +90,8 @@ test("catalog page and direct lookup advertise owned optional touch metadata", (
 test("every bundled catalog entry advertises its supported customizable touch controls", () => {
   const registry = createBuiltInGameRegistry();
   const games = registry.listGames();
-  assert.equal(games.length, 18);
-  assert.equal(createGameCatalog(games).query({ customizable: true }).total, 18);
+  assert.equal(games.length, 20);
+  assert.equal(createGameCatalog(games).query({ customizable: true }).total, 20);
   for (const game of games) {
     assert.equal(game.touchControls?.customizable, true, `${game.id} must support touch layout editing`);
     assert.equal(game.touchControls.apiVersion, 1);
@@ -119,7 +119,7 @@ test("every bundled catalog entry advertises its supported customizable touch co
   assert.equal(drawControls.length, 1);
   assert.equal(drawControls[0].type, "button");
   assert.equal(drawControls[0].label, "Clear");
-  for (const gameId of ["dead-shift", "sky-dash", "riftball", "edgeout", "edgeout-practice", "driftline", "driftline-practice", "skybreak", "skybreak-practice", "skybreak-time-trial"]) {
+  for (const gameId of ["dead-shift", "sky-dash", "riftball", "edgeout", "edgeout-practice", "driftline", "driftline-practice", "skybreak", "skybreak-practice", "skybreak-time-trial", "last-fuse", "last-fuse-practice"]) {
     assert.ok(registry.getGame(gameId).touchControls.controls.every((control) => control.platformBinding === undefined));
   }
 });

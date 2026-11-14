@@ -52,7 +52,7 @@ test("all continuous multiplayer catalog entries advertise their queued schema a
   const { registry } = registerCatalogTestNamespaces();
   const games = registry.listGames();
   const movementGames = games.filter((game) => game.networked !== false && game.networking?.inputProtocol != null);
-  assert.equal(movementGames.length, 15);
+  assert.equal(movementGames.length, 17);
   for (const game of movementGames) {
     assert.equal(game.networking.inputProtocol, 2, game.id);
     assert.ok(Object.keys(game.networking.inputTemplate).length > 0, game.id);
@@ -63,7 +63,7 @@ test("all continuous multiplayer catalog entries advertise their queued schema a
   assert.equal(games.find((game) => game.id === "webgl-sample").networked, false);
 });
 
-for (const gameId of ["fight", "pong", "dead-shift", "sky-dash", "riftball", "edgeout", "driftline", "skybreak", "mario", "mario-touch", "roadrash"]) {
+for (const gameId of ["fight", "pong", "dead-shift", "sky-dash", "riftball", "edgeout", "driftline", "skybreak", "last-fuse", "mario", "mario-touch", "roadrash"]) {
   test(`${gameId} pauses both command owners and rejects in-flight commands from before a disconnect`, () => {
     const { namespaces, registry } = registerCatalogTestNamespaces();
     const game = registry.getGame(gameId);

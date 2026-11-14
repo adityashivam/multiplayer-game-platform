@@ -1,0 +1,103 @@
+.lf-hud {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  overflow: hidden;
+  pointer-events: none;
+  color: #f3efe8;
+  font: 12px "Manrope", sans-serif;
+  container-type: size;
+  --lf-accent: #ff6a3d;
+  --lf-good: #5ee6a8;
+  --lf-warn: #ffc24b;
+  --lf-bad: #ff4d5e;
+  --lf-panel: #0d0f15d9;
+  --lf-line: #f3e4d21f;
+}
+.lf-hud *, .lf-hud *::before, .lf-hud *::after { box-sizing: border-box; }
+.lf-hud [hidden] { display: none !important; }
+.lf-hud button { cursor: pointer; pointer-events: auto; font: inherit; }
+.lf-hud button:focus-visible { outline: 2px solid var(--lf-accent); outline-offset: 4px; }
+
+.lf-vignette { position: absolute; inset: 0; opacity: 0; transition: opacity 250ms; box-shadow: inset 0 0 120px 24px var(--lf-bad); }
+.lf-holding .lf-vignette { opacity: .55; }
+.lf-danger .lf-vignette { opacity: .3; box-shadow: inset 0 0 120px 18px var(--lf-warn); }
+.lf-critical .lf-vignette { animation: lf-pulse 380ms ease-in-out infinite alternate; }
+
+.lf-top { position: absolute; top: 50px; left: 50%; transform: translateX(-50%); width: min(300px, 46cqw); padding: 8px 16px 10px; border: 1px solid var(--lf-line); border-radius: 12px; background: var(--lf-panel); text-align: center; box-shadow: 0 6px 24px #0006; }
+.lf-top small { display: block; font-size: 7px; font-weight: 800; letter-spacing: .18em; color: #b9b2a8; }
+.lf-top strong { display: block; margin-top: 2px; font: 700 30px/1.05 "Space Grotesk", sans-serif; font-variant-numeric: tabular-nums; color: #fff; }
+.lf-holding .lf-top strong { color: var(--lf-bad); }
+.lf-fuse-track { height: 4px; margin: 6px 0; border-radius: 4px; background: #ffffff1c; overflow: hidden; }
+.lf-fuse-track i { display: block; height: 100%; transform-origin: left; transform: scaleX(0); background: linear-gradient(90deg, var(--lf-bad), var(--lf-accent), var(--lf-warn)); }
+.lf-top span { font-size: 9px; color: #d8d0c6; }
+
+.lf-standings { position: absolute; top: 110px; left: 3%; margin: 0; padding: 6px; list-style: none; width: min(190px, 30cqw); border: 1px solid var(--lf-line); border-radius: 10px; background: var(--lf-panel); }
+.lf-row { display: grid; grid-template-columns: 1fr auto 26px; align-items: center; gap: 6px; padding: 4px 6px; border-left: 3px solid var(--lf-runner); border-radius: 4px; font-size: 9px; font-weight: 700; }
+.lf-row + .lf-row { margin-top: 3px; }
+.lf-row small { font-size: 7px; letter-spacing: .1em; color: #b9b2a8; }
+.lf-row b { text-align: right; font: 700 12px "Space Grotesk", sans-serif; font-variant-numeric: tabular-nums; }
+.lf-you { background: #ffffff12; }
+.lf-out { opacity: .4; }
+.lf-holder small { color: var(--lf-bad); }
+
+.lf-minimap { position: absolute; top: 104px; right: 3%; width: 156px; height: 156px; border: 1px solid var(--lf-line); border-radius: 14px; background: #10131ce6; box-shadow: 0 6px 24px #0006; }
+.lf-sound { position: absolute; top: 65px; right: 3%; border: 1px solid var(--lf-line); border-radius: 8px; background: #0d0f15b8; color: #e2dbd2; padding: 7px 9px; font-size: 9px !important; }
+
+.lf-marker { position: absolute; left: 0; top: 0; display: flex; flex-direction: column; align-items: center; gap: 2px; margin: -26px 0 0 -20px; width: 40px; color: var(--lf-bad); font: 800 7px "Manrope", sans-serif; letter-spacing: .14em; text-shadow: 0 1px 4px #000; }
+.lf-marker b { width: 14px; height: 14px; border-radius: 50%; background: var(--lf-bad); box-shadow: 0 0 12px var(--lf-bad); animation: lf-pulse 500ms ease-in-out infinite alternate; }
+.lf-arrow { position: absolute; left: 0; top: 0; width: 0; height: 0; margin: -10px 0 0 -10px; border-top: 10px solid transparent; border-bottom: 10px solid transparent; border-left: 18px solid var(--lf-bad); filter: drop-shadow(0 0 6px var(--lf-bad)); }
+
+.lf-announcement { position: absolute; top: 30%; left: 8%; right: 8%; text-align: center; font: 700 clamp(24px, 4.6cqw, 58px) "Space Grotesk", sans-serif; letter-spacing: -.03em; text-shadow: 0 4px 26px #000; }
+.lf-announcement[data-tone="good"] { color: var(--lf-good); }
+.lf-announcement[data-tone="bad"] { color: var(--lf-bad); }
+.lf-announcement[data-tone="warn"] { color: var(--lf-warn); }
+.lf-pop { animation: lf-pop 420ms cubic-bezier(.2, 1.6, .4, 1); }
+
+.lf-intro { position: absolute; inset: 0; padding: 8%; display: flex; align-items: center; background: linear-gradient(90deg, #07080ce8, #07080c70 70%, transparent); }
+.lf-intro > div { max-width: 62%; }
+.lf-eyebrow { font-size: clamp(7px, .85cqw, 10px); font-weight: 800; letter-spacing: .2em; color: var(--lf-accent); }
+.lf-intro h1 { font: 700 clamp(32px, 6.2cqw, 78px)/.95 "Space Grotesk", sans-serif; letter-spacing: -.05em; margin: 18px 0; }
+.lf-intro h1 em { font-style: normal; color: var(--lf-accent); }
+.lf-intro p:not(.lf-eyebrow) { font-size: clamp(10px, 1.25cqw, 15px); line-height: 1.8; color: #d1c9be; }
+.lf-enter { border: 0; border-radius: 9px; background: var(--lf-accent); color: #1a0a04; padding: 13px 19px; display: flex; align-items: center; gap: 32px; font-weight: 800 !important; margin-top: 24px; }
+.lf-enter span { font-size: 22px; }
+.lf-intro small { display: block; margin-top: 16px; color: #a9a196; font-size: 8px; }
+
+.lf-footer { position: absolute; bottom: 4%; left: 3%; right: 3%; display: flex; align-items: end; justify-content: space-between; gap: 20px; }
+.lf-dash { width: clamp(160px, 24cqw, 280px); padding: 10px 14px; border-radius: 10px; border: 1px solid var(--lf-line); background: #0d0f15b8; }
+.lf-dash > span { font-weight: 800; font-size: 7px; letter-spacing: .1em; color: var(--lf-accent); }
+.lf-dash-track { height: 4px; margin-top: 8px; border-radius: 4px; background: #ffffff1c; overflow: hidden; }
+.lf-dash-track i { display: block; height: 100%; transform-origin: left; transform: scaleX(1); background: var(--lf-accent); }
+.lf-dash small { display: block; margin-top: 8px; color: #b9b2a8; font-size: 7px; }
+.lf-hints { display: flex; flex-wrap: wrap; justify-content: end; gap: 9px 14px; max-width: 420px; color: #ddd5ca; font-size: clamp(7px, .8cqw, 9px); text-shadow: 0 1px 5px #000; }
+.lf-hints kbd { font: 700 7px "Manrope", sans-serif; color: #f6f0e8; background: #16181fc7; border: 1px solid #f3e4d230; border-radius: 4px; padding: 4px 5px; margin-right: 4px; }
+.lf-touch-active .lf-hints { display: none; }
+.lf-touch-active .lf-footer { bottom: auto; top: 150px; left: 50%; right: auto; transform: translateX(-50%); }
+
+.lf-error { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(340px, 86%); padding: 20px; border-radius: 12px; border: 1px solid var(--lf-line); background: #0d0f15f2; pointer-events: auto; text-align: center; }
+.lf-error strong { font: 700 16px "Space Grotesk", sans-serif; }
+.lf-error p { margin: 10px 0 16px; color: #d1c9be; }
+.lf-error button { border: 0; border-radius: 8px; background: var(--lf-accent); color: #1a0a04; padding: 10px 16px; font-weight: 800; }
+
+@keyframes lf-pop { from { transform: scale(.6); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+@keyframes lf-pulse { from { opacity: .35; } to { opacity: .85; } }
+@media (prefers-reduced-motion: reduce) {
+  .lf-pop, .lf-critical .lf-vignette, .lf-marker b { animation: none; }
+}
+@container (max-height: 430px) {
+  .lf-hints { display: none; }
+  .lf-minimap { top: 52px; width: 112px; height: 112px; }
+  .lf-top { top: 10px; }
+  .lf-standings { top: 12px; }
+  .lf-sound { top: 14px; }
+}
+@container (max-width: 700px) {
+  .lf-minimap { width: 120px; height: 120px; }
+  .lf-standings { width: 132px; padding: 4px; }
+  .lf-row { padding: 2px 5px; font-size: 8px; }
+  .lf-row b { font-size: 10px; }
+}
+@container (max-width: 460px) {
+  .lf-standings { display: none; }
+}
