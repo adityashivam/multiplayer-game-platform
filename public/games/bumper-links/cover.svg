@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 360" role="img" aria-label="Bumper Links cover">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1b2b4f"/>
+      <stop offset="1" stop-color="#2f6f8f"/>
+    </linearGradient>
+    <linearGradient id="green" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#6fe39a"/>
+      <stop offset="1" stop-color="#2f9b5c"/>
+    </linearGradient>
+    <radialGradient id="ball" cx="0.35" cy="0.35" r="0.7">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#c9d3dc"/>
+    </radialGradient>
+  </defs>
+  <rect width="640" height="360" fill="url(#sky)"/>
+  <path d="M0 250 Q160 225 320 245 T640 238 V360 H0 Z" fill="#2a7fb0" opacity="0.8"/>
+  <path d="M0 268 Q180 252 330 266 T640 262 V360 H0 Z" fill="#3a9bd0" opacity="0.6"/>
+  <polygon points="90,300 300,190 560,205 470,320" fill="url(#green)"/>
+  <polygon points="90,300 470,320 470,334 90,314" fill="#1f6b40"/>
+  <polygon points="300,190 560,205 560,214 300,199" fill="#d9c27a"/>
+  <polygon points="90,300 300,190 300,199 90,309" fill="#d9c27a"/>
+  <ellipse cx="455" cy="230" rx="18" ry="7" fill="#123322"/>
+  <rect x="453" y="150" width="4" height="80" fill="#e7edf2"/>
+  <polygon points="457,150 500,162 457,174" fill="#ff5d73"/>
+  <rect x="330" y="232" width="16" height="22" rx="3" fill="#ffb547"/>
+  <rect x="240" y="252" width="16" height="22" rx="3" fill="#ffb547"/>
+  <path d="M170 286 Q230 250 300 262" stroke="#ffffff" stroke-width="3" stroke-dasharray="8 7" fill="none" opacity="0.8"/>
+  <circle cx="170" cy="284" r="11" fill="url(#ball)"/>
+  <circle cx="312" cy="260" r="11" fill="#ff5d73"/>
+  <circle cx="392" cy="246" r="11" fill="#3fd6ff"/>
+  <path d="M330 262 l14 -10 M336 270 l18 -4" stroke="#ffffff" stroke-width="3" stroke-linecap="round"/>
+  <path d="M520 286 q8 -14 16 0 q8 -14 16 0" stroke="#bfe8ff" stroke-width="3" fill="none"/>
+  <text x="40" y="78" font-family="'Space Grotesk', 'Segoe UI', sans-serif" font-size="54" font-weight="700" fill="#ffffff">Bumper Links</text>
+  <text x="42" y="112" font-family="'Manrope', 'Segoe UI', sans-serif" font-size="20" fill="#cfe9ff">Everyone putts at once. Knock rivals in the drink.</text>
+</svg>

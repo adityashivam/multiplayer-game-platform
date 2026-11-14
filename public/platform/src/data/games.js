@@ -13,8 +13,11 @@ import { edgeoutPresentation, edgeoutTouchControls } from "../../../games/edgeou
 import { driftlinePresentation, driftlineTouchControls } from "../../../games/driftline/catalog.js";
 import { skybreakPresentation, skybreakTouchControls } from "../../../games/skybreak/catalog.js";
 import { lastFusePresentation, lastFuseTouchControls } from "../../../games/last-fuse/catalog.js";
+import { bumperLinksPresentation, bumperLinksTouchControls } from "../../../games/bumper-links/catalog.js";
 
 export const gameTitles = {
+  "bumper-links": "Bumper Links",
+  "bumper-links-practice": "Bumper Links Practice",
   "last-fuse": "Last Fuse",
   "last-fuse-practice": "Last Fuse Practice",
   skybreak: "Skybreak",
@@ -58,6 +61,32 @@ function makeWebglRuntime(id) {
 }
 
 export const fallbackGames = [
+  {
+    id: "bumper-links",
+    name: "Bumper Links",
+    description: "Battle mini-golf. Everyone putts the same hole at once, so knock rivals off line or into the water and sink first.",
+    presentation: bumperLinksPresentation,
+    touchControls: bumperLinksTouchControls,
+    path: "/games/bumper-links",
+    namespace: "/bumper-links",
+    engine: "webgl",
+    runtime: { kind: "module", mount: "canvas", entryUrl: "/games/bumper-links/dist/main.js", socketIo: true, kaboom: false },
+    tags: ["Party", "2 players", "Competitive", "3D"],
+    platformControlButtons: true,
+  },
+  {
+    id: "bumper-links-practice",
+    name: "Bumper Links Practice",
+    description: "Play six holes against three bot golfers and learn the bumps, drops and sweepers.",
+    presentation: bumperLinksPresentation,
+    touchControls: bumperLinksTouchControls,
+    path: "/games/bumper-links-practice",
+    namespace: "/bumper-links-practice",
+    engine: "webgl",
+    runtime: { kind: "module", mount: "canvas", entryUrl: "/games/bumper-links/dist/practice.js", socketIo: true, kaboom: false },
+    tags: ["Party", "1 player", "Practice", "3D"],
+    platformControlButtons: true,
+  },
   {
     id: "last-fuse",
     name: "Last Fuse",

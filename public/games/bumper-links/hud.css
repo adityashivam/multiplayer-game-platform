@@ -1,0 +1,94 @@
+.bl-hud {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  overflow: hidden;
+  pointer-events: none;
+  color: #f4f8f2;
+  font: 12px "Manrope", sans-serif;
+  container-type: size;
+  --bl-accent: #5fd38d;
+  --bl-good: #7cf0a8;
+  --bl-warn: #ffc23d;
+  --bl-bad: #ff5d73;
+  --bl-panel: #0c1a14d9;
+  --bl-line: #e6fff01f;
+}
+.bl-hud *, .bl-hud *::before, .bl-hud *::after { box-sizing: border-box; }
+.bl-hud [hidden] { display: none !important; }
+.bl-hud button { cursor: pointer; pointer-events: auto; font: inherit; }
+.bl-hud button:focus-visible { outline: 2px solid var(--bl-accent); outline-offset: 4px; }
+
+.bl-top { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); width: min(260px, 44cqw); padding: 8px 16px 10px; border: 1px solid var(--bl-line); border-radius: 12px; background: var(--bl-panel); text-align: center; box-shadow: 0 6px 24px #0005; }
+.bl-top small { display: block; font-size: 7px; font-weight: 800; letter-spacing: .18em; color: #b5cbbd; }
+.bl-top strong { display: block; margin-top: 2px; font: 700 28px/1.05 "Space Grotesk", sans-serif; font-variant-numeric: tabular-nums; color: #fff; }
+.bl-hurry .bl-top strong { color: var(--bl-warn); }
+.bl-top span { font-size: 9px; color: #d3e2d8; }
+
+.bl-scores { position: absolute; top: 72px; left: 3%; margin: 0; padding: 6px; list-style: none; width: min(200px, 30cqw); border: 1px solid var(--bl-line); border-radius: 10px; background: var(--bl-panel); }
+.bl-row { display: grid; grid-template-columns: 1fr auto 26px; align-items: center; gap: 6px; padding: 4px 6px; border-left: 3px solid var(--bl-ball); border-radius: 4px; font-size: 9px; font-weight: 700; }
+.bl-row + .bl-row { margin-top: 3px; }
+.bl-row small { font-size: 7px; letter-spacing: .1em; color: #b5cbbd; }
+.bl-row b { text-align: right; font: 700 12px "Space Grotesk", sans-serif; font-variant-numeric: tabular-nums; }
+.bl-you { background: #ffffff14; }
+.bl-away { opacity: .45; }
+
+.bl-minimap { position: absolute; top: 66px; right: 3%; width: 150px; height: 150px; border: 1px solid var(--bl-line); border-radius: 14px; background: #1d6f9fd9; box-shadow: 0 6px 24px #0005; }
+.bl-sound { position: absolute; top: 27px; right: 3%; border: 1px solid var(--bl-line); border-radius: 8px; background: #0c1a14b8; color: #e2ece5; padding: 7px 9px; font-size: 9px !important; }
+
+.bl-announcement { position: absolute; top: 28%; left: 8%; right: 8%; text-align: center; font: 700 clamp(22px, 4.2cqw, 54px) "Space Grotesk", sans-serif; letter-spacing: -.03em; text-shadow: 0 4px 22px #0009; }
+.bl-announcement[data-tone="good"] { color: var(--bl-good); }
+.bl-announcement[data-tone="bad"] { color: var(--bl-bad); }
+.bl-announcement[data-tone="warn"] { color: #fff; }
+.bl-pop { animation: bl-pop 420ms cubic-bezier(.2, 1.6, .4, 1); }
+
+.bl-intro { position: absolute; inset: 0; padding: 8%; display: flex; align-items: center; background: linear-gradient(90deg, #06140ee8, #06140e70 70%, transparent); }
+.bl-intro > div { max-width: 62%; }
+.bl-eyebrow { font-size: clamp(7px, .85cqw, 10px); font-weight: 800; letter-spacing: .2em; color: var(--bl-accent); }
+.bl-intro h1 { font: 700 clamp(30px, 6cqw, 76px)/.95 "Space Grotesk", sans-serif; letter-spacing: -.05em; margin: 18px 0; }
+.bl-intro h1 em { font-style: normal; color: var(--bl-accent); }
+.bl-intro p:not(.bl-eyebrow) { font-size: clamp(10px, 1.25cqw, 15px); line-height: 1.8; color: #d3e2d8; }
+.bl-enter { border: 0; border-radius: 9px; background: var(--bl-accent); color: #062012; padding: 13px 19px; display: flex; align-items: center; gap: 28px; font-weight: 800 !important; margin-top: 24px; }
+.bl-enter span { font-size: 18px; }
+.bl-intro small { display: block; margin-top: 16px; color: #a5bcae; font-size: 8px; }
+
+.bl-footer { position: absolute; bottom: 4%; left: 3%; right: 3%; display: flex; align-items: end; justify-content: space-between; gap: 20px; }
+.bl-power { width: clamp(160px, 24cqw, 280px); padding: 10px 14px; border-radius: 10px; border: 1px solid var(--bl-line); background: #0c1a14b8; }
+.bl-power > span { font-weight: 800; font-size: 7px; letter-spacing: .1em; color: var(--bl-accent); }
+.bl-power-track { height: 6px; margin-top: 8px; border-radius: 4px; background: #ffffff1c; overflow: hidden; }
+.bl-power-track i { display: block; height: 100%; transform-origin: left; transform: scaleX(0); background: linear-gradient(90deg, var(--bl-accent), var(--bl-warn) 70%, var(--bl-bad)); }
+.bl-power small { display: block; margin-top: 8px; color: #b5cbbd; font-size: 7px; }
+.bl-ready .bl-power { border-color: #5fd38d66; }
+.bl-hints { display: flex; flex-wrap: wrap; justify-content: end; gap: 9px 14px; max-width: 440px; color: #e2ece5; font-size: clamp(7px, .8cqw, 9px); text-shadow: 0 1px 5px #000; }
+.bl-hints kbd { font: 700 7px "Manrope", sans-serif; color: #f4f8f2; background: #0c1a14c7; border: 1px solid #e6fff030; border-radius: 4px; padding: 4px 5px; margin-right: 4px; }
+.bl-touch-active .bl-hints { display: none; }
+.bl-touch-active .bl-footer { bottom: 3%; left: 50%; right: auto; transform: translateX(-50%); }
+.bl-touch-active .bl-power { width: min(220px, 34cqw); padding: 7px 10px; }
+
+.bl-error { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(340px, 86%); padding: 20px; border-radius: 12px; border: 1px solid var(--bl-line); background: #0c1a14f2; pointer-events: auto; text-align: center; }
+.bl-error strong { font: 700 16px "Space Grotesk", sans-serif; }
+.bl-error p { margin: 10px 0 16px; color: #d3e2d8; }
+.bl-error button { border: 0; border-radius: 8px; background: var(--bl-accent); color: #062012; padding: 10px 16px; font-weight: 800; }
+
+@keyframes bl-pop { from { transform: scale(.6); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+  .bl-pop { animation: none; }
+}
+@container (max-height: 430px) {
+  .bl-hints { display: none; }
+  .bl-minimap { top: 14px; width: 100px; height: 100px; }
+  .bl-top { top: 12px; width: min(200px, 34cqw); padding: 4px 10px 6px; }
+  .bl-top strong { font-size: 18px; }
+  .bl-scores { top: 14px; }
+  .bl-sound { top: 120px; }
+  .bl-power small { display: none; }
+}
+@container (max-width: 700px) {
+  .bl-minimap { width: 112px; height: 112px; }
+  .bl-scores { width: 136px; padding: 4px; }
+  .bl-row { padding: 2px 5px; font-size: 8px; }
+  .bl-row b { font-size: 10px; }
+}
+@container (max-width: 460px) {
+  .bl-scores { display: none; }
+}

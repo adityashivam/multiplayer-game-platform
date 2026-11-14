@@ -20,6 +20,12 @@ import {
 } from "./skybreak.js";
 import { lastFuseGameMeta, lastFusePracticeGameMeta, registerLastFuseGame, registerLastFusePracticeGame } from "./lastFuse.js";
 import {
+  bumperLinksGameMeta,
+  bumperLinksPracticeGameMeta,
+  registerBumperLinksGame,
+  registerBumperLinksPracticeGame,
+} from "./bumperLinks.js";
+import {
   fightGameMeta,
   pongGameMeta,
   roadRashGameMeta,
@@ -43,6 +49,8 @@ export function createBuiltInGameRegistry() {
   return createGameRegistry([
     { apiVersion: GAME_PLUGIN_API_VERSION, meta: lastFuseGameMeta, register: registerLastFuseGame },
     { apiVersion: GAME_PLUGIN_API_VERSION, meta: lastFusePracticeGameMeta, register: registerLastFusePracticeGame },
+    { apiVersion: GAME_PLUGIN_API_VERSION, meta: bumperLinksGameMeta, register: registerBumperLinksGame },
+    { apiVersion: GAME_PLUGIN_API_VERSION, meta: bumperLinksPracticeGameMeta, register: registerBumperLinksPracticeGame },
     { apiVersion: GAME_PLUGIN_API_VERSION, meta: skybreakGameMeta, register: registerSkybreakGame },
     { apiVersion: GAME_PLUGIN_API_VERSION, meta: skybreakPracticeGameMeta, register: registerSkybreakPracticeGame },
     { apiVersion: GAME_PLUGIN_API_VERSION, meta: skybreakTimeTrialGameMeta, register: registerSkybreakTimeTrialGame },
