@@ -10,8 +10,11 @@ import { skyDashPresentation, skyDashTouchControls } from "../../../games/sky-da
 import { riftballPresentation, riftballTouchControls } from "../../../games/riftball/catalog.js";
 import { ludoPresentation, ludoTouchControls } from "../../../games/ludo/catalog.js";
 import { edgeoutPresentation, edgeoutTouchControls } from "../../../games/edgeout/catalog.js";
+import { driftlinePresentation, driftlineTouchControls } from "../../../games/driftline/catalog.js";
 
 export const gameTitles = {
+  driftline: "Driftline",
+  "driftline-practice": "Driftline Practice",
   edgeout: "Edgeout",
   "edgeout-practice": "Edgeout Practice",
   ludo: "Ludo Table",
@@ -48,6 +51,32 @@ function makeWebglRuntime(id) {
 }
 
 export const fallbackGames = [
+  {
+    id: "driftline",
+    name: "Driftline",
+    description: "Drift to charge your boost, draft your rivals and hold the cleanest line around Sunset Cliffs. Three laps, six cars.",
+    presentation: driftlinePresentation,
+    touchControls: driftlineTouchControls,
+    path: "/games/driftline",
+    namespace: "/driftline",
+    engine: "webgl",
+    runtime: { kind: "module", mount: "canvas", entryUrl: "/games/driftline/dist/main.js", socketIo: true, kaboom: false },
+    tags: ["Racing", "2 players", "Competitive", "3D"],
+    platformControlButtons: true,
+  },
+  {
+    id: "driftline-practice",
+    name: "Driftline Practice",
+    description: "Learn the handbrake flick, the boost tiers and the perfect start against five bots before you race a friend.",
+    presentation: driftlinePresentation,
+    touchControls: driftlineTouchControls,
+    path: "/games/driftline-practice",
+    namespace: "/driftline-practice",
+    engine: "webgl",
+    runtime: { kind: "module", mount: "canvas", entryUrl: "/games/driftline/dist/practice.js", socketIo: true, kaboom: false },
+    tags: ["Racing", "1 player", "Practice", "3D"],
+    platformControlButtons: true,
+  },
   {
     id: "edgeout",
     name: "Edgeout",

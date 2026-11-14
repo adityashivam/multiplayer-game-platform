@@ -9,6 +9,7 @@ import { skyDashGameMeta, registerSkyDashGame } from "./sky-dash.js";
 import { riftballGameMeta, registerRiftballGame } from "./riftball.js";
 import { ludoGameMeta, registerLudoGame } from "./ludo.js";
 import { edgeoutGameMeta, edgeoutPracticeGameMeta, registerEdgeoutGame, registerEdgeoutPracticeGame } from "./edgeout.js";
+import { driftlineGameMeta, driftlinePracticeGameMeta, registerDriftlineGame, registerDriftlinePracticeGame } from "./driftline.js";
 import {
   fightGameMeta,
   pongGameMeta,
@@ -31,6 +32,8 @@ export const legacyRoomRouteAliases = Object.freeze([
  */
 export function createBuiltInGameRegistry() {
   return createGameRegistry([
+    { apiVersion: GAME_PLUGIN_API_VERSION, meta: driftlineGameMeta, register: registerDriftlineGame },
+    { apiVersion: GAME_PLUGIN_API_VERSION, meta: driftlinePracticeGameMeta, register: registerDriftlinePracticeGame },
     { apiVersion: GAME_PLUGIN_API_VERSION, meta: edgeoutGameMeta, register: registerEdgeoutGame },
     { apiVersion: GAME_PLUGIN_API_VERSION, meta: edgeoutPracticeGameMeta, register: registerEdgeoutPracticeGame },
     { apiVersion: GAME_PLUGIN_API_VERSION, meta: ludoGameMeta, register: registerLudoGame },

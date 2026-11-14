@@ -505,6 +505,8 @@ Sky Dash combines the same sessions with configurable 3D kinematic movement and 
 
 [Edgeout](../public/games/edgeout/README.md) drives its fighters with the same character controller against one shrinking platform, and keeps hits, ring-outs and rounds authoritative. It registers twice from one adapter: a two-seat duel and a one-seat practice mode whose server-owned bot stays outside seat ownership, so readiness counts only the human.
 
+[Driftline](../public/games/driftline/README.md) predicts a game-owned vehicle model on a shared spline track. It records countdown throttle through the same queued input session for launch timing, and registers a two-seat race and a one-seat practice mode with server-owned bots filling the grid.
+
 Mario and Mario Touch now use the same sessions and shared acceleration, gravity and tile collision rules. Road Rash uses shared acceleration/steering and unwrapped progress; kicks, traffic, damage and race results remain server-owned. All eight continuous multiplayer entries advertise queued protocol 2 and their actual shared input schemas/cadence. Every adapter resets both command owners when a player leaves, so old held/queued controls cannot cross a reconnect.
 
 Draw stays event-driven: local strokes appear immediately, ordered revisioned events update both clients, and `syncBoard` requests bounded `drawBoard` history on join/recovery. Periodic state packets contain lifecycle and board revision instead of repeating the full canvas. Local echoes cannot rewind points, clear acknowledgements are owner-specific, and drawing waits for authoritative start plus history hydration. The WebGL Drift sample is single-player.
