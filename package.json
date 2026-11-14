@@ -28,7 +28,8 @@
     "build:sky-dash": "esbuild public/games/sky-dash/main.js --bundle --format=esm --target=es2020 --external:/platform/* --outfile=public/games/sky-dash/dist/main.js --minify",
     "build:riftball": "esbuild public/games/riftball/main.js --bundle --format=esm --target=es2020 --external:/platform/* --outfile=public/games/riftball/dist/main.js --minify",
     "build:ludo": "esbuild public/games/ludo/main.js --bundle --format=esm --target=es2020 --external:/platform/* --outfile=public/games/ludo/dist/main.js --minify",
-    "build": "npm run build:msgpack && npm run build:dead-shift && npm run build:sky-dash && npm run build:riftball && npm run build:ludo && npm run platform:build",
+    "build:edgeout": "esbuild public/games/edgeout/main.js public/games/edgeout/practice.js --bundle --format=esm --target=es2020 --external:/platform/* --outdir=public/games/edgeout/dist --minify",
+    "build": "npm run build:msgpack && npm run build:dead-shift && npm run build:sky-dash && npm run build:riftball && npm run build:ludo && npm run build:edgeout && npm run platform:build",
     "postinstall": "npm run build"
   },
   "engines": {

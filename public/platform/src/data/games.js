@@ -9,8 +9,11 @@ import { deadShiftPresentation, deadShiftTouchControls } from "../../../games/de
 import { skyDashPresentation, skyDashTouchControls } from "../../../games/sky-dash/catalog.js";
 import { riftballPresentation, riftballTouchControls } from "../../../games/riftball/catalog.js";
 import { ludoPresentation, ludoTouchControls } from "../../../games/ludo/catalog.js";
+import { edgeoutPresentation, edgeoutTouchControls } from "../../../games/edgeout/catalog.js";
 
 export const gameTitles = {
+  edgeout: "Edgeout",
+  "edgeout-practice": "Edgeout Practice",
   ludo: "Ludo Table",
   riftball: "Riftball Duel",
   "sky-dash": "Sky Dash",
@@ -45,6 +48,32 @@ function makeWebglRuntime(id) {
 }
 
 export const fallbackGames = [
+  {
+    id: "edgeout",
+    name: "Edgeout",
+    description: "Shove, dash and parry your rival off a crumbling sky arena. Last one standing takes the round; first to three wins.",
+    presentation: edgeoutPresentation,
+    touchControls: edgeoutTouchControls,
+    path: "/games/edgeout",
+    namespace: "/edgeout",
+    engine: "webgl",
+    runtime: { kind: "module", mount: "canvas", entryUrl: "/games/edgeout/dist/main.js", socketIo: true, kaboom: false },
+    tags: ["Fighting", "2 players", "Competitive", "3D"],
+    platformControlButtons: true,
+  },
+  {
+    id: "edgeout-practice",
+    name: "Edgeout Practice",
+    description: "Learn the shove, the dash and the parry against a CPU sparring partner before you challenge a friend.",
+    presentation: edgeoutPresentation,
+    touchControls: edgeoutTouchControls,
+    path: "/games/edgeout-practice",
+    namespace: "/edgeout-practice",
+    engine: "webgl",
+    runtime: { kind: "module", mount: "canvas", entryUrl: "/games/edgeout/dist/practice.js", socketIo: true, kaboom: false },
+    tags: ["Fighting", "1 player", "Practice", "3D"],
+    platformControlButtons: true,
+  },
   {
     id: "ludo",
     name: "Ludo Table",

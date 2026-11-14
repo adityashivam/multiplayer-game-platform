@@ -90,8 +90,8 @@ test("catalog page and direct lookup advertise owned optional touch metadata", (
 test("every bundled catalog entry advertises its supported customizable touch controls", () => {
   const registry = createBuiltInGameRegistry();
   const games = registry.listGames();
-  assert.equal(games.length, 11);
-  assert.equal(createGameCatalog(games).query({ customizable: true }).total, 11);
+  assert.equal(games.length, 13);
+  assert.equal(createGameCatalog(games).query({ customizable: true }).total, 13);
   for (const game of games) {
     assert.equal(game.touchControls?.customizable, true, `${game.id} must support touch layout editing`);
     assert.equal(game.touchControls.apiVersion, 1);
@@ -119,7 +119,7 @@ test("every bundled catalog entry advertises its supported customizable touch co
   assert.equal(drawControls.length, 1);
   assert.equal(drawControls[0].type, "button");
   assert.equal(drawControls[0].label, "Clear");
-  for (const gameId of ["dead-shift", "sky-dash", "riftball"]) {
+  for (const gameId of ["dead-shift", "sky-dash", "riftball", "edgeout", "edgeout-practice"]) {
     assert.ok(registry.getGame(gameId).touchControls.controls.every((control) => control.platformBinding === undefined));
   }
 });
