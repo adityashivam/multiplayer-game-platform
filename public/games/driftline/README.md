@@ -99,6 +99,23 @@ The model:
 - has its logos and hidden interior removed
 - is simplified and meshopt-compressed to about 0.9 MB
 
+**Looks are cosmetic only.** Every car has the same body, physics and
+handling, so races stay fair. `rendering/liveries.js` assigns each grid slot
+one of six styles:
+
+| Style | Look |
+|---|---|
+| Muscle | Twin racing stripes, hood scoop, ducktail, black rims |
+| Tuner | Pearl paint, side stripe, carbon GT wing, bronze rims |
+| GT | Clean gloss paint, chrome rims |
+| Stealth | Matte paint, black accents, low wing, gunmetal rims |
+| Classic | Candy paint, centre stripe, ducktail, chrome rims |
+| Two-Tone | Gloss paint, white roof and sills, hood scoop, gold rims |
+
+Each car keeps its slot colour, so the HUD and minimap still match. Stripes
+are drawn in car space by a small shader patch. Car-space vertex positions are
+baked once into the shared template, so stripes stay fixed to the body.
+
 See `assets/cars/CREDITS.md` for the exact changes, and
 `scripts/prepare-driftline-car.mjs` to rebuild it. Until the model loads, or
 if it fails to load, the procedural car is shown. The scenery is procedural.

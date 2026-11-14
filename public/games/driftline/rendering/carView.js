@@ -6,6 +6,7 @@ import {
   loadDriftlineCarTemplate,
   poseDriftlineCarModelWheels,
 } from "./carModel.js";
+import { getDriftlineLivery } from "./liveries.js";
 
 /** @typedef {import("../client/snapshotPose.js").DriftlinePresentedCar} DriftlinePresentedCar */
 
@@ -199,14 +200,15 @@ function createDriftlineCarRig(geometry, colorIndex, labelText) {
 }
 
 /**
- * Swap the procedural body for the realistic model, keeping flames, label and
+ * Swap the procedural body for the realistic model in the livery for this
+ * car's grid slot (colour index equals slot index), keeping flames, label and
  * contact shadow. The procedural parts stay hidden as a fallback.
  * @param {ReturnType<typeof createDriftlineCarRig>} rig
  * @param {THREE.Group} template
  */
 function attachDriftlineCarModel(rig, template) {
   const paint = new THREE.Color(DRIFTLINE_CAR_COLORS[rig.colorIndex % DRIFTLINE_CAR_COLORS.length]);
-  rig.model = createDriftlineCarModelInstance(template, paint);
+  rig.model = createDriftlineCarModelInstance(template, paint, getDriftlineLivery(rig.colorIndex));
   for (const child of rig.chassis.children) if (!rig.flames.includes(child)) child.visible = false;
   for (const wheel of rig.wheels) wheel.pivot.visible = false;
   rig.flames.forEach((flame, index) => flame.position.set((index === 0 ? 1 : -1) * MODEL_EXHAUST.x, MODEL_EXHAUST.y, MODEL_EXHAUST.z));
