@@ -11,6 +11,14 @@ import { ludoGameMeta, registerLudoGame } from "./ludo.js";
 import { edgeoutGameMeta, edgeoutPracticeGameMeta, registerEdgeoutGame, registerEdgeoutPracticeGame } from "./edgeout.js";
 import { driftlineGameMeta, driftlinePracticeGameMeta, registerDriftlineGame, registerDriftlinePracticeGame } from "./driftline.js";
 import {
+  registerSkybreakGame,
+  registerSkybreakPracticeGame,
+  registerSkybreakTimeTrialGame,
+  skybreakGameMeta,
+  skybreakPracticeGameMeta,
+  skybreakTimeTrialGameMeta,
+} from "./skybreak.js";
+import {
   fightGameMeta,
   pongGameMeta,
   roadRashGameMeta,
@@ -32,6 +40,9 @@ export const legacyRoomRouteAliases = Object.freeze([
  */
 export function createBuiltInGameRegistry() {
   return createGameRegistry([
+    { apiVersion: GAME_PLUGIN_API_VERSION, meta: skybreakGameMeta, register: registerSkybreakGame },
+    { apiVersion: GAME_PLUGIN_API_VERSION, meta: skybreakPracticeGameMeta, register: registerSkybreakPracticeGame },
+    { apiVersion: GAME_PLUGIN_API_VERSION, meta: skybreakTimeTrialGameMeta, register: registerSkybreakTimeTrialGame },
     { apiVersion: GAME_PLUGIN_API_VERSION, meta: driftlineGameMeta, register: registerDriftlineGame },
     { apiVersion: GAME_PLUGIN_API_VERSION, meta: driftlinePracticeGameMeta, register: registerDriftlinePracticeGame },
     { apiVersion: GAME_PLUGIN_API_VERSION, meta: edgeoutGameMeta, register: registerEdgeoutGame },

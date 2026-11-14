@@ -11,8 +11,12 @@ import { riftballPresentation, riftballTouchControls } from "../../../games/rift
 import { ludoPresentation, ludoTouchControls } from "../../../games/ludo/catalog.js";
 import { edgeoutPresentation, edgeoutTouchControls } from "../../../games/edgeout/catalog.js";
 import { driftlinePresentation, driftlineTouchControls } from "../../../games/driftline/catalog.js";
+import { skybreakPresentation, skybreakTouchControls } from "../../../games/skybreak/catalog.js";
 
 export const gameTitles = {
+  skybreak: "Skybreak",
+  "skybreak-practice": "Skybreak Practice",
+  "skybreak-time-trial": "Skybreak Time Trial",
   driftline: "Driftline",
   "driftline-practice": "Driftline Practice",
   edgeout: "Edgeout",
@@ -51,6 +55,45 @@ function makeWebglRuntime(id) {
 }
 
 export const fallbackGames = [
+  {
+    id: "skybreak",
+    name: "Skybreak",
+    description: "Jet dogfights over a sunset canyon. Manage your speed, lead your shots, break missile locks with flares. First to ten kills.",
+    presentation: skybreakPresentation,
+    touchControls: skybreakTouchControls,
+    path: "/games/skybreak",
+    namespace: "/skybreak",
+    engine: "webgl",
+    runtime: { kind: "module", mount: "canvas", entryUrl: "/games/skybreak/dist/main.js", socketIo: true, kaboom: false },
+    tags: ["Action", "2 players", "Competitive", "3D"],
+    platformControlButtons: true,
+  },
+  {
+    id: "skybreak-practice",
+    name: "Skybreak Practice",
+    description: "Learn energy fighting, gun leads and flare timing against five bot pilots.",
+    presentation: skybreakPresentation,
+    touchControls: skybreakTouchControls,
+    path: "/games/skybreak-practice",
+    namespace: "/skybreak-practice",
+    engine: "webgl",
+    runtime: { kind: "module", mount: "canvas", entryUrl: "/games/skybreak/dist/practice.js", socketIo: true, kaboom: false },
+    tags: ["Action", "1 player", "Practice", "3D"],
+    platformControlButtons: true,
+  },
+  {
+    id: "skybreak-time-trial",
+    name: "Skybreak Time Trial",
+    description: "Thread twelve gates through the canyon and over the ridges. Chase your ghost and earn platinum.",
+    presentation: skybreakPresentation,
+    touchControls: skybreakTouchControls,
+    path: "/games/skybreak-time-trial",
+    namespace: "/skybreak-time-trial",
+    engine: "webgl",
+    runtime: { kind: "module", mount: "canvas", entryUrl: "/games/skybreak/dist/time-trial.js", socketIo: true, kaboom: false },
+    tags: ["Racing", "1 player", "Time trial", "3D"],
+    platformControlButtons: true,
+  },
   {
     id: "driftline",
     name: "Driftline",
