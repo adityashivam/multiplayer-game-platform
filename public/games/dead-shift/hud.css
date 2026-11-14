@@ -16,7 +16,7 @@
 .ds-hud button:focus-visible { outline: 2px solid #00cee6; outline-offset: 3px; }
 .ds-hud button:disabled { cursor: default; }
 .ds-grain { position: absolute; inset: 0; background: radial-gradient(ellipse at center, transparent 40%, #040c0b99); }
-.ds-match-strip { position: absolute; top: max(56px, 7.5cqh); left: 2.5%; right: 2.5%; display: flex; align-items: start; justify-content: space-between; gap: 12px; }
+.ds-match-strip { position: absolute; top: max(16px, 3cqh); left: 2.5%; right: 2.5%; display: flex; align-items: start; justify-content: space-between; gap: 12px; }
 .ds-brand { display: flex; align-items: center; gap: 10px; font: 700 clamp(10px, 1.4cqw, 15px) "Space Grotesk", sans-serif; letter-spacing: .08em; }
 .ds-brand-mark { font-size: clamp(18px, 2.8cqw, 31px); letter-spacing: -.12em; }
 .ds-brand-mark > span { color: var(--ds-amber); margin: 0 2px; }
@@ -102,14 +102,14 @@
 .ds-touch-active .ds-weapon-status > div > span { font-size: 10px; }
 .ds-touch-active .ds-reload-label { font-size: 6px; white-space: nowrap; }
 .ds-touch-active .ds-room-status { position: absolute; bottom: calc(100% + 7px); left: -20%; right: -20%; max-width: none; text-align: center; line-height: 1.4; }
-.ds-touch-active .ds-mute { position: absolute; top: 48px; left: 50%; transform: translateX(-50%); white-space: nowrap; }
+.ds-touch-active .ds-mute { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); white-space: nowrap; }
 @keyframes ds-enter { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
 @container (max-width: 580px) {
   .ds-brand > span:last-child { display: none; }
   .ds-scoreboard { gap: 12px; }
   .ds-scoreboard small { font-size: 6px; }
   .ds-scoreboard strong { font-size: 25px; }
-  .ds-match-strip { top: 53px; }
+  .ds-match-strip { top: 15px; }
   .ds-mute { font-size: 6px !important; padding: 6px; }
   .ds-weapons button { min-width: 47px; padding-inline: 5px; }
   .ds-weapons button i { max-width: 25px; }

@@ -6,6 +6,7 @@ import styles from "./GameChrome.module.scss";
 /**
  * @typedef {object} GameToolbarProps
  * @property {boolean} showNetworkUi
+ * @property {string} [gameName] Shown next to the leave button when there is room.
  * @property {{status?:string,ping?:number}} [connection]
  * @property {boolean} networkPanelOpen
  * @property {React.RefObject<HTMLButtonElement|null>} networkButtonRef
@@ -32,12 +33,14 @@ import styles from "./GameChrome.module.scss";
  */
 
 /**
- * Keep platform controls separate from the renderer and its game-owned HUD.
+ * A slim bar in its own row above the play surface, so platform controls
+ * never cover a game's HUD. Buttons are icon-only; their accessible names
+ * and tooltips carry the labels.
  * @param {GameToolbarProps} props
  * @returns {React.ReactElement}
  */
 export default function GameToolbar({
-  showNetworkUi, connection, networkPanelOpen, networkButtonRef, onToggleNetwork,
+  showNetworkUi, gameName, connection, networkPanelOpen, networkButtonRef, onToggleNetwork,
   isFullscreen, onToggleFullscreen, fullscreenIcon, connectionIcons,
   allowTouchCustomization = false, onEditControls, disabled = false,
   expandedPlayArea = false, onHome, onInvite,
@@ -46,19 +49,19 @@ export default function GameToolbar({
 }) {
   return (
     <div className={styles.toolbar} role="group" aria-label="Game session controls">
-      {showNetworkUi && <ConnectionIndicator status={connection?.status} ping={connection?.ping} icons={connectionIcons} />}
+      <div className={styles.toolbarIdentity}>
+        {expandedPlayArea && <button type="button" className={styles.toolbarButton} onClick={onHome} aria-label="Leave game" title="Return to library" disabled={disabled}>
+          <span className="material-symbols-outlined" aria-hidden="true">arrow_back</span>
+        </button>}
+        {gameName && <span className={styles.toolbarTitle}>{gameName}</span>}
+        {showNetworkUi && <ConnectionIndicator status={connection?.status} ping={connection?.ping} icons={connectionIcons} />}
+      </div>
       <div className={styles.toolbarActions}>
-        {expandedPlayArea && <>
-          <button type="button" className={styles.networkButton} onClick={onHome} aria-label="Leave game" title="Return to library" disabled={disabled}>
-            <span className="material-symbols-outlined" aria-hidden="true">home</span>
-          </button>
-          {onInvite && <button type="button" className={styles.networkButton} onClick={onInvite} aria-label="Invite players" title="Invite players" disabled={disabled}>
-            <span className="material-symbols-outlined" aria-hidden="true">person_add</span>
-          </button>}
-        </>}
-        {allowTouchCustomization && <button type="button" className={styles.networkButton} onClick={onEditControls} aria-label="Customize touch controls" title="Customize touch controls" disabled={disabled}>
+        {expandedPlayArea && onInvite && <button type="button" className={styles.toolbarButton} onClick={onInvite} aria-label="Invite players" title="Invite players" disabled={disabled}>
+          <span className="material-symbols-outlined" aria-hidden="true">person_add</span>
+        </button>}
+        {allowTouchCustomization && <button type="button" className={styles.toolbarButton} onClick={onEditControls} aria-label="Customize touch controls" title="Customize touch controls" disabled={disabled}>
           <span className="material-symbols-outlined" aria-hidden="true">tune</span>
-          <span className={styles.controlLabel}>Controls</span>
         </button>}
         {showNetworkUi && <VoiceChatControls
           state={voiceState}
@@ -75,7 +78,7 @@ export default function GameToolbar({
         {showNetworkUi && (
           <button
             type="button"
-            className={styles.networkButton}
+            className={styles.toolbarButton}
             onClick={onToggleNetwork}
             aria-label="Network diagnostics"
             aria-expanded={networkPanelOpen}
@@ -85,12 +88,11 @@ export default function GameToolbar({
             disabled={disabled}
           >
             <span className="material-symbols-outlined" aria-hidden="true">monitoring</span>
-            <span className={styles.controlLabel}>Network</span>
           </button>
         )}
         <button
           type="button"
-          className={styles.fullscreenButton}
+          className={styles.toolbarButton}
           onClick={onToggleFullscreen}
           aria-label={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
           aria-pressed={isFullscreen}
@@ -98,7 +100,6 @@ export default function GameToolbar({
           disabled={disabled}
         >
           <span className="material-symbols-outlined" aria-hidden="true">{fullscreenIcon}</span>
-          <span className={styles.controlLabel}>{isFullscreen ? "Exit fullscreen" : "Fullscreen"}</span>
         </button>
       </div>
     </div>

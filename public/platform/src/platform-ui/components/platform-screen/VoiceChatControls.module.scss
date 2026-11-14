@@ -62,49 +62,47 @@
 
 .toolbarControls {
   display: flex;
-  align-items: stretch;
+  align-items: center;
   flex-shrink: 0;
-  border: 1px solid var(--platform-border);
-  border-radius: var(--platform-radius);
-  background: rgba(17, 28, 35, .94);
+  gap: 2px;
+  margin: 0 2px;
+  padding: 0 2px;
+  border-inline: 1px solid var(--platform-border);
 }
 
+// Icon-only quick controls sized by the game toolbar row.
 .compact {
   display: flex;
-  gap: 0;
+  gap: 2px;
   margin: 0;
 
   .audioButton {
     flex-direction: row;
-    min-height: 34px;
-    padding: 0 10px;
-    border: 0;
-    border-radius: 0;
+    width: var(--toolbar-button, 32px);
+    min-height: 0;
+    height: var(--toolbar-button, 32px);
+    padding: 0;
+    border: 1px solid transparent;
+    border-radius: var(--platform-radius);
     background: transparent;
-    font-size: 11px;
-    white-space: nowrap;
 
     > :global(.material-symbols-outlined) {
-      font-size: 18px;
+      font-size: 19px;
     }
+  }
 
-    &:first-child {
-      border-radius: var(--platform-radius) 0 0 var(--platform-radius);
-    }
-
-    & + .audioButton {
-      border-left: 1px solid var(--platform-border);
-    }
+  .buttonLabel {
+    display: none;
   }
 }
 
 .settingsButton {
-  min-width: 32px;
-  min-height: 34px;
-  padding: 0 6px;
-  border: 0;
-  border-left: 1px solid var(--platform-border);
-  border-radius: 0 var(--platform-radius) var(--platform-radius) 0;
+  width: 24px;
+  min-height: 0;
+  height: var(--toolbar-button, 32px);
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--platform-radius);
   background: transparent;
 
   > span {
@@ -114,27 +112,6 @@
 
 .settingsError {
   color: var(--platform-warning);
-}
-
-@media (max-width: 720px) {
-  .compact .audioButton,
-  .settingsButton {
-    min-width: 38px;
-    min-height: 38px;
-    padding: 0;
-  }
-
-  .compact .buttonLabel {
-    display: none;
-  }
-}
-
-@media (pointer: coarse) {
-  .compact .audioButton,
-  .settingsButton {
-    min-width: 42px;
-    min-height: 42px;
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -83,22 +83,18 @@ async function verifyActiveRoomRecovery(creator, invitee, gameId) {
     transport.close();
   `);
   await waitFor(invitee, "roomFlowProbe.phases.includes('reconnecting')");
+  // A brief transport loss is held by the server's reconnect grace: the seat
+  // is kept, the match never pauses, and the rejoin resumes without a countdown.
   for (const page of [creator, invitee]) {
-    await waitFor(page, "document.querySelector('[data-platform-room-recovery]')");
+    await waitFor(page, "roomFlowState.phase==='playing'", 15000);
     assert.equal(await evaluate(page, "return Boolean(document.querySelector('[aria-modal=true]'));"), false, "Connection recovery must retain the visible game without a joining modal");
     assert.equal(await evaluate(page, "return retainedRoomCanvas===document.querySelector('#game-canvas');"), true);
     assert.equal(await evaluate(page, "return roomFlowState.playerId===retainedRoomSeat;"), true);
-    await waitFor(page, "roomFlowSnapshot.started===false && roomFlowState.phase!=='playing'");
-    assert.equal(await evaluate(page, "return roomFlowSnapshot.started;"), false, "Controls stay paused until the server resumes");
-    assert.ok(await evaluate(page, "const bounds=document.querySelector('[data-platform-room-recovery]').getBoundingClientRect();const toolbarBounds=document.querySelector('[aria-label=\"Game session controls\"]').getBoundingClientRect();return bounds.left>=0&&bounds.right<=innerWidth&&bounds.top>=toolbarBounds.bottom&&bounds.bottom<=innerHeight;"), "Recovery notice fits the host viewport and clears the toolbar");
-  }
-  await capture(invitee, `${gameId}-connection-recovery`);
-  for (const page of [creator, invitee]) {
-    await waitFor(page, "roomFlowState.phase==='playing'&&!document.querySelector('[data-platform-room-recovery]')", 15000);
+    assert.equal(await evaluate(page, "return roomFlowSnapshot.started;"), true, "A held seat keeps the match running");
     assert.equal(await evaluate(page, "return roomFlowProbe.phases.includes('connecting');"), false, "An existing match cannot return to initial joining");
     assert.equal(await evaluate(page, "return roomFlowProbe.goSeen;"), false, "Resuming a match does not announce a new game");
-    assert.equal(await evaluate(page, "return retainedRoomCanvas===document.querySelector('#game-canvas');"), true);
   }
+  await capture(invitee, `${gameId}-connection-recovery`);
   console.log("DUPLICATE JOIN / TRANSPORT LOSS / RETAINED SEATS AND CANVAS / AUTOMATIC RECOVERY PASSED", gameId);
 }
 
@@ -141,17 +137,18 @@ try {
     await capture(extraPlayer, `${gameId}-room-full`);
     await send("Page.navigate", { url: "about:blank" }, extraPlayer);
     console.log("FULL ROOM ERROR REPLACES JOINING STATUS PASSED", gameId);
-    const previousDeadline = await evaluate(creator, "return roomFlowState.startAtMs;");
+    const seatBeforeReload = await evaluate(invitee, "return roomFlowState.playerId;");
+    await evaluate(creator, "roomFlowProbe.phases=[];");
     await send("Page.reload", {}, invitee);
     await attachSnapshots(invitee, gameId);
-    await waitFor(creator, `roomFlowState.phase==='countdown'&&roomFlowState.startAtMs!==${previousDeadline}`);
-    await waitFor(invitee, "roomFlowProbe.digits.length>0");
+    // A reload is a brief transport loss: the held seat resumes without a new countdown.
+    await waitFor(invitee, "roomFlowState.phase==='playing'", 15000);
+    assert.equal(await evaluate(invitee, "return roomFlowState.playerId;"), seatBeforeReload, "The reload resumes the same seat");
     assert.equal(await evaluate(invitee, "return roomFlowProbe.inviteSeen;"), false);
     assert.equal(await evaluate(creator, "return Boolean(document.querySelector('[role=\"dialog\"][aria-label=\"Invite players\"]'));"), false, "Reconnect does not reopen the creator's invite");
-    await waitFor(creator, "roomFlowState.phase==='playing'", 12000);
-    await waitFor(invitee, "roomFlowState.phase==='playing'&&roomFlowProbe.goSeen", 12000);
-    assertRoomCountdown(await evaluate(invitee, "return roomFlowProbe.digits;"));
-    console.log("SEAT-PRESERVING RELOAD AND FRESH COUNTDOWN PASSED", gameId);
+    assert.equal(await evaluate(creator, "return roomFlowSnapshot.started&&roomFlowState.phase==='playing';"), true, "The other player's match never paused");
+    assert.equal(await evaluate(creator, "return roomFlowProbe.phases.includes('countdown');"), false, "No restart countdown after a quick reload");
+    console.log("SEAT-PRESERVING RELOAD RESUMES WITHOUT A COUNTDOWN PASSED", gameId);
     await send("Page.navigate", { url: "about:blank" }, creator);
     await send("Page.navigate", { url: "about:blank" }, invitee);
     await delay(100);

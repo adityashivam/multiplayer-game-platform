@@ -25,6 +25,18 @@ async function verifyExpanded(page) {
   assert.ok(Math.abs(bounds.x) < 1 && Math.abs(bounds.y) < 1);
   assert.ok(Math.abs(bounds.width - bounds.viewportWidth) < 2 && Math.abs(bounds.height - bounds.viewportHeight) < 2);
   assert.equal(bounds.controllerVisible, false, "the outer console's controllers are hidden");
+  await verifyToolbarReservesSpace(page);
+}
+
+/** Platform controls sit in their own row, so no game HUD can be covered by them. */
+async function verifyToolbarReservesSpace(page) {
+  const layout = await evaluate(page, `
+    const toolbar=document.querySelector('[aria-label="Game session controls"]').getBoundingClientRect();
+    const surface=document.getElementById('game-root').getBoundingClientRect();
+    return{toolbarBottom:toolbar.bottom,toolbarHeight:toolbar.height,surfaceTop:surface.top};
+  `);
+  assert.ok(layout.surfaceTop >= layout.toolbarBottom - 0.5, `the play surface starts below the toolbar: ${JSON.stringify(layout)}`);
+  assert.ok(layout.toolbarHeight <= 41, `the toolbar stays slim: ${layout.toolbarHeight}px`);
 }
 
 async function returnToLibrary(page) {

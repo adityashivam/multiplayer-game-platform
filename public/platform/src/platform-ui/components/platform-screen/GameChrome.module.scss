@@ -1,58 +1,75 @@
+// Reserved row above the play surface: the runtime area starts below it, so
+// no game HUD ever sits under platform controls.
 .toolbar {
-  position: absolute;
-  top: 10px;
-  left: 10px;
-  right: 10px;
+  --toolbar-height: 40px;
+  --toolbar-button: 32px;
+
+  position: relative;
   z-index: 4;
+  flex: none;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: 10px;
+  height: var(--toolbar-height);
   min-width: 0;
+  padding: 0 6px 0 4px;
+  border-bottom: 1px solid var(--platform-border);
+  background: var(--platform-surface-inset);
   font-family: var(--platform-font-body);
-  pointer-events: none;
+}
+
+.toolbarIdentity,
+.toolbarActions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+}
+
+.toolbarIdentity {
+  flex: 1 1 auto;
+  gap: 8px;
+  overflow: hidden;
 }
 
 .toolbarActions {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
+  flex: none;
   justify-content: flex-end;
-  gap: 6px;
-  margin-left: auto;
-  min-width: 0;
 }
 
-.connectionIndicator,
-.networkButton,
-.fullscreenButton {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 7px;
-  min-height: 36px;
-  padding: 0 11px;
-  border: 1px solid var(--platform-border);
-  border-radius: var(--platform-radius);
-  background: rgba(17, 28, 35, .94);
+.toolbarTitle {
+  min-width: 0;
+  overflow: hidden;
   color: var(--platform-text);
-  font-family: var(--platform-font-body);
+  font-family: var(--platform-font-heading);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: -.01em;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.connectionIndicator {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 5px;
+  height: 24px;
+  padding: 0 8px 0 6px;
+  border: 1px solid var(--platform-border);
+  border-radius: 999px;
+  color: var(--platform-text-muted);
   font-size: 11px;
   font-weight: 600;
-  line-height: 1.4;
+  line-height: 1;
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
 }
 
-.connectionIndicator {
-  justify-content: flex-start;
-  min-width: 84px;
-  overflow: hidden;
-}
-
 .connectionIcon {
   flex-shrink: 0;
-  font-size: 17px;
+  font-size: 15px;
 }
 
 .connectionLabel {
@@ -72,26 +89,34 @@
   color: var(--platform-danger);
 }
 
-.networkButton,
-.fullscreenButton {
+.toolbarButton {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: var(--toolbar-button);
+  height: var(--toolbar-button);
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--platform-radius);
+  background: transparent;
+  color: var(--platform-text-muted);
   cursor: pointer;
-  pointer-events: auto;
   transition: background 140ms ease, border-color 140ms ease, color 140ms ease;
 
   > :global(.material-symbols-outlined) {
-    font-size: 18px;
+    font-size: 19px;
   }
 
   &:hover:not(:disabled) {
     background: var(--platform-surface);
-    border-color: #58707c;
+    color: var(--platform-text);
   }
 
   &[aria-expanded="true"],
   &[aria-pressed="true"] {
     border-color: var(--platform-accent);
-    color: var(--platform-accent);
     background: var(--platform-surface);
+    color: var(--platform-accent);
   }
 
   &:disabled {
@@ -100,8 +125,7 @@
   }
 }
 
-.networkButton:focus-visible,
-.fullscreenButton:focus-visible,
+.toolbarButton:focus-visible,
 .closeButton:focus-visible,
 .networkPanel:focus-visible,
 .networkReadings:focus-visible {
@@ -111,13 +135,13 @@
 
 .networkPanel {
   position: absolute;
-  top: 54px;
+  top: 10px;
   right: 10px;
   z-index: 5;
   display: flex;
   flex-direction: column;
   width: min(340px, calc(100% - 20px));
-  max-height: calc(100% - 64px);
+  max-height: calc(100% - 20px);
   min-height: 0;
   overflow: hidden;
   border: 1px solid var(--platform-border);
@@ -232,26 +256,9 @@
   to { opacity: 1; }
 }
 
-@media (max-width: 520px), (pointer: coarse) {
-  .networkButton,
-  .fullscreenButton {
-    width: 40px;
-    min-height: 40px;
-    padding: 0;
-  }
-
-  .controlLabel {
-    display: none;
-  }
-
-  .connectionIndicator {
-    min-height: 36px;
-    max-width: calc(100% - 100px);
-  }
-
-  .networkPanel {
-    top: 58px;
-    max-height: calc(100% - 68px);
+@media (pointer: coarse) {
+  .toolbar {
+    --toolbar-button: 34px;
   }
 
   .closeButton {
@@ -261,16 +268,21 @@
   }
 }
 
+@media (max-width: 520px) {
+  .toolbarTitle {
+    display: none;
+  }
+}
+
+// Phones held sideways: every pixel of height is play space.
 @media (max-height: 540px) and (orientation: landscape) {
   .toolbar {
-    top: 6px;
-    left: 8px;
-    right: 8px;
+    --toolbar-height: 36px;
+    --toolbar-button: 30px;
   }
 
-  .networkPanel {
-    top: 52px;
-    max-height: calc(100% - 58px);
+  .toolbarTitle {
+    display: none;
   }
 
   .networkHeader {
@@ -283,8 +295,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .networkButton,
-  .fullscreenButton {
+  .toolbarButton {
     transition: none;
   }
 

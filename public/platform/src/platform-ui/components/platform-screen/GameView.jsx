@@ -85,7 +85,10 @@ export default function GameView({
   const [quickVoiceJoinPending, setQuickVoiceJoinPending] = useState(false);
   const [touchNotice, setTouchNotice] = useState("");
   const networkButtonRef = useRef(null);
-  const roomStartBlocking = Boolean(roomLifecycle && !["playing", "finished"].includes(roomLifecycle.phase));
+  // A paused match shows a small non-modal recovery notice; only pre-match
+  // readiness and join errors are blocking dialogs.
+  const roomRecoveryNoticeShown = Boolean(roomLifecycle?.hasPlayed && roomLifecycle.phase !== "error");
+  const roomStartBlocking = Boolean(roomLifecycle && !["playing", "finished"].includes(roomLifecycle.phase) && !roomRecoveryNoticeShown);
   const roomStartHasPriority = roomLifecycle?.phase === "countdown" || roomLifecycle?.phase === "error";
   const landscapePromptOpen = Boolean(gameOrientation?.needsLandscape && !gameLoadError);
   const higherPriorityDialogOpen = Boolean(landscapePromptOpen || roomStartHasPriority || shareOpen || exitConfirmOpen || touchEditorOpen || gameLoadError);
@@ -437,6 +440,33 @@ export default function GameView({
 
   return (
     <div id="game-view" className={styles.gameView}>
+      <GameToolbar
+        showNetworkUi={showNetworkUi}
+        gameName={game?.name}
+        connection={connection}
+        connectionIcons={icons?.connection}
+        networkPanelOpen={networkPanelOpen}
+        networkButtonRef={networkButtonRef}
+        onToggleNetwork={() => setNetworkPanelOpen((prev) => !prev)}
+        isFullscreen={isFullscreen}
+        onToggleFullscreen={onToggleFullscreen}
+        fullscreenIcon={fullscreenIcon}
+        allowTouchCustomization={allowTouchCustomization}
+        onEditControls={() => { setNetworkPanelOpen(false); onTouchEditorChange?.(true); }}
+        disabled={Boolean(platformDialogOpen)}
+        expandedPlayArea={expandedPlayArea}
+        onHome={onRequestHome}
+        onInvite={onOpenInvite}
+        voiceState={voice.state}
+        voiceAvailable={voice.available}
+        voiceDialogOpen={visibleVoiceDialogOpen}
+        voiceUnavailableReason={voice.unavailableReason}
+        onOpenVoice={openVoiceDialog}
+        onJoinVoice={joinVoiceFromToolbar}
+        onMicrophoneMutedChange={(muted) => performQuickVoiceAction(() => voice.setMicrophoneMuted(muted))}
+        onDeafenedChange={voice.setDeafened}
+        onResumeVoicePlayback={() => performQuickVoiceAction(voice.resumePlayback)}
+      />
       <div className={styles.canvasFrame}>
         <div id="game-root" className={styles.gameRuntimeRoot}>
           <div
@@ -467,42 +497,6 @@ export default function GameView({
           enabled={touchControlsEnabled}
           disabled={Boolean(platformDialogOpen || gameLoadError)}
         />}
-        <GameToolbar
-          showNetworkUi={showNetworkUi}
-          connection={connection}
-          connectionIcons={icons?.connection}
-          networkPanelOpen={networkPanelOpen}
-          networkButtonRef={networkButtonRef}
-          onToggleNetwork={() => setNetworkPanelOpen((prev) => !prev)}
-          isFullscreen={isFullscreen}
-          onToggleFullscreen={onToggleFullscreen}
-          fullscreenIcon={fullscreenIcon}
-          allowTouchCustomization={allowTouchCustomization}
-          onEditControls={() => { setNetworkPanelOpen(false); onTouchEditorChange?.(true); }}
-          disabled={Boolean(platformDialogOpen)}
-          expandedPlayArea={expandedPlayArea}
-          onHome={onRequestHome}
-          onInvite={onOpenInvite}
-          voiceState={voice.state}
-          voiceAvailable={voice.available}
-          voiceDialogOpen={visibleVoiceDialogOpen}
-          voiceUnavailableReason={voice.unavailableReason}
-          onOpenVoice={openVoiceDialog}
-          onJoinVoice={joinVoiceFromToolbar}
-          onMicrophoneMutedChange={(muted) => performQuickVoiceAction(() => voice.setMicrophoneMuted(muted))}
-          onDeafenedChange={voice.setDeafened}
-          onResumeVoicePlayback={() => performQuickVoiceAction(voice.resumePlayback)}
-        />
-        {visibleVoiceDialogOpen && <VoiceChatDialog
-          state={voice.state}
-          onClose={() => setVoiceDialogOpen(false)}
-          onJoin={voice.join}
-          onMicrophoneMutedChange={voice.setMicrophoneMuted}
-          onDeafenedChange={voice.setDeafened}
-          onVolumeChange={voice.setVolume}
-          onResumePlayback={voice.resumePlayback}
-          onLeave={voice.leave}
-        />}
         {showNetworkUi && networkPanelOpen && (
           <NetworkPanel rows={networkRows} onClose={() => {
             setNetworkPanelOpen(false);
@@ -518,57 +512,68 @@ export default function GameView({
           onSave={(nextProfile, orientation) => { onSaveTouchProfile?.(nextProfile, orientation); onTouchEditorChange?.(false); }}
         />}
         {!touchEditorOpen && touchNotice && <div className={styles.touchProfileFeedback} role="status">{touchNotice}</div>}
-        {endGameOpen && !exitConfirmOpen && !visibleVoiceDialogOpen && (
-          <EndGameModal
-            title={endGameTitle}
-            subtitle={endGameSubtitle}
-            status={endGameStatus}
-            actionLabel={endGameActionLabel}
-            onRematch={onRematch}
-            onBack={onBackHome}
-            rematchDisabled={rematchDisabled}
-            icons={icons?.endGame}
-            onOpenVoice={voice.available ? openVoiceDialog : undefined}
-          />
-        )}
-        {roomLifecycle && !landscapePromptOpen && (!shareOpen || roomStartHasPriority) && !endGameOpen && !exitConfirmOpen && !touchEditorOpen && !gameLoadError && !visibleVoiceDialogOpen && (
-          <RoomStartOverlay
-            room={roomLifecycle}
-            gameName={game?.name}
-            isCreatorEntry={roomCreatorEntry}
-            onInvite={onOpenInvite}
-            onLeave={roomLifecycle.phase === "error" ? onBackHome : onRequestHome}
-            onOpenVoice={voice.available ? openVoiceDialog : undefined}
-          />
-        )}
-        {shareOpen && !landscapePromptOpen && !endGameOpen && !exitConfirmOpen && !roomStartHasPriority && (
-          <ShareModal
-            roomLabel={roomLabel}
-            shareUrl={shareUrl}
-            copyLabel={copyLabel}
-            onCopyShare={onCopyShare}
-            onClose={onCloseShare}
-            icons={icons?.share}
-          />
-        )}
-        {exitConfirmOpen && (
-          <ExitConfirmModal onConfirm={onConfirmExit} onCancel={onCancelExit} icons={icons?.exitConfirm} />
-        )}
-        {landscapePromptOpen && !exitConfirmOpen && <GameOrientationPrompt
-          gameName={game?.name}
-          canLockOrientation={gameOrientation.canLockOrientation}
-          requesting={gameOrientation.requesting}
-          requestFailed={gameOrientation.requestFailed}
-          onLandscapeFullscreen={gameOrientation.requestLandscapeFullscreen}
-          onBack={onBackHome}
-        />}
-        {gameLoadError && <div className={styles.gameError} role="alert">
-          <span className="material-symbols-outlined" aria-hidden="true">error_outline</span>
-          <h2>Unable to start this game</h2>
-          <p>{gameLoadError}</p>
-          <button type="button" onClick={onBackHome}>Back to library</button>
-        </div>}
       </div>
+      {/* Platform dialogs cover the whole game view, toolbar included; it is disabled while they are open. */}
+      {visibleVoiceDialogOpen && <VoiceChatDialog
+        state={voice.state}
+        onClose={() => setVoiceDialogOpen(false)}
+        onJoin={voice.join}
+        onMicrophoneMutedChange={voice.setMicrophoneMuted}
+        onDeafenedChange={voice.setDeafened}
+        onVolumeChange={voice.setVolume}
+        onResumePlayback={voice.resumePlayback}
+        onLeave={voice.leave}
+      />}
+      {endGameOpen && !exitConfirmOpen && !visibleVoiceDialogOpen && (
+        <EndGameModal
+          title={endGameTitle}
+          subtitle={endGameSubtitle}
+          status={endGameStatus}
+          actionLabel={endGameActionLabel}
+          onRematch={onRematch}
+          onBack={onBackHome}
+          rematchDisabled={rematchDisabled}
+          icons={icons?.endGame}
+          onOpenVoice={voice.available ? openVoiceDialog : undefined}
+        />
+      )}
+      {roomLifecycle && !landscapePromptOpen && (!shareOpen || roomStartHasPriority) && !endGameOpen && !exitConfirmOpen && !touchEditorOpen && !gameLoadError && !visibleVoiceDialogOpen && (
+        <RoomStartOverlay
+          room={roomLifecycle}
+          gameName={game?.name}
+          isCreatorEntry={roomCreatorEntry}
+          onInvite={onOpenInvite}
+          onLeave={roomLifecycle.phase === "error" ? onBackHome : onRequestHome}
+          onOpenVoice={voice.available ? openVoiceDialog : undefined}
+        />
+      )}
+      {shareOpen && !landscapePromptOpen && !endGameOpen && !exitConfirmOpen && !roomStartHasPriority && (
+        <ShareModal
+          roomLabel={roomLabel}
+          shareUrl={shareUrl}
+          copyLabel={copyLabel}
+          onCopyShare={onCopyShare}
+          onClose={onCloseShare}
+          icons={icons?.share}
+        />
+      )}
+      {exitConfirmOpen && (
+        <ExitConfirmModal onConfirm={onConfirmExit} onCancel={onCancelExit} icons={icons?.exitConfirm} />
+      )}
+      {landscapePromptOpen && !exitConfirmOpen && <GameOrientationPrompt
+        gameName={game?.name}
+        canLockOrientation={gameOrientation.canLockOrientation}
+        requesting={gameOrientation.requesting}
+        requestFailed={gameOrientation.requestFailed}
+        onLandscapeFullscreen={gameOrientation.requestLandscapeFullscreen}
+        onBack={onBackHome}
+      />}
+      {gameLoadError && <div className={styles.gameError} role="alert">
+        <span className="material-symbols-outlined" aria-hidden="true">error_outline</span>
+        <h2>Unable to start this game</h2>
+        <p>{gameLoadError}</p>
+        <button type="button" onClick={onBackHome}>Back to library</button>
+      </div>}
     </div>
   );
 }

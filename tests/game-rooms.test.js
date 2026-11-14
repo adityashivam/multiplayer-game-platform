@@ -453,11 +453,27 @@ test("an expired reconnect grace releases the seat through the game hook and tel
   assert.equal(lastJoinedPayload(returning).playerId, "navigator", "the token still resumes the seat after the pause");
 });
 
+test("a drop before the match starts releases the seat at once, so a countdown never starts without the player", () => {
+  const session = createRoomSession(["pilot", "navigator"]);
+  const [pilot, navigator] = ["pilot-socket", "navigator-socket"].map(session.createSocket);
+  session.join(pilot);
+  session.join(navigator);
+  const state = session.games.get("crew");
+  assert.equal(state.started, false);
+
+  session.dropTransport(navigator);
+  assert.deepEqual(session.disconnects, ["navigator"]);
+  assert.equal(state.players.navigator.connected, false);
+  assert.equal(session.pendingReleases.length, 0);
+  assert.ok(session.roomEvents.some((event) => event.eventName === "playerLeft" && event.payload.playerId === "navigator"));
+});
+
 test("a grace release for a replaced room does nothing", () => {
   const session = createRoomSession(["pilot", "navigator"]);
   const [pilot, navigator] = ["pilot-socket", "navigator-socket"].map(session.createSocket);
   session.join(pilot);
   session.join(navigator);
+  session.games.get("crew").started = true;
   session.dropTransport(navigator);
   session.games.set("crew", session.createState());
   session.expireReconnectGrace();

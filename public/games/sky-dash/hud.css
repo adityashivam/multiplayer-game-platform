@@ -13,7 +13,7 @@
 .sd-hud [hidden] { display: none !important; }
 .sd-hud button { cursor: pointer; pointer-events: auto; font: inherit; }
 .sd-hud button:focus-visible { outline: 3px solid #00cfe5; outline-offset: 4px; }
-.sd-race-header { position: absolute; left: 3%; right: 3%; top: max(52px, 8cqh); display: flex; align-items: center; justify-content: space-between; }
+.sd-race-header { position: absolute; left: 3%; right: 3%; top: max(14px, 3cqh); display: flex; align-items: center; justify-content: space-between; }
 .sd-brand { display: flex; align-items: center; gap: 9px; font: 700 clamp(12px, 2cqw, 21px) "Space Grotesk", sans-serif; letter-spacing: -.04em; }
 .sd-brand small { display: block; font: 700 clamp(6px, .65cqw, 8px) "Manrope", sans-serif; letter-spacing: .14em; margin-top: 3px; }
 .sd-brand-symbol { display: grid; place-items: center; width: 33px; height: 33px; background: #faf6df; border-radius: 11px; color: #3a9ca5; font-size: 26px; text-shadow: none; transform: rotate(-8deg); }
@@ -22,11 +22,11 @@
 .sd-clock strong { font: 700 clamp(20px, 3.2cqw, 33px) "Space Grotesk", sans-serif; font-variant-numeric: tabular-nums; line-height: 1.15; }
 .sd-final-seconds .sd-clock { background: #ff8f7c; }
 .sd-sound { background: #284c5e70; border: 1px solid #fff5; border-radius: 9px; padding: 8px 10px; color: #fffcef; font-size: 9px !important; }
-.sd-race-position { position: absolute; left: 3%; top: max(105px, 18cqh); }
+.sd-race-position { position: absolute; left: 3%; top: max(67px, 12cqh); }
 .sd-race-position strong { font: 700 clamp(27px, 5cqw, 50px) "Space Grotesk", sans-serif; }
 .sd-race-position span { margin-left: 5px; font-size: 15px; opacity: .85; }
 .sd-race-position small { display: block; font-size: 7px; letter-spacing: .16em; font-weight: 800; }
-.sd-standings { position: absolute; right: 3%; top: max(100px, 18cqh); width: clamp(100px, 17cqw, 175px); list-style: none; padding: 0; margin: 0; }
+.sd-standings { position: absolute; right: 3%; top: max(62px, 12cqh); width: clamp(100px, 17cqw, 175px); list-style: none; padding: 0; margin: 0; }
 .sd-standings li { display: flex; align-items: center; gap: 6px; font-size: clamp(8px, 1cqw, 11px); padding: 6px 8px; border-radius: 7px; background: #294d645c; margin-bottom: 3px; }
 .sd-standings .sd-you { background: #fff7dd; color: #30434c; text-shadow: none; }
 .sd-standings b { width: 10px; opacity: .65; font-variant-numeric: tabular-nums; }
@@ -64,7 +64,7 @@
 .sd-error p { color: #c1d0d4; line-height: 1.6; }
 .sd-error button { border: 0; border-radius: 8px; background: #00cee6; color: #082127; padding: 11px 18px; font-weight: 800; }
 @container (max-width: 560px) {
-  .sd-race-header { top: 52px; }
+  .sd-race-header { top: 14px; }
   .sd-brand-symbol { display: none; }
   .sd-brand { font-size: 12px; }
   .sd-brand small { display: none; }
@@ -85,13 +85,13 @@
 }
 @container (max-height: 360px) {
   .sd-brand small, .sd-intro-hint, .sd-standings { display: none; }
-  .sd-race-header { top: 42px; }
+  .sd-race-header { top: 10px; }
   .sd-intro h1 { font-size: 40px; margin: 10px 0; }
   .sd-eyebrow { display: none; }
   .sd-intro-copy > p:not(.sd-eyebrow) { margin: 8px 0; font-size: 9px; }
   .sd-intro-copy > small { margin-top: 10px; }
   .sd-enter { padding: 7px 15px; font-size: 10px !important; }
-  .sd-race-position { top: 85px; }
+  .sd-race-position { top: 53px; }
   .sd-race-footer { bottom: 5%; }
 }
 @media (prefers-reduced-motion: reduce) { .sd-enter { transition: none; } }

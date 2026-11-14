@@ -214,7 +214,7 @@ export function joinGameRoom({
  * @param {import("socket.io").Namespace} [options.nsp] Defaults to the socket's namespace.
  * @param {Map<string, GameState>} options.games
  * @param {(state: GameState, playerId: string) => void} [options.onPlayerDisconnect]
- * @param {number} [options.reconnectGraceMs] Zero (the default) releases immediately.
+ * @param {number} [options.reconnectGraceMs] Zero (the default) releases immediately; the grace applies only while the match has started.
  * @param {SeatReleaseScheduler} [options.scheduleSeatRelease] Injectable for tests.
  * @returns {void}
  */
@@ -237,7 +237,9 @@ export function handlePlayerDisconnect({
   socket.data.playerId = null;
   if (!ownsSeat) return;
 
-  if (reconnectGraceMs > 0 && !state.gameOver) {
+  // Only a running match is worth holding: before it starts, an empty seat
+  // must stop the countdown at once instead of starting without the player.
+  if (reconnectGraceMs > 0 && state.started && !state.gameOver) {
     holdSeatForReconnect({ nsp, games, gameId, state, playerId, onPlayerDisconnect, reconnectGraceMs, scheduleSeatRelease });
     return;
   }

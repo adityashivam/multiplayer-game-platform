@@ -250,7 +250,8 @@ try {
     assert.equal(await evaluate(first, "return voiceTest.streams.some(stream => stream.getAudioTracks().some(track => track.readyState === 'live' && track.enabled));"), true);
     console.log("VOICE FAILED-PEER MUTE / ACCURATE CAPTURE STATE PASSED", gameId);
     await send("Page.navigate", { url: "about:blank" }, second);
-    await waitFor(first, "voiceTest.room?.phase === 'waiting' && document.querySelector('[aria-label=\"Room connection\"]')");
+    // A rival leaving mid-match pauses it behind the recovery notice, not the pre-match waiting dialog.
+    await waitFor(first, "voiceTest.room?.phase === 'waiting' && document.querySelector('[data-platform-room-recovery]')");
     await openVoice(first);
     assert.equal(await evaluate(first, "return document.querySelectorAll('[aria-modal=true]').length;"), 1);
     await click(first, '[aria-label="Room voice chat"] [aria-label="Mute microphone"]');

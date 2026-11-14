@@ -291,7 +291,7 @@ function setHudText(element, message) {
 
 const LUDO_HUD_STYLES = `
 .ludo-hud, .ludo-hud * { box-sizing:border-box; }
-.ludo-hud { --ludo-piece-color:#fa5b6a; --ludo-turn-color:#fa5b6a; position:absolute; top:64px; right:14px; bottom:14px; z-index:2; width:268px; display:flex; flex-direction:column; gap:20px; padding:22px; overflow:auto; overscroll-behavior:contain; color:#edf3ff; background:rgba(13,24,45,.95); border:1px solid rgba(190,215,255,.12); border-radius:22px; box-shadow:0 18px 45px rgba(0,0,0,.16); font-family:Manrope,sans-serif; scrollbar-width:thin; scrollbar-color:#40516b transparent; }
+.ludo-hud { --ludo-piece-color:#fa5b6a; --ludo-turn-color:#fa5b6a; position:absolute; top:26px; right:14px; bottom:14px; z-index:2; width:268px; display:flex; flex-direction:column; gap:20px; padding:22px; overflow:auto; overscroll-behavior:contain; color:#edf3ff; background:rgba(13,24,45,.95); border:1px solid rgba(190,215,255,.12); border-radius:22px; box-shadow:0 18px 45px rgba(0,0,0,.16); font-family:Manrope,sans-serif; scrollbar-width:thin; scrollbar-color:#40516b transparent; }
 .ludo-hud [hidden] { display:none !important; }
 .ludo-hud button, .ludo-hud summary { font:inherit; -webkit-tap-highlight-color:transparent; touch-action:manipulation; }
 .ludo-hud button { cursor:pointer; }
@@ -359,7 +359,7 @@ const LUDO_HUD_STYLES = `
 .ludo-hud__error { padding-top:12px; border-top:1px solid #40516b; }
 .ludo-hud__error p { font-size:12px; color:#ffc8ad; line-height:1.6; margin:0 0 8px; }
 .ludo-hud__error button { width:100%; min-height:44px; color:#0e2439; background:#8cebf0; border:0; border-radius:9px; font-weight:800; }
-.ludo-hud.is-compact { top:58px; gap:5px; padding:11px; border-radius:17px; }
+.ludo-hud.is-compact { top:20px; gap:5px; padding:11px; border-radius:17px; }
 .ludo-hud.is-compact .ludo-hud__brand { font-size:17px; letter-spacing:-.6px; }
 .ludo-hud.is-compact .ludo-hud__round { font-size:8px; letter-spacing:.6px; }
 .ludo-hud.is-compact .ludo-hud__players { gap:3px; }
