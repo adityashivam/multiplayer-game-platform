@@ -18,6 +18,74 @@ import { SOCKET_EVENT } from "../../../public/platform/shared/networkProtocol.js
  */
 
 /**
+ * How long a seat survives an involuntary transport loss before the game is
+ * told the player left. Proxies and mobile networks cut WebSockets for a
+ * moment; a token rejoin inside this window resumes play without a pause.
+ */
+export const PLATFORM_RECONNECT_GRACE_MS = 4000;
+/** Socket.IO disconnect reasons that mean the connection broke, not that the player left. */
+const TRANSPORT_LOSS_REASONS = new Set(["transport close", "transport error", "ping timeout"]);
+
+/**
+ * @typedef {{cancel: () => void}} SeatReleaseHandle
+ * @typedef {(release: () => void, delayMs: number) => SeatReleaseHandle} SeatReleaseScheduler
+ */
+
+/** Seats held for reconnection, per room state. Server-private; never serialized. */
+const heldSeatsByRoom = new WeakMap();
+
+/**
+ * Default scheduler: an unreferenced timer, so a held seat never keeps the
+ * process alive.
+ * @type {SeatReleaseScheduler}
+ */
+function scheduleSeatReleaseTimer(release, delayMs) {
+  const timer = setTimeout(release, delayMs);
+  timer.unref?.();
+  return { cancel: () => clearTimeout(timer) };
+}
+
+/**
+ * Grace for a Socket.IO disconnect reason: transport loss is held for
+ * reconnection; a deliberate leave or server shutdown releases at once.
+ * @param {string | undefined} reason
+ * @returns {number} Milliseconds; zero releases immediately.
+ */
+export function getReconnectGraceMs(reason) {
+  return TRANSPORT_LOSS_REASONS.has(reason) ? PLATFORM_RECONNECT_GRACE_MS : 0;
+}
+
+/** @param {object} state @param {string} playerId @returns {boolean} */
+function isSeatHeldForReconnect(state, playerId) {
+  return heldSeatsByRoom.get(state)?.has(playerId) === true;
+}
+
+/**
+ * Cancel a pending release because the seat's owner came back.
+ * @param {object} state
+ * @param {string} playerId
+ */
+function resumeHeldSeat(state, playerId) {
+  const heldSeats = heldSeatsByRoom.get(state);
+  heldSeats?.get(playerId)?.cancel();
+  heldSeats?.delete(playerId);
+}
+
+/**
+ * Mark a seat offline and run game cleanup.
+ * @template {import("./state.js").RoomState} GameState
+ * @param {GameState} state
+ * @param {string} playerId
+ * @param {((state: GameState, playerId: string) => void) | undefined} onPlayerDisconnect
+ */
+function releasePlayerSeat(state, playerId, onPlayerDisconnect) {
+  state.players[playerId].connected = false;
+  if (onPlayerDisconnect) {
+    onPlayerDisconnect(state, playerId);
+  }
+}
+
+/**
  * Include command ownership only for games that expose a valid input epoch.
  * @param {string} playerId
  * @param {string} gameId
@@ -105,7 +173,11 @@ export function joinGameRoom({
   const tokenPlayerId = typeof rejoinToken === "string" && rejoinToken.length > 0
     ? roomPlayerIds.find((playerId) => state.players[playerId].rejoinToken === rejoinToken)
     : undefined;
-  if (tokenPlayerId !== undefined && !isVacantSlot(tokenPlayerId)) {
+  const resumesHeldSeat = tokenPlayerId !== undefined && isSeatHeldForReconnect(state, tokenPlayerId) &&
+    !playerSocketOwners.has(tokenPlayerId);
+  if (resumesHeldSeat) {
+    resumeHeldSeat(state, tokenPlayerId);
+  } else if (tokenPlayerId !== undefined && !isVacantSlot(tokenPlayerId)) {
     emitEvent({ socket, type: SOCKET_EVENT.ROOM_FULL, payload: { gameId, rejoinPending: true } });
     return null;
   }
@@ -134,31 +206,63 @@ export function joinGameRoom({
 /**
  * Release platform ownership before invoking game cleanup; safe on repeated
  * disconnects and on stale transports whose slot already has another owner.
+ * With a reconnect grace the seat stays connected and the game keeps running;
+ * cleanup runs only if the owner has not rejoined with its token in time.
  * @template {import("./state.js").RoomState} GameState
  * @param {object} options
  * @param {import("socket.io").Socket} options.socket
  * @param {import("socket.io").Namespace} [options.nsp] Defaults to the socket's namespace.
  * @param {Map<string, GameState>} options.games
  * @param {(state: GameState, playerId: string) => void} [options.onPlayerDisconnect]
+ * @param {number} [options.reconnectGraceMs] Zero (the default) releases immediately.
+ * @param {SeatReleaseScheduler} [options.scheduleSeatRelease] Injectable for tests.
  * @returns {void}
  */
-export function handlePlayerDisconnect({ socket, nsp = socket.nsp, games, onPlayerDisconnect }) {
+export function handlePlayerDisconnect({
+  socket,
+  nsp = socket.nsp,
+  games,
+  onPlayerDisconnect,
+  reconnectGraceMs = 0,
+  scheduleSeatRelease = scheduleSeatReleaseTimer,
+}) {
   const { gameId, playerId } = socket.data;
   if (!gameId || !playerId) return;
 
   const state = games.get(gameId);
   const currentSocketOwner = nsp && collectPlayerSocketOwners(nsp, gameId).get(playerId);
   const belongsToAnotherSocket = currentSocketOwner && currentSocketOwner !== socket;
-  if (!belongsToAnotherSocket && state?.players && Object.hasOwn(state.players, playerId)) {
-    state.players[playerId].connected = false;
-    if (onPlayerDisconnect) {
-      onPlayerDisconnect(state, playerId);
-    }
-    emitEvent({ socket, gameId, type: SOCKET_EVENT.PLAYER_LEFT, payload: { playerId }, target: "others" });
-  }
-
+  const ownsSeat = !belongsToAnotherSocket && state?.players && Object.hasOwn(state.players, playerId);
   socket.data.gameId = null;
   socket.data.playerId = null;
+  if (!ownsSeat) return;
+
+  if (reconnectGraceMs > 0 && !state.gameOver) {
+    holdSeatForReconnect({ nsp, games, gameId, state, playerId, onPlayerDisconnect, reconnectGraceMs, scheduleSeatRelease });
+    return;
+  }
+  releasePlayerSeat(state, playerId, onPlayerDisconnect);
+  emitEvent({ socket, gameId, type: SOCKET_EVENT.PLAYER_LEFT, payload: { playerId }, target: "others" });
+}
+
+/**
+ * Keep a seat for its owner; after the grace, release it unless the owner
+ * rejoined or the room was replaced (rematch or cleanup).
+ * @template {import("./state.js").RoomState} GameState
+ * @param {{nsp: import("socket.io").Namespace, games: Map<string, GameState>, gameId: string, state: GameState, playerId: string,
+ *   onPlayerDisconnect?: (state: GameState, playerId: string) => void, reconnectGraceMs: number, scheduleSeatRelease: SeatReleaseScheduler}} options
+ */
+function holdSeatForReconnect({ nsp, games, gameId, state, playerId, onPlayerDisconnect, reconnectGraceMs, scheduleSeatRelease }) {
+  if (!heldSeatsByRoom.has(state)) heldSeatsByRoom.set(state, new Map());
+  const heldSeats = heldSeatsByRoom.get(state);
+  heldSeats.get(playerId)?.cancel();
+  heldSeats.set(playerId, scheduleSeatRelease(() => {
+    if (heldSeats.get(playerId) === undefined) return;
+    heldSeats.delete(playerId);
+    if (games.get(gameId) !== state) return;
+    releasePlayerSeat(state, playerId, onPlayerDisconnect);
+    emitEvent({ nsp, gameId, type: SOCKET_EVENT.PLAYER_LEFT, payload: { playerId }, target: "game" });
+  }, reconnectGraceMs));
 }
 
 /**

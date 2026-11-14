@@ -1,6 +1,6 @@
 import { getGamesStore } from "./gameStore.js";
 import { tickGames } from "./gameLoop.js";
-import { handleJoinGame, handlePlayerDisconnect } from "./rooms.js";
+import { getReconnectGraceMs, handleJoinGame, handlePlayerDisconnect } from "./rooms.js";
 import { registerSocketHandlers } from "./socketHandlers.js";
 import { createVoiceSignaling } from "./voiceSignaling.js";
 import { NETWORK_TIMING, SOCKET_EVENT } from "../../../public/platform/shared/networkProtocol.js";
@@ -180,13 +180,18 @@ function createInputHandler({ socket, games, handleInput }) {
   };
 }
 
+/**
+ * A broken transport holds the seat for a short reconnect grace so a brief
+ * network or proxy cut does not pause the match; a deliberate leave releases it.
+ */
 function createDisconnectHandler({ socket, games, handleDisconnect, voiceSignaling }) {
-  return () => {
+  return (reason) => {
     voiceSignaling.leave(socket);
     handlePlayerDisconnect({
       socket,
       games,
       onPlayerDisconnect: handleDisconnect,
+      reconnectGraceMs: getReconnectGraceMs(reason),
     });
   };
 }

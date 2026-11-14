@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createRoomLifecycleMetadata, ROOM_START_COUNTDOWN_MS } from "../public/platform/shared/roomLifecycle.js";
-import { createRoomLifecycleClient } from "../public/platform/frontend-engine/roomLifecycleClient.js";
+import { createRoomLifecycleClient, RECOVERY_NOTICE_DELAY_MS } from "../public/platform/frontend-engine/roomLifecycleClient.js";
 import { scheduleStart } from "../server/platform-backend-engine/core/state.js";
 
 function createRoomState() {
@@ -197,4 +197,34 @@ test("a recreated room with a new seat token gets fresh startup instead of old r
   client.recordSnapshot(createCountdownPacket({ phase: "playing", serverTime: 105000 }));
   assert.equal(client.getSnapshot().showGo, true);
   assert.equal(Object.hasOwn(client.getSnapshot(), "rejoinToken"), false, "Private ownership tokens stay out of UI state");
+});
+
+test("a brief mid-match reconnect stays quiet; the recovery notice is due only if it lasts", () => {
+  let nowMs = 0;
+  const changes = [];
+  const client = createRoomLifecycleClient({ nowFn: () => nowMs, onChange: (state) => changes.push(state) });
+  const joinedRoom = { gameId: "room1", playerId: "west" };
+  client.recordJoined(joinedRoom);
+  client.recordSnapshot(createCountdownPacket({ phase: "playing" }));
+  assert.equal(client.getSnapshot().recoveryNoticeDue, false);
+
+  client.recordDisconnected();
+  assert.equal(client.getSnapshot().phase, "reconnecting");
+  assert.equal(client.getSnapshot().recoveryNoticeDue, false, "a blip shows no popup");
+  nowMs = RECOVERY_NOTICE_DELAY_MS - 1;
+  client.refresh();
+  assert.equal(client.getSnapshot().recoveryNoticeDue, false);
+
+  client.recordJoined(joinedRoom);
+  client.recordSnapshot(createCountdownPacket({ phase: "playing", serverTime: 101000 }));
+  assert.equal(client.getSnapshot().phase, "playing", "a held seat resumes straight into play");
+  assert.equal(client.getSnapshot().showGo, false);
+
+  nowMs = 10000;
+  client.recordDisconnected();
+  nowMs += RECOVERY_NOTICE_DELAY_MS;
+  client.refresh();
+  assert.equal(client.getSnapshot().recoveryNoticeDue, true, "a longer outage explains itself");
+  assert.equal(changes.at(-1).recoveryNoticeDue, true, "subscribers hear the change");
+  assert.ok(RECOVERY_NOTICE_DELAY_MS >= 800 && RECOVERY_NOTICE_DELAY_MS <= 3000);
 });

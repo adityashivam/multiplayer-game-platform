@@ -3,6 +3,11 @@ import { ROOM_LIFECYCLE_VERSION, ROOM_PHASE, ROOM_START_COUNTDOWN_MS } from "../
 const GO_CUE_DURATION_MS = 650;
 const MAX_CLOCK_LATENCY_ADJUSTMENT_MS = 250;
 const SUPPORTED_PHASES = new Set(Object.values(ROOM_PHASE));
+/**
+ * A mid-match transport cut usually recovers within a second; only an outage
+ * longer than this shows the recovery notice.
+ */
+export const RECOVERY_NOTICE_DELAY_MS = 1500;
 
 /**
  * @typedef {object} RoomLifecyclePresentation
@@ -17,13 +22,14 @@ const SUPPORTED_PHASES = new Set(Object.values(ROOM_PHASE));
  * @property {number} connectedPlayers
  * @property {number} requiredPlayers
  * @property {boolean} showGo
+ * @property {boolean} recoveryNoticeDue Whether a mid-match reconnect has lasted long enough to explain.
  * @property {"roomFull"|null} errorCode
  * @property {string|null} errorMessage
  */
 
 /** @returns {RoomLifecyclePresentation} */
 function createInitialPresentation() {
-  return { phase: "connecting", roomId: null, playerId: null, joined: false, hasPlayed: false, secondsRemaining: null, startAtMs: null, countdownDurationMs: ROOM_START_COUNTDOWN_MS, connectedPlayers: 0, requiredPlayers: 0, showGo: false, errorCode: null, errorMessage: null };
+  return { phase: "connecting", roomId: null, playerId: null, joined: false, hasPlayed: false, secondsRemaining: null, startAtMs: null, countdownDurationMs: ROOM_START_COUNTDOWN_MS, connectedPlayers: 0, requiredPlayers: 0, showGo: false, recoveryNoticeDue: false, errorCode: null, errorMessage: null };
 }
 
 /**
@@ -37,11 +43,12 @@ export function createRoomLifecycleClient({ nowFn = () => performance.now(), onC
   let serverAnchorMs = null;
   let localAnchorMs = 0;
   let goUntilMs = 0;
+  let reconnectingSinceMs = 0;
   let changeKey = "";
   let seatRejoinToken = null;
 
   function publishPresentation() {
-    const key = `${presentation.phase}|${presentation.roomId}|${presentation.playerId}|${presentation.joined}|${presentation.hasPlayed}|${presentation.secondsRemaining}|${presentation.startAtMs}|${presentation.countdownDurationMs}|${presentation.connectedPlayers}|${presentation.requiredPlayers}|${presentation.showGo}|${presentation.errorCode}`;
+    const key = `${presentation.phase}|${presentation.roomId}|${presentation.playerId}|${presentation.joined}|${presentation.hasPlayed}|${presentation.secondsRemaining}|${presentation.startAtMs}|${presentation.countdownDurationMs}|${presentation.connectedPlayers}|${presentation.requiredPlayers}|${presentation.showGo}|${presentation.recoveryNoticeDue}|${presentation.errorCode}`;
     if (key === changeKey) return;
     changeKey = key;
     onChange?.({ ...presentation });
@@ -53,6 +60,7 @@ export function createRoomLifecycleClient({ nowFn = () => performance.now(), onC
     presentation.secondsRemaining = presentation.phase === ROOM_PHASE.COUNTDOWN && estimatedServerNowMs !== null && presentation.startAtMs !== null
       ? Math.max(0, Math.ceil((presentation.startAtMs - estimatedServerNowMs) / 1000)) : null;
     presentation.showGo = presentation.phase === ROOM_PHASE.PLAYING && nowMs < goUntilMs;
+    presentation.recoveryNoticeDue = presentation.phase === "reconnecting" && nowMs - reconnectingSinceMs >= RECOVERY_NOTICE_DELAY_MS;
     publishPresentation();
   }
 
@@ -110,7 +118,8 @@ export function createRoomLifecycleClient({ nowFn = () => performance.now(), onC
       refresh();
     },
     recordDisconnected() {
-      presentation = { ...presentation, joined: false, phase: "reconnecting", secondsRemaining: null, startAtMs: null, showGo: false };
+      reconnectingSinceMs = nowFn();
+      presentation = { ...presentation, joined: false, phase: "reconnecting", secondsRemaining: null, startAtMs: null, showGo: false, recoveryNoticeDue: false };
       serverAnchorMs = null;
       goUntilMs = 0;
       publishPresentation();

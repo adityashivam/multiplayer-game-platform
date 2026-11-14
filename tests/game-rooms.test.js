@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { handleJoinGame, handlePlayerDisconnect, joinGameRoom } from "../server/platform-backend-engine/core/rooms.js";
+import { getReconnectGraceMs, handleJoinGame, handlePlayerDisconnect, joinGameRoom, PLATFORM_RECONNECT_GRACE_MS } from "../server/platform-backend-engine/core/rooms.js";
 import { bothPlayersConnected, scheduleStart } from "../server/platform-backend-engine/core/state.js";
 import { tickGames } from "../server/platform-backend-engine/core/gameLoop.js";
 
@@ -73,7 +73,28 @@ function createRoomSession(playerIds = ["pilot", "navigator", "engineer"], confi
     namespace.sockets.delete(socket.id);
   }
 
-  return { games, namespace, roomEvents, disconnects, createState, createSocket, join, disconnect };
+  /** Scheduled seat releases, run on demand instead of by wall-clock timers. */
+  const pendingReleases = [];
+  function dropTransport(socket) {
+    handlePlayerDisconnect({
+      socket,
+      games,
+      onPlayerDisconnect,
+      reconnectGraceMs: PLATFORM_RECONNECT_GRACE_MS,
+      scheduleSeatRelease: (release, delayMs) => {
+        const entry = { release, delayMs, cancelled: false };
+        pendingReleases.push(entry);
+        return { cancel: () => { entry.cancelled = true; } };
+      },
+    });
+    socket.leave("crew");
+    namespace.sockets.delete(socket.id);
+  }
+  function expireReconnectGrace() {
+    for (const entry of pendingReleases.splice(0)) if (!entry.cancelled) entry.release();
+  }
+
+  return { games, namespace, roomEvents, disconnects, pendingReleases, createState, createSocket, join, disconnect, dropTransport, expireReconnectGrace };
 }
 
 function lastJoinedPayload(socket) {
@@ -367,4 +388,78 @@ test("room snapshots still emit a decodable full baseline after arbitrary-slot j
   const epochIndex = snapshotPacket.p.indexOf("players.pilot.inputEpoch");
   assert.ok(epochIndex >= 0);
   assert.equal(snapshotPacket.v[epochIndex], 1);
+});
+
+test("only involuntary transport loss earns a reconnect grace; leaving releases at once", () => {
+  for (const reason of ["transport close", "transport error", "ping timeout"]) {
+    assert.equal(getReconnectGraceMs(reason), PLATFORM_RECONNECT_GRACE_MS, reason);
+  }
+  for (const reason of ["client namespace disconnect", "server namespace disconnect", "server shutting down", undefined]) {
+    assert.equal(getReconnectGraceMs(reason), 0, String(reason));
+  }
+  assert.ok(PLATFORM_RECONNECT_GRACE_MS >= 2000 && PLATFORM_RECONNECT_GRACE_MS <= 10000);
+});
+
+test("a dropped transport keeps its seat through the grace, so a quick token rejoin never pauses the match", () => {
+  const session = createRoomSession(["pilot", "navigator"]);
+  const [pilot, navigator] = ["pilot-socket", "navigator-socket"].map(session.createSocket);
+  session.join(pilot);
+  session.join(navigator);
+  const state = session.games.get("crew");
+  state.started = true;
+  const navigatorToken = lastJoinedPayload(navigator).rejoinToken;
+
+  session.dropTransport(navigator);
+  assert.deepEqual(session.disconnects, [], "the game is not told to pause during the grace");
+  assert.equal(state.players.navigator.connected, true);
+  assert.equal(state.started, true);
+  assert.equal(session.pendingReleases[0].delayMs, PLATFORM_RECONNECT_GRACE_MS);
+  assert.equal(session.roomEvents.some((event) => event.eventName === "playerLeft"), false);
+
+  const newcomer = session.createSocket("newcomer");
+  session.join(newcomer);
+  assert.equal(newcomer.events.at(-1).eventName, "roomFull", "a held seat is not offered to strangers");
+
+  const returning = session.createSocket("navigator-returns");
+  session.join(returning, "crew", navigatorToken);
+  assert.equal(lastJoinedPayload(returning).playerId, "navigator");
+  assert.equal(lastJoinedPayload(returning).rejoinToken, navigatorToken);
+  assert.equal(session.pendingReleases[0].cancelled, true);
+
+  session.expireReconnectGrace();
+  assert.deepEqual(session.disconnects, []);
+  assert.equal(state.players.navigator.connected, true);
+  assert.equal(state.started, true);
+});
+
+test("an expired reconnect grace releases the seat through the game hook and tells the room", () => {
+  const session = createRoomSession(["pilot", "navigator"]);
+  const [pilot, navigator] = ["pilot-socket", "navigator-socket"].map(session.createSocket);
+  session.join(pilot);
+  session.join(navigator);
+  const state = session.games.get("crew");
+  state.started = true;
+  const navigatorToken = lastJoinedPayload(navigator).rejoinToken;
+
+  session.dropTransport(navigator);
+  session.expireReconnectGrace();
+  assert.deepEqual(session.disconnects, ["navigator"]);
+  assert.equal(state.players.navigator.connected, false);
+  assert.equal(state.started, false);
+  assert.ok(session.roomEvents.some((event) => event.roomId === "crew" && event.eventName === "playerLeft" && event.payload.playerId === "navigator"));
+
+  const returning = session.createSocket("navigator-returns");
+  session.join(returning, "crew", navigatorToken);
+  assert.equal(lastJoinedPayload(returning).playerId, "navigator", "the token still resumes the seat after the pause");
+});
+
+test("a grace release for a replaced room does nothing", () => {
+  const session = createRoomSession(["pilot", "navigator"]);
+  const [pilot, navigator] = ["pilot-socket", "navigator-socket"].map(session.createSocket);
+  session.join(pilot);
+  session.join(navigator);
+  session.dropTransport(navigator);
+  session.games.set("crew", session.createState());
+  session.expireReconnectGrace();
+  assert.deepEqual(session.disconnects, []);
 });

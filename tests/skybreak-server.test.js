@@ -39,13 +39,14 @@ function createSkybreakTestSession(register) {
   let socketSerial = 0;
   const getState = () => games.get(ROOM_ID);
 
-  function connectPlayer() {
+  function connectPlayer(rejoinToken) {
     const socketHandlers = {};
+    const socketEvents = [];
     const socket = {
       id: `sky-socket-${++socketSerial}`,
       data: {},
       on: (event, callback) => { socketHandlers[event] = callback; },
-      emit() {},
+      emit: (event, payload) => socketEvents.push([event, payload]),
       to: () => ({ emit() {} }),
       join(roomId) {
         if (!namespace.adapter.rooms.has(roomId)) namespace.adapter.rooms.set(roomId, new Set());
@@ -55,12 +56,13 @@ function createSkybreakTestSession(register) {
     };
     namespace.sockets.set(socket.id, socket);
     connectSocket(socket);
-    socketHandlers.joinGame({ gameId: ROOM_ID });
+    socketHandlers.joinGame({ gameId: ROOM_ID, rejoinToken });
     return {
       socket,
       socketHandlers,
-      disconnect() {
-        socketHandlers.disconnect();
+      socketEvents,
+      disconnect(reason) {
+        socketHandlers.disconnect(reason);
         socket.leave(ROOM_ID);
         namespace.sockets.delete(socket.id);
       },
@@ -227,4 +229,39 @@ test("each life is its own interpolation identity and orientation stays orthonor
   const jet = createSkybreakPresentedJets(snapshot, pose).find((candidate) => candidate.id === "p1");
   assert.ok(Math.abs(Math.hypot(jet.forwardX, jet.forwardY, jet.forwardZ) - 1) < 1e-9);
   assert.ok(Math.abs(jet.forwardX * jet.upX + jet.forwardY * jet.upY + jet.forwardZ * jet.upZ) < 1e-9);
+});
+
+test("a brief transport drop keeps the match running and a token rejoin resumes without a countdown", (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  const session = createSkybreakTestSession(registerSkybreakGame);
+  session.connectPlayer();
+  const right = session.connectPlayer();
+  session.startNow();
+  const state = session.getState();
+  assert.equal(state.phase, "playing");
+  const token = right.socketEvents.findLast(([event]) => event === "gameJoined")[1].rejoinToken;
+
+  right.disconnect("transport close");
+  assert.equal(state.phase, "playing", "a dropped connection does not pause the match");
+  assert.equal(state.started, true);
+  const returning = session.connectPlayer(token);
+  assert.equal(returning.socket.data.playerId, "p2");
+  assert.equal(state.phase, "playing");
+  assert.equal(state.startAt, null, "no restart countdown");
+  t.mock.timers.tick(10000);
+  assert.equal(state.phase, "playing", "the cancelled grace never pauses later");
+
+  returning.disconnect("ping timeout");
+  t.mock.timers.tick(10000);
+  assert.equal(state.phase, "paused", "a player who does not come back still pauses the match");
+  assert.equal(state.players.p2.connected, false);
+});
+
+test("leaving on purpose pauses at once, without a grace", () => {
+  const session = createSkybreakTestSession(registerSkybreakGame);
+  session.connectPlayer();
+  const right = session.connectPlayer();
+  session.startNow();
+  right.disconnect("client namespace disconnect");
+  assert.equal(session.getState().phase, "paused");
 });

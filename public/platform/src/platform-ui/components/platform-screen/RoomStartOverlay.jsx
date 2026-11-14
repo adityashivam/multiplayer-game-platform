@@ -28,6 +28,8 @@ export default function RoomStartOverlay({ room, gameName, isCreatorEntry, onInv
 
   const failed = room.phase === "error";
   const connecting = room.phase === "connecting" || room.phase === "reconnecting";
+  // A brief mid-match reconnect resumes on its own; the toolbar indicator covers it.
+  if (room.hasPlayed && room.phase === "reconnecting" && !room.recoveryNoticeDue) return null;
   if (room.hasPlayed && !failed) {
     const recoveryTitle = countingDown
       ? room.secondsRemaining > 0 ? `Resuming in ${room.secondsRemaining}` : "Resuming your match…"
