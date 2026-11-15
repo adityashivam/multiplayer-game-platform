@@ -1,5 +1,8 @@
 import React from "react";
 import styles from "./VoiceChatControls.module.scss";
+import useMicrophonePermission from "../../hooks/useMicrophonePermission.js";
+
+const MICROPHONE_BLOCKED_ACTION = "Microphone blocked — how to fix";
 
 /** @typedef {import("../../../../shared/voiceProtocol.js").VoiceChatState} VoiceChatState */
 /**
@@ -93,9 +96,26 @@ export default function VoiceChatControls({
   state, available, dialogOpen, unavailableReason, onOpen, disabled = false,
   onJoin, onMicrophoneMutedChange, onDeafenedChange, onResumePlayback,
 }) {
+  const microphonePermission = useMicrophonePermission();
+  // A blocked microphone cannot be re-prompted; the quick mic opens the unblock steps instead.
+  const microphoneBlocked = microphonePermission === "denied" && !isVoiceChatJoined(state);
+
   return (
     <div className={styles.toolbarControls} role="group" aria-label="Room voice controls">
-      <VoiceAudioButtons
+      {microphoneBlocked ? <div className={`${styles.audioButtons} ${styles.compact}`} role="group" aria-label="Microphone and voice audio">
+        <button
+          type="button"
+          className={`${styles.audioButton} ${styles.blockedMicrophone}`}
+          aria-label={MICROPHONE_BLOCKED_ACTION}
+          aria-haspopup="dialog"
+          title={MICROPHONE_BLOCKED_ACTION}
+          disabled={disabled || !available}
+          onClick={onOpen}
+        >
+          <span className="material-symbols-outlined" aria-hidden="true">mic_off</span>
+          <span className={styles.buttonLabel}>Mic blocked</span>
+        </button>
+      </div> : <VoiceAudioButtons
         state={state}
         compact
         disabled={disabled || !available}
@@ -103,7 +123,7 @@ export default function VoiceChatControls({
         onMicrophoneMutedChange={onMicrophoneMutedChange}
         onDeafenedChange={onDeafenedChange}
         onResumePlayback={onResumePlayback}
-      />
+      />}
       <button
         type="button"
         className={`${styles.settingsButton} ${state.errorMessage ? styles.settingsError : ""}`}

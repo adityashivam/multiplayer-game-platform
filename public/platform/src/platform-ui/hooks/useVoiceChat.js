@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { chooseMicrophoneRecoveryAction } from "../../../frontend-engine/microphonePermission.js";
+import useMicrophonePermission from "./useMicrophonePermission.js";
 
 /** @typedef {import("../../../shared/voiceProtocol.js").VoiceChatState} VoiceChatState */
 /** @typedef {ReturnType<typeof import("../../../frontend-engine/voiceChatSession.js").createVoiceChatSession>} VoiceChatSession */
@@ -267,6 +269,19 @@ export default function useVoiceChat({ game, roomLifecycle, enabled = true }) {
     voiceParticipationGenerationRef.current += 1;
     activeVoiceSessionRef.current?.session.leave();
   }, []);
+
+  // Browsers never re-show a blocked permission prompt; once the player
+  // switches the site to Allow, resume the request the browser refused.
+  const microphonePermission = useMicrophonePermission();
+  const previousMicrophonePermissionRef = useRef(microphonePermission);
+  useEffect(() => {
+    const previousPermission = previousMicrophonePermissionRef.current;
+    previousMicrophonePermissionRef.current = microphonePermission;
+    const voiceState = activeVoiceSessionRef.current?.session.getState();
+    const recoveryAction = chooseMicrophoneRecoveryAction({ previousPermission, permission: microphonePermission, voiceState });
+    if (recoveryAction === "join") void join();
+    else if (recoveryAction === "unmute") void setMicrophoneMuted(false);
+  }, [microphonePermission, join, setMicrophoneMuted]);
 
   const presentationMatchesRoom = roomKey && voicePresentation.roomKey === roomKey;
   const loading = Boolean(roomKey && (!presentationMatchesRoom || voicePresentation.loading));

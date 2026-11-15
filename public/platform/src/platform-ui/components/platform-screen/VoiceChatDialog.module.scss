@@ -2,6 +2,48 @@
   color: var(--platform-warning);
 }
 
+.unblockGuide {
+  margin-top: 14px;
+  padding: 12px 14px;
+  border: 1px solid var(--platform-border);
+  border-radius: var(--platform-radius);
+  background: var(--platform-surface-inset);
+  font-family: var(--platform-font-body);
+  font-size: 11px;
+  line-height: 1.55;
+
+  h3 {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    margin: 0 0 8px;
+    color: var(--platform-text);
+    font-family: var(--platform-font-heading);
+    font-size: 13px;
+    font-weight: 600;
+
+    > span {
+      color: var(--platform-warning);
+      font-size: 18px;
+    }
+  }
+
+  ol {
+    margin: 0;
+    padding-left: 18px;
+    color: var(--platform-text);
+
+    li + li {
+      margin-top: 6px;
+    }
+  }
+
+  p {
+    margin: 10px 0 0;
+    color: var(--platform-text-muted);
+  }
+}
+
 .options {
   margin-top: 12px;
 

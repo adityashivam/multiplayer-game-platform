@@ -142,7 +142,7 @@ function describeMicrophoneError(microphoneError) {
   const errorName = microphoneError && typeof microphoneError === "object" && "name" in microphoneError
     ? microphoneError.name : null;
   if (errorName === "NotAllowedError" || errorName === "SecurityError") {
-    return { code: VOICE_CLIENT_ERROR.MICROPHONE_PERMISSION_DENIED, message: "Microphone access was denied. Allow access or join listen only." };
+    return { code: VOICE_CLIENT_ERROR.MICROPHONE_PERMISSION_DENIED, message: "Microphone access was denied. Follow the steps below to allow it, or join listen only." };
   }
   return { code: VOICE_CLIENT_ERROR.MICROPHONE_UNAVAILABLE, message: "A microphone is unavailable. Check your device or join listen only." };
 }

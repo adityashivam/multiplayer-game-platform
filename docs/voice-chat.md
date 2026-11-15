@@ -14,6 +14,16 @@ The compact voice panel repeats the microphone/sound controls and offers **Turn 
 
 The initial topology is a bounded mesh for up to four human participants; current bundled rooms have two humans. Larger rooms require a media-server/SFU integration rather than expanding the mesh without bounds.
 
+## Microphone permission
+
+Browsers never let a site show the microphone prompt again once access is blocked. That happens when a player clicks Block, dismisses the prompt a few times (Chrome then blocks quietly), turns the browser's microphone off in the operating system, or opens the link in an app's built-in browser. A blocked request fails at once with `NotAllowedError` and no popup.
+
+The platform works around this without ever prompting on its own:
+
+- **Detection.** `frontend-engine/microphonePermission.js` reads the permission with the Permissions API (`granted`, `prompt`, `denied`, or `unknown` where the browser cannot say). When it is `denied` and the player is not in voice, the toolbar mic shows **Mic blocked** and opens the voice dialog instead of making a request that would fail.
+- **Guide.** The voice dialog shows **Allow the microphone** with steps for the player's device from `services/microphoneUnblockGuide.js`: desktop Chrome/Edge, Firefox and Safari (including the macOS and Windows privacy settings), Android, iPhone Chrome, Safari, Firefox and Edge, and in-app browsers (open the page in Chrome or Safari).
+- **Recovery.** When the browser reports the permission changing from `denied` to `granted` or `prompt`, voice resumes the request it refused: a refused join rejoins, and a refused unmute unmutes (`chooseMicrophoneRecoveryAction`). Listen-only never starts sending audio by itself. Browsers that do not report changes show "Then tap Turn on voice again." instead.
+
 ## Deployment
 
 Microphone access requires HTTPS, except browsers' trusted localhost development exception. Plain HTTP on a LAN IP may not expose microphone APIs. The application reports permission/unsupported-context errors; players can use Listen only when capture is unavailable.

@@ -110,6 +110,11 @@
   }
 }
 
+.blockedMicrophone,
+.blockedMicrophone:hover:not(:disabled) {
+  color: var(--platform-warning);
+}
+
 .settingsError {
   color: var(--platform-warning);
 }
