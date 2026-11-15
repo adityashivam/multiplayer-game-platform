@@ -77,6 +77,29 @@ async function click(id, selector) {
   await send("Input.dispatchMouseEvent", { type: "mousePressed", button: "left", clickCount: 1, ...point }, id);
   await send("Input.dispatchMouseEvent", { type: "mouseReleased", button: "left", clickCount: 1, ...point }, id);
 }
+/**
+ * Turn off "Expanded play area" in the in-game touch layout editor, as a player would,
+ * so the console shell's sticks and action buttons return. The preference covers only
+ * the page's current orientation and is shared with other pages of this browser profile.
+ */
+async function restoreConsolePresentation(id) {
+  await evaluate(id, "document.exitPointerLock?.();");
+  if (!await evaluate(id, "return Boolean(document.querySelector('[aria-label=\"Customize touch controls\"]'));")) {
+    await click(id, '[data-platform-game-menu-toggle][aria-expanded="false"]');
+    await waitFor(id, "document.querySelector('[aria-label=\"Customize touch controls\"]')", 5000);
+  }
+  await click(id, '[aria-label="Customize touch controls"]');
+  await waitFor(id, "document.querySelector('[role=dialog] summary[aria-label=\"Touch control options\"]')", 5000);
+  await evaluate(id, `
+    const editor=document.querySelector('[role=dialog]');
+    editor.querySelector('summary[aria-label="Touch control options"]').parentElement.open=true;
+    const expandedOption=[...editor.querySelectorAll('label')].find(label=>label.textContent.includes('Expanded play area'))?.querySelector('input[type=checkbox]');
+    if(!expandedOption)throw Error('Missing Expanded play area option');
+    if(expandedOption.checked)expandedOption.click();
+  `);
+  await evaluate(id, "[...document.querySelectorAll('[role=dialog] button')].find(button=>button.textContent.trim()==='Save').click();");
+  await waitFor(id, "document.querySelector('[data-platform-presentation=console]')&&!document.querySelector('[role=dialog]')", 5000);
+}
 async function key(id, code, key, active) {
   const keyCodes = { KeyW: 87, KeyA: 65, KeyD: 68, KeyS: 83, Space: 32, KeyR: 82, Escape: 27 };
   await send("Input.dispatchKeyEvent", { type: active ? "keyDown" : "keyUp", code, key, windowsVirtualKeyCode: keyCodes[code] || 0 }, id);
@@ -123,8 +146,16 @@ try {
   await probePage(p1);
   const roomUrl = await evaluate(p1, "return location.href;");
   assert.match(roomUrl, /\/games\/dead-shift\/[a-z0-9]+$/i);
-  const gameShell = await evaluate(p1, "return document.querySelector('[class*=platformConsole]').getBoundingClientRect().toJSON();");
-  for (const field of ["x", "y", "width", "height"]) assert.ok(Math.abs(libraryShell[field] - gameShell[field]) <= 1, `Shell ${field} must stay stable on game entry`);
+  const gamePresentation = await evaluate(p1, `
+    const root=document.querySelector('[data-platform-presentation]');
+    const shell=document.querySelector('[class*=platformConsole]').getBoundingClientRect();
+    return{presentation:root.dataset.platformPresentation,shell:shell.toJSON(),viewport:{width:innerWidth,height:innerHeight},visibleSticks:[...document.querySelectorAll('[data-stick]')].filter(stick=>stick.getBoundingClientRect().width>0).length};
+  `);
+  assert.equal(gamePresentation.presentation, "expanded", "Games must open in the expanded presentation by default");
+  for (const [field, expected] of [["x", 0], ["y", 0], ["width", gamePresentation.viewport.width], ["height", gamePresentation.viewport.height]]) {
+    assert.ok(Math.abs(gamePresentation.shell[field] - expected) <= 1, `Expanded play surface ${field} must fill the window`);
+  }
+  assert.equal(gamePresentation.visibleSticks, 0, "Expanded presentation must hide the console controllers");
   assert.equal(await evaluate(p1, "return Boolean(document.fullscreenElement);"), false);
   await capture(p1, "intro");
   console.log("FIRST CLIENT READY", await evaluate(p1, "return {canvas:document.querySelector('#game-canvas').getBoundingClientRect().toJSON(),hud:document.querySelector('.ds-hud').getBoundingClientRect().toJSON(),messages:document.body.innerText.slice(-500)}"));
@@ -145,7 +176,9 @@ try {
   await key(p1, "Space", " ", true); await sleep(180);
   assert.ok(await evaluate(p1, "return dsProbe.last.players.p1.y>0.2"), "Short jump must reach the server");
   await key(p1, "Space", " ", false);
-  await evaluate(p1, "document.exitPointerLock?.();");
+  await evaluate(p1, "window.dsLiveCanvas=document.querySelector('#game-canvas');");
+  await restoreConsolePresentation(p1);
+  assert.ok(await evaluate(p1, "return dsLiveCanvas===document.querySelector('#game-canvas')&&dsLiveCanvas.isConnected;"), "Restoring the console must retain the live canvas");
   await sleep(120);
   const stick = await evaluate(p1, "const b=document.querySelector('[data-stick=left]').getBoundingClientRect();return{x:b.x+b.width/2,y:b.y+b.height/2,r:b.width*.4};");
   const beforeStick = await evaluate(p1, "return dsProbe.last.players.p1.z;");
@@ -170,6 +203,9 @@ try {
   console.log("FIVE WEAPONS FIRED", await evaluate(p1, "return dsProbe.projectiles"));
   await send("Emulation.setDeviceMetricsOverride", { width: 390, height: 844, deviceScaleFactor: 1, mobile: true }, p1);
   await sleep(600);
+  // Portrait keeps its own presentation preference, which still defaults to expanded.
+  await restoreConsolePresentation(p1);
+  await sleep(200);
   await capture(p1, "portrait");
   const portrait = await evaluate(p1, "return {scroll:document.documentElement.scrollWidth,width:innerWidth,sticks:[...document.querySelectorAll('[data-stick]')].map(s=>s.getBoundingClientRect().toJSON()).filter(s=>s.width>0),hud:document.querySelector('.ds-hud').getBoundingClientRect().toJSON()};");
   console.log("PORTRAIT MEASUREMENTS", portrait);

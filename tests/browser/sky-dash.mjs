@@ -4,7 +4,7 @@ import { createBrowserTestSession, delay } from "./support/chrome.mjs";
 const baseUrl = process.env.SKY_DASH_BASE_URL || "http://localhost:3100";
 const quickRun = process.env.SKY_DASH_BROWSER_QUICK === "1";
 const browser = await createBrowserTestSession("sky-dash");
-const { send, evaluate, waitFor, newPage, capture, click, clickText, key } = browser;
+const { send, evaluate, waitFor, newPage, capture, click, clickText, key, restoreConsolePresentation } = browser;
 
 async function attachRaceProbe(sessionId) {
   await waitFor(sessionId, "document.querySelector('[data-sky-dash-hud]')", 30000);
@@ -129,6 +129,10 @@ try {
   await clickText(p1, "Cancel");
   assert.ok(await evaluate(p1, "return originalRaceCanvas===document.querySelector('#game-canvas');"), "Touch editing must retain the live canvas");
   console.log("PLATFORM TOUCH MOVEMENT/JUMP AND LIVE LAYOUT EDITOR PASSED");
+  assert.ok(await evaluate(p2, "return Boolean(document.querySelector('[data-platform-presentation=expanded]'));"), "Direct links must open in the expanded presentation");
+  await evaluate(p2, "window.directLinkRaceCanvas=document.querySelector('#game-canvas');");
+  await restoreConsolePresentation(p2);
+  assert.ok(await evaluate(p2, "return directLinkRaceCanvas===document.querySelector('#game-canvas')&&directLinkRaceCanvas.isConnected;"), "Restoring the console must retain the live canvas");
   await send("Emulation.setTouchEmulationEnabled", { enabled: true, maxTouchPoints: 5 }, p2);
   const shellPoints = await evaluate(p2, `
     const visible=selector=>[...document.querySelectorAll(selector)].find(element=>element.getBoundingClientRect().width>0);

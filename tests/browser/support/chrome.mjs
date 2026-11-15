@@ -97,12 +97,32 @@ export async function createBrowserTestSession(prefix, { extraArgs = [] } = {}) 
   async function clickText(sessionId, text) {
     await evaluate(sessionId, `const button=[...document.querySelectorAll('button')].find(button=>{const clone=button.cloneNode(true);clone.querySelectorAll('[aria-hidden=true]').forEach(icon=>icon.remove());return clone.textContent.trim()===${JSON.stringify(text)}&&button.getBoundingClientRect().width>0});if(!button)throw Error('Missing button '+${JSON.stringify(text)});button.click();`);
   }
+  /**
+   * Turn off "Expanded play area" in the running game's touch layout editor, as a
+   * player would, so the console shell and its controllers return. Games open
+   * expanded by default; the saved preference covers only the page's current
+   * orientation and, through shared storage, other pages of this browser profile.
+   * @param {string} sessionId CDP session of a page that is in game view.
+   */
+  async function restoreConsolePresentation(sessionId) {
+    await click(sessionId, '[aria-label="Customize touch controls"]');
+    await waitFor(sessionId, "document.querySelector('[role=dialog] summary[aria-label=\"Touch control options\"]')", 5000);
+    await evaluate(sessionId, `
+      const editor=document.querySelector('[role=dialog]');
+      editor.querySelector('summary[aria-label="Touch control options"]').parentElement.open=true;
+      const expandedOption=[...editor.querySelectorAll('label')].find(label=>label.textContent.includes('Expanded play area'))?.querySelector('input[type=checkbox]');
+      if(!expandedOption)throw Error('Missing Expanded play area option');
+      if(expandedOption.checked)expandedOption.click();
+    `);
+    await clickText(sessionId, "Save");
+    await waitFor(sessionId, "document.querySelector('[data-platform-presentation=console]')&&!document.querySelector('[role=dialog]')", 5000);
+  }
   async function key(sessionId, code, keyValue, active) {
     const keyCodes = { KeyW: 87, KeyA: 65, KeyD: 68, KeyS: 83, KeyC: 67, ArrowLeft: 37, ArrowUp: 38, ArrowRight: 39, ArrowDown: 40, Space: 32, ShiftLeft: 16, KeyE: 69, KeyR: 82, Escape: 27 };
     await send("Input.dispatchKeyEvent", { type: active ? "keyDown" : "keyUp", code, key: keyValue, windowsVirtualKeyCode: keyCodes[code] || 0 }, sessionId);
   }
   return {
-    send, evaluate, waitFor, newPage, capture, click, clickText, key, openGameMenu, exceptions, failures,
+    send, evaluate, waitFor, newPage, capture, click, clickText, key, openGameMenu, restoreConsolePresentation, exceptions, failures,
     async close() {
       for (const request of pending.values()) { clearTimeout(request.timer); request.reject(Error("Browser closed")); }
       pending.clear();
