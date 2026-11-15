@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import classNames from "../../../utils/classNames.js";
 import useCustomizableGames from "../../hooks/useCustomizableGames.js";
 import useTouchProfile from "../../hooks/useTouchProfile.js";
 import { TouchLayoutEditor, TouchLayoutPreview } from "../touch-controls/index.js";
@@ -39,9 +40,11 @@ export default function TouchControlSettings({ onDialogChange }) {
   return (
     <section className={styles.settingsSection} aria-labelledby="touch-settings-title">
       <div className={styles.sectionIntro}>
-        <span className={styles.sectionNumber}>01</span>
-        <h2 id="touch-settings-title">Game controls</h2>
-        <p>Adjust controls for each game.</p>
+        <span className={classNames("material-symbols-outlined", styles.sectionIcon)} aria-hidden="true">sports_esports</span>
+        <div className={styles.sectionTitles}>
+          <h2 id="touch-settings-title">Game controls</h2>
+          <p>Touch layouts for each game.</p>
+        </div>
         <span className={styles.deviceNote}><span className="material-symbols-outlined" aria-hidden="true">devices</span>This device</span>
       </div>
       <div className={styles.settingsBody}>

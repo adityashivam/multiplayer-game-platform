@@ -74,100 +74,103 @@ export default function LobbyHeader({
           />
         </label>
 
-        <div
-          className={classNames(styles.filterControl, filterOpen && styles.filterControlOpen)}
-          ref={filterRef}
-        >
-          <span className={classNames("material-symbols-outlined", styles.filterIcon)}>filter_alt</span>
-          <button
-            type="button"
-            className={styles.filterTrigger}
-            aria-label="Filter games by genre"
-            aria-haspopup="listbox"
-            aria-expanded={filterOpen}
-            onClick={() => setFilterOpen((current) => !current)}
+        {/* On phones the filter and size controls share one pill; elsewhere they stand apart. */}
+        <div className={styles.headerActions}>
+          <div
+            className={classNames(styles.filterControl, filterOpen && styles.filterControlOpen, activeFilter !== "all" && styles.filterControlActive)}
+            ref={filterRef}
           >
-            <span className={styles.filterTriggerLabel}>{activeFilterLabel}</span>
-            <span
-              className={classNames(
-                "material-symbols-outlined",
-                styles.filterChevron,
-                filterOpen && styles.filterChevronOpen,
-              )}
+            <span className={classNames("material-symbols-outlined", styles.filterIcon)}>filter_alt</span>
+            <button
+              type="button"
+              className={styles.filterTrigger}
+              aria-label="Filter games by genre"
+              aria-haspopup="listbox"
+              aria-expanded={filterOpen}
+              onClick={() => setFilterOpen((current) => !current)}
             >
-              expand_more
-            </span>
-          </button>
+              <span className={styles.filterTriggerLabel}>{activeFilterLabel}</span>
+              <span
+                className={classNames(
+                  "material-symbols-outlined",
+                  styles.filterChevron,
+                  filterOpen && styles.filterChevronOpen,
+                )}
+              >
+                expand_more
+              </span>
+            </button>
 
-          {filterOpen ? (
-            <div className={styles.filterMenu} role="listbox" aria-label="Game genre filter">
-              {filterOptions.map((option) => {
-                const selected = option.value === activeFilter;
+            {filterOpen ? (
+              <div className={styles.filterMenu} role="listbox" aria-label="Game genre filter">
+                {filterOptions.map((option) => {
+                  const selected = option.value === activeFilter;
 
-                return (
-                  <button
-                    key={option.value}
-                    type="button"
-                    role="option"
-                    aria-selected={selected}
-                    className={classNames(styles.filterOption, selected && styles.filterOptionActive)}
-                    onClick={() => {
-                      onFilterChange?.(option.value);
-                      setFilterOpen(false);
-                    }}
-                  >
-                    <span
-                      className={classNames(
-                        "material-symbols-outlined",
-                        styles.filterOptionCheck,
-                        selected ? styles.filterOptionCheckVisible : styles.filterOptionCheckHidden,
-                      )}
-                      aria-hidden="true"
+                  return (
+                    <button
+                      key={option.value}
+                      type="button"
+                      role="option"
+                      aria-selected={selected}
+                      className={classNames(styles.filterOption, selected && styles.filterOptionActive)}
+                      onClick={() => {
+                        onFilterChange?.(option.value);
+                        setFilterOpen(false);
+                      }}
                     >
-                      check_small
-                    </span>
-                    <span className={styles.filterOptionLabel}>{option.label}</span>
-                  </button>
-                );
-              })}
+                      <span
+                        className={classNames(
+                          "material-symbols-outlined",
+                          styles.filterOptionCheck,
+                          selected ? styles.filterOptionCheckVisible : styles.filterOptionCheckHidden,
+                        )}
+                        aria-hidden="true"
+                      >
+                        check_small
+                      </span>
+                      <span className={styles.filterOptionLabel}>{option.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            ) : null}
+          </div>
+
+          {showZoomControls ? (
+            <div className={styles.zoomControl} role="group" aria-label="Card size">
+              <button
+                type="button"
+                className={styles.zoomButton}
+                onClick={onZoomOut}
+                disabled={!canZoomOut}
+                aria-label="Smaller cards"
+              >
+                <span className="material-symbols-outlined" aria-hidden="true">remove</span>
+              </button>
+              <input
+                type="range"
+                className={styles.zoomSlider}
+                min={LIBRARY_ZOOM.min}
+                max={LIBRARY_ZOOM.max}
+                step={0.01}
+                value={zoomScale}
+                style={{ "--zoom-fill": `${((zoomScale - LIBRARY_ZOOM.min) / (LIBRARY_ZOOM.max - LIBRARY_ZOOM.min)) * 100}%` }}
+                aria-label="Card size"
+                aria-valuetext={`${Math.round(zoomScale * 100)}%`}
+                onChange={(event) => onZoomChange?.(Number(event.target.value))}
+              />
+              <button
+                type="button"
+                className={styles.zoomButton}
+                onClick={onZoomIn}
+                disabled={!canZoomIn}
+                aria-label="Bigger cards"
+              >
+                <span className="material-symbols-outlined" aria-hidden="true">add</span>
+              </button>
             </div>
           ) : null}
         </div>
-
-        {showZoomControls ? (
-          <div className={styles.zoomControl} role="group" aria-label="Card size">
-            <button
-              type="button"
-              className={styles.zoomButton}
-              onClick={onZoomOut}
-              disabled={!canZoomOut}
-              aria-label="Smaller cards"
-            >
-              <span className="material-symbols-outlined" aria-hidden="true">remove</span>
-            </button>
-            <input
-              type="range"
-              className={styles.zoomSlider}
-              min={LIBRARY_ZOOM.min}
-              max={LIBRARY_ZOOM.max}
-              step={0.01}
-              value={zoomScale}
-              style={{ "--zoom-fill": `${((zoomScale - LIBRARY_ZOOM.min) / (LIBRARY_ZOOM.max - LIBRARY_ZOOM.min)) * 100}%` }}
-              aria-label="Card size"
-              aria-valuetext={`${Math.round(zoomScale * 100)}%`}
-              onChange={(event) => onZoomChange?.(Number(event.target.value))}
-            />
-            <button
-              type="button"
-              className={styles.zoomButton}
-              onClick={onZoomIn}
-              disabled={!canZoomIn}
-              aria-label="Bigger cards"
-            >
-              <span className="material-symbols-outlined" aria-hidden="true">add</span>
-            </button>
-          </div>
-        ) : null}
       </div>
     </header>
   );

@@ -29,7 +29,8 @@ export default function BottomNav({ activeTab = "multi", onTabChange, icons, dis
       <span className={styles.navIndicator} aria-hidden="true" />
       {tabs.map((tab) => {
         const isActive = tab.id === activeTab;
-        const icon = fallbackIcons[tab.id] || icons?.[tab.id];
+        // A theme's icon pack may choose dock icons; otherwise the defaults apply.
+        const icon = icons?.[tab.id] || fallbackIcons[tab.id];
         return (
           <button
             key={tab.id}

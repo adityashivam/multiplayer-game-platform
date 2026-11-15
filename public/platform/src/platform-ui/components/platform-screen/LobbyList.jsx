@@ -1,6 +1,6 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { CATALOG_SORT_OPTIONS } from "../../../../shared/gameCatalog.js";
-import { readCatalogColumnCount, readNextCatalogIndex } from "../../services/catalogNavigation.js";
+import { readSpatialCatalogIndex } from "../../services/catalogNavigation.js";
 import CatalogPagination from "./CatalogPagination.jsx";
 import GameCard from "./GameCard.jsx";
 import GameShowcase from "./GameShowcase.jsx";
@@ -24,6 +24,10 @@ const GRID_KEY_DIRECTIONS = Object.freeze({
 });
 
 const ZOOM_MORPH_MS = 260;
+/** Matches `.selected .cardMedia` in GameLibrary.module.scss. */
+const SELECTED_CARD_SCALE = 1.05;
+const SELECTION_BAR_WIDTH_SHARE = 0.32;
+const SELECTION_BAR_GAP_PX = 6;
 
 /**
  * Show a bounded catalog page in a vertical grid with a secondary selected-game preview.
@@ -103,20 +107,18 @@ export default function LobbyList({
         ring.dataset.ready = "false";
         return;
       }
-      // Measure from the card's centre so its own lift or scale can't skew the ring.
-      // The edge light hugs the card and takes the game's colour.
-      const inset = 0;
+      // A short bar in the game's colour sits under the selected card. It is
+      // measured from the card's centre, which its scale never moves.
       const accent = media.closest("[data-library-card-id]")?.style.getPropertyValue("--game-accent");
       if (accent) ring.style.setProperty("--ring-accent", accent);
       const mediaBounds = media.getBoundingClientRect();
       const gridBounds = grid.getBoundingClientRect();
-      const width = media.offsetWidth + inset * 2;
-      const height = media.offsetHeight + inset * 2;
+      const width = Math.max(18, Math.round(media.offsetWidth * SELECTION_BAR_WIDTH_SHARE));
       const centreX = mediaBounds.left + mediaBounds.width / 2 - gridBounds.left - grid.clientLeft + grid.scrollLeft;
       const centreY = mediaBounds.top + mediaBounds.height / 2 - gridBounds.top - grid.clientTop + grid.scrollTop;
+      const barTop = centreY + (media.offsetHeight * SELECTED_CARD_SCALE) / 2 + SELECTION_BAR_GAP_PX;
       ring.style.width = `${width}px`;
-      ring.style.height = `${height}px`;
-      ring.style.transform = `translate(${centreX - width / 2}px, ${centreY - height / 2}px) scale(1.04)`;
+      ring.style.transform = `translate(${centreX - width / 2}px, ${barTop}px)`;
       if (ring.dataset.ready !== "true") requestAnimationFrame(() => { ring.dataset.ready = "true"; });
     };
     placeRingRef.current = placeRing;
@@ -134,8 +136,8 @@ export default function LobbyList({
   function navigateGameGrid(event) {
     if (loading || !Object.hasOwn(GRID_KEY_DIRECTIONS, event.key)) return;
     event.preventDefault();
-    const columns = readCatalogColumnCount(gridRef.current);
-    onSelectIndex(readNextCatalogIndex(selectedIndex, GRID_KEY_DIRECTIONS[event.key], columns, games.length), true);
+    const cardBoxes = [...gridRef.current.querySelectorAll("[data-library-card-id]")].map((card) => card.getBoundingClientRect());
+    onSelectIndex(readSpatialCatalogIndex(cardBoxes, selectedIndex, GRID_KEY_DIRECTIONS[event.key]), true);
   }
 
   return (
@@ -145,7 +147,7 @@ export default function LobbyList({
           <div className={styles.catalogHeading}>
             <div>
               <h1 id="catalog-title">Game library <span>{catalogPage.total.toLocaleString()}</span></h1>
-              <p role="status" aria-live="polite">
+              <p role="status" aria-live="polite" className={!loading && catalogPage.totalPages <= 1 ? styles.visuallyHidden : undefined}>
                 {loading ? "Finding games…" : catalogPage.total
                   ? `${firstResult.toLocaleString()}–${lastResult.toLocaleString()} of ${catalogPage.total.toLocaleString()} games`
                   : "No matching games"}
@@ -198,7 +200,7 @@ export default function LobbyList({
               <p>{loading ? "Getting everything ready to play." : emptyMessage}</p>
             </div>
           )}
-          {catalogPage.total > 0 && (
+          {catalogPage.totalPages > 1 && (
             <CatalogPagination
               page={catalogPage.page}
               totalPages={catalogPage.totalPages}

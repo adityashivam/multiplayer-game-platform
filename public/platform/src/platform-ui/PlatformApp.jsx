@@ -1,8 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { DEFAULT_THEME_ICONS } from "../data/themes/icons.js";
-import { removeTheme } from "../utils/themeEngine.js";
 import BottomNav from "./components/platform-screen/BottomNav.jsx";
-import ConfigPanel from "./components/platform-screen/ConfigPanel.jsx";
+import ConfigPanel, { SettingsBackdrop } from "./components/platform-screen/ConfigPanel.jsx";
 import GameView from "./components/platform-screen/GameView.jsx";
 import LobbyHeader from "./components/platform-screen/LobbyHeader.jsx";
 import LobbyList from "./components/platform-screen/LobbyList.jsx";
@@ -17,9 +16,11 @@ import useGameOrientation from "./hooks/useGameOrientation.js";
 import usePlatformRoute from "./hooks/usePlatformRoute.js";
 import useTouchProfile from "./hooks/useTouchProfile.js";
 import useRoomLifecycle from "./hooks/useRoomLifecycle.js";
+import usePlatformTheme from "./hooks/usePlatformTheme.js";
 import { createRoomInvitePolicy } from "./services/roomInvitePolicy.js";
 import { getGameRuntimeSpec } from "./services/gameRuntime.js";
-import { readCatalogColumnCount, readNextCatalogIndex } from "./services/catalogNavigation.js";
+import { readSpatialCatalogIndex } from "./services/catalogNavigation.js";
+import { readGameLibraryDetails } from "./services/gamePresentation.js";
 import LibraryBackdrop from "./components/platform-screen/LibraryBackdrop.jsx";
 import LaunchOverlay from "./components/platform-screen/LaunchOverlay.jsx";
 import BootReveal from "./components/platform-screen/BootReveal.jsx";
@@ -39,6 +40,8 @@ export default function App() {
   const [tabSwap, setTabSwap] = useState(null);
   const [launch, setLaunch] = useState(null);
   const [cardScale, setCardScale] = useState(() => readLibraryZoom());
+  // Applied at startup so the chosen theme shows before Settings is opened.
+  const platformTheme = usePlatformTheme();
   const [catalogQuery, setCatalogQuery] = useState({ page: 1, q: "", genre: "all", sort: "name-asc" });
   const [touchEditorOpen, setTouchEditorOpen] = useState(false);
   const [voiceDialogOpen, setVoiceDialogOpen] = useState(false);
@@ -112,7 +115,7 @@ export default function App() {
 
   useEffect(() => {
     document.documentElement.classList.add("dark");
-    removeTheme();
+    // Keys from the retired theme engine; platform themes use their own store.
     localStorage.removeItem("kaboom-preferred-theme");
     localStorage.removeItem("kaboom-selected-theme");
   }, []);
@@ -200,10 +203,10 @@ export default function App() {
       ensureLobbyMusicPlayback();
       if (isGameView || activeTab === "config" || loadingGames || !visibleGames.length) return;
 
-      const gridColumns = readCatalogColumnCount(cardRefs.current[0]?.closest("[data-game-grid]"));
+      const cardBoxes = visibleGames.map((_game, index) => cardRefs.current[index]?.getBoundingClientRect() ?? { left: 0, top: 0, width: 0, height: 0 });
 
       setSelectedIndex((current) => {
-        const nextIndex = readNextCatalogIndex(current, direction, gridColumns, visibleGames.length);
+        const nextIndex = readSpatialCatalogIndex(cardBoxes, current, direction);
 
         focusSelectedCardRef.current = nextIndex !== current;
         if (nextIndex !== current) {
@@ -349,13 +352,16 @@ export default function App() {
   }, []);
 
   const footer = !isGameView ? (
-    <BottomNav activeTab={activeTab} onTabChange={handleTabChange} icons={DEFAULT_THEME_ICONS.nav} disabled={configDialogOpen} />
+    <BottomNav activeTab={activeTab} onTabChange={handleTabChange} icons={platformTheme.selectedTheme.icons.nav} disabled={configDialogOpen} />
   ) : null;
 
   return (
     <PlatformShell
       footer={footer}
-      backdrop={!isGameView && activeTab !== "config" ? <LibraryBackdrop game={visibleGames[selectedIndex] || visibleGames[0] || null} /> : null}
+      accentColor={readGameLibraryDetails((isGameView ? activeGame : visibleGames[selectedIndex]) || {}).accentColor}
+      backdrop={isGameView ? null : activeTab === "config"
+        ? <SettingsBackdrop background={platformTheme.selectedTheme.background} />
+        : <LibraryBackdrop game={visibleGames[selectedIndex] || visibleGames[0] || null} background={platformTheme.selectedTheme.background} />}
       overlay={launch && isGameView ? <LaunchOverlay launch={launch} onDone={finishLaunch} /> : null}
       contentSwap={isGameView ? null : tabSwap}
       fullscreenActive={fullscreenActive}
@@ -413,6 +419,7 @@ export default function App() {
           onToggleMute={() => setMuted((prev) => !prev)}
           onMusicVolumeChange={updateMusicVolume}
           onDialogChange={setConfigDialogOpen}
+          theme={platformTheme}
         />
       )}
 

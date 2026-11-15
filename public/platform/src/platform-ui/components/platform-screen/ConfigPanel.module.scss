@@ -1,9 +1,15 @@
 .panel {
+  position: relative;
+  z-index: 1;
   flex: 1;
   min-width: 0;
   min-height: 0;
-  padding: 2px 2px 20px;
+  // Room to scroll the last card clear of the dock, with a soft fade instead
+  // of a hard cut at the bottom edge.
+  padding: var(--space-1) var(--space-1) var(--space-10);
   overflow-y: auto;
+  -webkit-mask-image: linear-gradient(180deg, #000 calc(100% - 32px), transparent);
+  mask-image: linear-gradient(180deg, #000 calc(100% - 32px), transparent);
   color: var(--platform-text);
   font-family: var(--platform-font-body);
   scrollbar-width: thin;
@@ -19,22 +25,129 @@
 }
 
 .heading {
-  margin: 0 0 var(--space-6);
+  margin: 0;
   color: var(--text-strong);
   font-family: var(--platform-font-heading);
   font-size: var(--type-xl);
-  font-weight: 600;
+  font-weight: 700;
   line-height: 1.1;
-  letter-spacing: -.035em;
+  letter-spacing: -.04em;
 }
 
-.sectionLabel {
-  margin: 0 0 var(--space-3);
+.headingNote {
+  margin: var(--space-1) 0 var(--space-5);
   color: var(--text-muted);
-  font-size: var(--type-xs);
-  font-weight: 600;
-  letter-spacing: .1em;
-  text-transform: uppercase;
+  font-size: var(--type-sm);
+}
+
+// One column on narrow screens; wide screens put game controls beside a
+// column of sound and theme, so every section shows without scrolling.
+.settingsLayout {
+  display: grid;
+  align-items: start;
+  gap: var(--space-4);
+}
+
+.settingsSide {
+  display: grid;
+  gap: var(--space-4);
+  min-width: 0;
+
+  // Stacked on narrow screens, Sound stays last; beside game controls it
+  // leads the column so it shows without scrolling.
+  > [data-settings-section="theme"] { order: 1; }
+  > [data-settings-section="sound"] { order: 2; }
+}
+
+@container platform-settings (min-width: 820px) {
+  .settingsLayout {
+    grid-template-columns: minmax(0, 1.5fr) minmax(320px, 1fr);
+  }
+
+  .settingsSide > [data-settings-section="sound"] { order: 0; }
+
+  // The side column stays in view while the taller game controls scroll.
+  .settingsSide {
+    position: sticky;
+    top: 0;
+  }
+}
+
+// Every settings section is one glass card with an icon, a title and rows.
+.settingsCard {
+  container-type: inline-size;
+  min-width: 0;
+  padding: var(--space-5);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-lg);
+  background: var(--glass-1);
+  box-shadow: var(--elevation-1), var(--glass-highlight);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  animation: settingsCardIn var(--motion-slow) var(--ease-spring) both;
+}
+
+.cardIntro {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+
+  h2 {
+    margin: 0;
+    color: var(--text-strong);
+    font: 600 var(--type-lg) / 1.2 var(--platform-font-heading);
+    letter-spacing: -.02em;
+  }
+
+  p {
+    margin: 2px 0 0;
+    color: var(--text-muted);
+    font-size: var(--type-sm);
+  }
+}
+
+.cardIcon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 var(--control-md);
+  height: var(--control-md);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-md);
+  background: var(--surface-selected);
+  color: color-mix(in srgb, var(--shell-accent, #00daf3) 75%, white);
+  font-size: 22px;
+}
+
+@keyframes settingsCardIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+
+.settingsBackdropLayers {
+  position: absolute;
+  inset: -3%;
+  filter: blur(var(--backdrop-blur, 0px));
+
+  &::after {
+    position: absolute;
+    inset: 0;
+    background: var(--surface-base);
+    opacity: .45;
+    content: "";
+  }
+}
+
+// Ambient light behind the settings screen, in the console's colour.
+.settingsBackdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background:
+    radial-gradient(70% 55% at 90% -10%, color-mix(in srgb, var(--shell-accent, #00daf3) 16%, transparent), transparent 70%),
+    radial-gradient(60% 50% at -10% 110%, rgba(255, 255, 255, .05), transparent 65%),
+    var(--surface-base);
+  pointer-events: none;
 }
 
 .audioCard {
@@ -44,19 +157,382 @@
   align-items: center;
   gap: var(--space-6);
   width: 100%;
-  padding: var(--space-4) var(--space-5);
-  border: 1px solid var(--glass-border);
-  border-radius: var(--radius-lg);
-  background: var(--platform-surface);
+  padding: var(--space-4) 0 0;
+  border-top: 1px solid var(--glass-border);
 }
 
-@container platform-settings (max-width: 640px) {
+// In a narrow card the title sits on top and the slider shares a row with Mute.
+@container (max-width: 560px) {
   .audioCard {
     grid-template-columns: minmax(0, 1fr) auto;
-    grid-template-areas: "info mute" "volume volume";
+    grid-template-areas: "info info" "volume mute";
     gap: var(--space-3);
-    padding: var(--space-4);
   }
+}
+
+// Theme tiles: a miniature of each theme's screen, glass panel and accent.
+.themeGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(86px, 1fr));
+  gap: var(--space-2);
+}
+
+.themeTileWrap {
+  position: relative;
+  min-width: 0;
+}
+
+.themeTile {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  width: 100%;
+  padding: 6px 6px var(--space-2);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-md);
+  background: var(--platform-surface);
+  color: var(--text-strong);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color var(--motion-fast) ease, background var(--motion-fast) ease, transform var(--motion-fast) var(--ease-spring);
+
+  &:hover {
+    background: var(--surface-hover);
+  }
+
+  &:active {
+    transform: scale(.98);
+  }
+
+  &[aria-pressed="true"] {
+    border-color: var(--platform-accent);
+    background: var(--surface-selected);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 2px;
+  }
+}
+
+.themeSwatch {
+  position: relative;
+  display: block;
+  height: 48px;
+  margin-bottom: 6px;
+  overflow: hidden;
+  border-radius: var(--swatch-radius, 10px);
+  background:
+    radial-gradient(80% 70% at 85% 0%, color-mix(in srgb, var(--swatch-accent) 28%, transparent), transparent 70%),
+    var(--swatch-background);
+
+  &[data-background="image"] {
+    background: linear-gradient(color-mix(in srgb, var(--swatch-background) 35%, transparent), color-mix(in srgb, var(--swatch-background) 35%, transparent)), var(--swatch-image) center / cover;
+  }
+
+  &[data-background="pattern"][data-pattern="dots"] {
+    background-image: radial-gradient(color-mix(in srgb, var(--swatch-text) 22%, transparent) 1px, transparent 1.5px), radial-gradient(80% 70% at 85% 0%, color-mix(in srgb, var(--swatch-accent) 28%, transparent), transparent 70%);
+    background-size: 8px 8px, auto;
+  }
+
+  &[data-background="pattern"]:not([data-pattern="dots"]) {
+    background-image: linear-gradient(color-mix(in srgb, var(--swatch-text) 9%, transparent) 1px, transparent 1px), linear-gradient(90deg, color-mix(in srgb, var(--swatch-text) 9%, transparent) 1px, transparent 1px), radial-gradient(80% 70% at 85% 0%, color-mix(in srgb, var(--swatch-accent) 28%, transparent), transparent 70%);
+    background-size: 12px 12px, 12px 12px, auto;
+  }
+}
+
+// A tiny game card in the theme's card shape.
+.swatchCard {
+  position: absolute;
+  right: 7px;
+  top: 6px;
+  height: 24px;
+  aspect-ratio: var(--swatch-aspect, 3 / 4);
+  border: 1px solid color-mix(in srgb, var(--swatch-text) 18%, transparent);
+  border-radius: calc(var(--swatch-radius, 10px) * .55);
+  background: linear-gradient(160deg, color-mix(in srgb, var(--swatch-accent) 35%, var(--swatch-surface)), var(--swatch-surface));
+}
+
+.swatchPanel {
+  position: absolute;
+  left: 7px;
+  top: 8px;
+  display: grid;
+  gap: 4px;
+  width: 50%;
+  padding: 6px;
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--swatch-surface) 85%, transparent);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .06);
+
+  > i {
+    display: block;
+    height: 4px;
+    border-radius: 999px;
+    background: var(--swatch-text);
+  }
+
+  > i + i {
+    width: 70%;
+    background: var(--swatch-muted);
+  }
+}
+
+.swatchPill {
+  position: absolute;
+  left: 7px;
+  bottom: 6px;
+  width: 30%;
+  height: 9px;
+  border-radius: 999px;
+  background: var(--swatch-accent);
+}
+
+.themeName {
+  overflow: hidden;
+  font: 600 var(--type-sm) / 1.3 var(--swatch-font, var(--platform-font-heading));
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.themeMeta {
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: var(--type-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.themeRemove {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid var(--glass-border);
+  border-radius: 50%;
+  background: var(--glass-3);
+  color: var(--text-strong);
+  cursor: pointer;
+
+  > span {
+    font-size: 16px;
+  }
+
+  &:hover {
+    background: var(--surface-hover);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 2px;
+  }
+}
+
+.themeActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
+}
+
+.quietAction,
+.applyAction {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  height: var(--control-sm);
+  padding: 0 var(--space-4) 0 var(--space-3);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-pill);
+  background: var(--platform-surface);
+  color: var(--text-strong);
+  font: 600 var(--type-sm) var(--platform-font-body);
+  cursor: pointer;
+  transition: background var(--motion-fast) ease, transform var(--motion-fast) var(--ease-spring);
+
+  > span {
+    font-size: 18px;
+  }
+
+  &:hover:not(:disabled) {
+    background: var(--surface-hover);
+  }
+
+  &:active:not(:disabled) {
+    transform: scale(.97);
+  }
+
+  &:disabled {
+    opacity: .45;
+    cursor: default;
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 2px;
+  }
+}
+
+.applyAction {
+  align-self: flex-end;
+  padding: 0 var(--space-4);
+  border-color: transparent;
+  background: var(--platform-accent);
+  color: var(--platform-accent-text);
+
+  &:hover:not(:disabled) {
+    background: var(--platform-accent-hover);
+  }
+}
+
+.themePaste {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+  animation: settingsCardIn var(--motion-medium) var(--ease-spring) both;
+
+  textarea {
+    min-height: 120px;
+    padding: var(--space-3);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-md);
+    background: var(--platform-surface-inset);
+    color: var(--text-strong);
+    font: var(--type-xs) / 1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+    resize: vertical;
+
+    &:focus-visible {
+      outline: none;
+      border-color: var(--border-strong);
+    }
+  }
+}
+
+// Customize: label on the left, control on the right, one row per setting.
+.customizer {
+  display: grid;
+  gap: var(--space-1);
+  margin-top: var(--space-4);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--glass-border);
+  animation: settingsCardIn var(--motion-medium) var(--ease-spring) both;
+}
+
+.customizeRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-height: var(--control-md);
+
+  > label, > span {
+    flex-shrink: 0;
+    color: var(--text-body);
+    font-size: var(--type-sm);
+    font-weight: 600;
+  }
+}
+
+.customizeControl {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.customizeSelect {
+  max-width: 170px;
+  height: var(--control-sm);
+  padding: 0 var(--space-3);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-pill);
+  background: var(--platform-surface);
+  color: var(--text-strong);
+  font: var(--type-sm) var(--platform-font-body);
+  cursor: pointer;
+}
+
+.customizeRange {
+  width: min(170px, 100%);
+  accent-color: var(--platform-accent);
+}
+
+.colorInput {
+  width: 44px;
+  height: 30px;
+  padding: 0;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-pill);
+  background: transparent;
+  cursor: pointer;
+
+  &::-webkit-color-swatch-wrapper { padding: 3px; }
+  &::-webkit-color-swatch { border: 0; border-radius: var(--radius-pill); }
+  &::-moz-color-swatch { border: 0; border-radius: var(--radius-pill); }
+}
+
+.inlineSwitch {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--text-body);
+  font-size: var(--type-sm);
+  cursor: pointer;
+
+  input { accent-color: var(--platform-accent); }
+}
+
+// Mutually exclusive choices as one pill.
+.segmented {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-pill);
+  background: var(--platform-surface-inset);
+
+  > button {
+    height: 28px;
+    padding: 0 var(--space-3);
+    border: 0;
+    border-radius: var(--radius-pill);
+    background: transparent;
+    color: var(--text-muted);
+    font: 600 var(--type-xs) var(--platform-font-body);
+    cursor: pointer;
+    transition: background var(--motion-medium) var(--ease-spring), color var(--motion-fast) ease;
+
+    &:hover { color: var(--text-strong); }
+    &[aria-pressed="true"] { background: var(--surface-selected); color: var(--text-strong); }
+    &:focus-visible { outline: 2px solid var(--focus-ring); }
+  }
+}
+
+.customizeNote {
+  margin: var(--space-2) 0 0;
+  color: var(--text-muted);
+  font-size: var(--type-xs);
+  line-height: 1.5;
+}
+
+.themeStatus {
+  min-height: 18px;
+  margin: var(--space-3) 0 0;
+  color: var(--text-muted);
+  font-size: var(--type-xs);
+}
+
+.themeStatusError {
+  color: var(--platform-warning);
 }
 
 .audioHeader {
@@ -158,11 +634,10 @@
 
 @media (max-width: 520px) {
   .heading {
-    margin-bottom: var(--space-5);
     font-size: var(--type-title);
   }
 
-  .audioCard {
+  .settingsCard {
     padding: var(--space-4);
   }
 }
@@ -170,5 +645,9 @@
 @media (prefers-reduced-motion: reduce) {
   .muteButton {
     transition: none;
+  }
+
+  .settingsCard {
+    animation: none;
   }
 }

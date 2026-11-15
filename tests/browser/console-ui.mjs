@@ -49,11 +49,14 @@ async function verifyFocusRing(page, viewport) {
     const selected=document.querySelector('[data-library-card-id][aria-pressed="true"] [data-card-media]');
     if(!ring||!selected)return null;
     const a=ring.getBoundingClientRect(),b=selected.getBoundingClientRect();
-    return{dx:Math.abs((a.left+a.width/2)-(b.left+b.width/2)),dy:Math.abs((a.top+a.height/2)-(b.top+b.height/2)),ready:ring.dataset.ready};
+    return{dx:Math.abs((a.left+a.width/2)-(b.left+b.width/2)),gap:a.top-b.bottom,barHeight:a.height,ready:ring.dataset.ready,
+      outline:getComputedStyle(selected).outlineStyle,borderWidth:parseFloat(getComputedStyle(ring).borderTopWidth)||0};
   `);
-  assert.ok(alignment, `${viewport.name}: a focus ring and a selected card exist`);
+  assert.ok(alignment, `${viewport.name}: a selection bar and a selected card exist`);
   assert.equal(alignment.ready, "true");
-  assert.ok(alignment.dx < 3 && alignment.dy < 3, `${viewport.name}: the focus ring is centred on the selected card ${JSON.stringify(alignment)}`);
+  assert.ok(alignment.dx < 3, `${viewport.name}: the selection bar is centred under the selected card ${JSON.stringify(alignment)}`);
+  assert.ok(alignment.gap > 0 && alignment.gap < 14 && alignment.barHeight <= 4, `${viewport.name}: the selection is a short bar just below the card, not an outline ${JSON.stringify(alignment)}`);
+  assert.equal(alignment.borderWidth, 0, `${viewport.name}: the selection draws no outline`);
 }
 
 async function verifyBackdropFollowsFocus(page, viewport) {

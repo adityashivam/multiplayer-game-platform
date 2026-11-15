@@ -580,7 +580,7 @@
     justify-items: center;
     justify-content: center;
     align-content: center;
-    gap: clamp(4px, 0.8dvh, 8px);
+    gap: var(--deck-row-gap, clamp(4px, 0.8dvh, 8px));
     padding: 2px 0;
   }
 
@@ -616,12 +616,13 @@
     order: 3;
   }
 
+  // A deck may size its pads (`--deck-pad-size`); otherwise they follow the height.
   .controllerSplitMainDpad .directionPadShell {
-    width: clamp(64px, calc(22dvh - 70px), 124px);
+    width: var(--deck-pad-size, clamp(64px, calc(22dvh - 70px), 124px));
   }
 
   .controllerSplitMainAction .actionPadShell {
-    --pad-size: clamp(64px, calc(22dvh - 70px), 124px);
+    --pad-size: var(--deck-pad-size, clamp(64px, calc(22dvh - 70px), 124px));
     transform: none;
   }
 
@@ -661,46 +662,47 @@
     align-self: start;
   }
 
+  // HOME/START follow the deck's own scale (`--deck-utility-scale`).
   .utilityButtonItem {
     gap: 4px;
-    width: 62px;
+    width: calc(62px * var(--deck-utility-scale, 1));
   }
 
   .utilityButton {
-    width: 62px;
-    min-width: 62px;
-    max-width: 62px;
-    height: 16px;
+    width: calc(62px * var(--deck-utility-scale, 1));
+    min-width: calc(62px * var(--deck-utility-scale, 1));
+    max-width: calc(62px * var(--deck-utility-scale, 1));
+    height: calc(16px * var(--deck-utility-scale, 1));
     padding: 0 10px;
   }
 
   .utilityButtonLabel {
     width: 100%;
     text-align: center;
-    font-size: 6.5px;
+    font-size: calc(6.5px * var(--deck-utility-scale, 1));
     letter-spacing: 0.12em;
   }
 
   .directionHint {
-    font-size: 13px;
+    font-size: calc(13px * var(--deck-control-scale, 1));
   }
 
   .actionButtonLabel {
-    font-size: 14px;
+    font-size: calc(14px * var(--deck-control-scale, 1));
   }
 }
 
 @media (max-height: 600px) and (max-width: 900px) and (orientation: portrait) {
   .controllerBodySplit {
-    gap: 4px;
+    gap: var(--deck-row-gap, 4px);
     padding: 2px 0;
   }
 
   .controllerSplitMainDpad .directionPadShell {
-    width: 64px;
+    width: var(--deck-pad-size, 64px);
   }
 
   .controllerSplitMainAction .actionPadShell {
-    --pad-size: 64px;
+    --pad-size: var(--deck-pad-size, 64px);
   }
 }

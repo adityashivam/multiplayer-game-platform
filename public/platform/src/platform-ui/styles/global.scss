@@ -1,3 +1,10 @@
+// Registered so the console shell's light can fade between game colours.
+@property --shell-accent {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: #00daf3;
+}
+
 :root {
   --platform-font-heading: "Space Grotesk", sans-serif;
   --platform-font-body: "Manrope", sans-serif;
@@ -29,6 +36,18 @@
   --elevation-2: 0 12px 32px rgba(0, 0, 0, .36);
   --elevation-3: 0 24px 64px rgba(0, 0, 0, .48);
   --platform-warm: #ffb547;
+  // Theme-able surfaces: the screen's base colour, the console chassis and
+  // the primary action's hover. Platform themes override these.
+  --surface-base: #0b0d10;
+  --platform-accent-hover: #7eebf7;
+  --chassis: #1c1b1b;
+  --chassis-deep: #0e0e0e;
+  // Icon pack and card shape; themes swap the Material Symbols family,
+  // fill and weight, and the library's card aspect ratio.
+  --icon-font-family: "Material Symbols Outlined";
+  --icon-fill: 0;
+  --icon-weight: 400;
+  --card-aspect: 3 / 4;
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;
@@ -153,6 +172,31 @@
 
 // Exit motion for anything wrapped in <Presence>: it fades and settles away
 // instead of vanishing, and can't be interacted with while it leaves.
+// Switching themes crossfades the whole screen instead of snapping colours.
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 420ms;
+  animation-timing-function: cubic-bezier(.2, .8, .2, 1);
+}
+
+// Icon packs: the theme picks the family; fill and weight are defaults that
+// any component setting its own font-variation-settings still overrides.
+html .material-symbols-outlined {
+  font-family: var(--icon-font-family), "Material Symbols Outlined";
+  // Icons keep their own size whatever text normalisation a theme uses.
+  font-size-adjust: none;
+}
+
+// Pixel-font themes normalise text by x-height and turn off faux bold.
+html {
+  font-size-adjust: var(--font-size-adjust, none);
+  font-synthesis: var(--font-synthesis, weight style);
+}
+
+:where(.material-symbols-outlined) {
+  font-variation-settings: "FILL" var(--icon-fill), "wght" var(--icon-weight);
+}
+
 .platform-presence[data-presence="exit"] > * {
   animation: presenceExit var(--motion-exit) var(--ease-exit) forwards;
   pointer-events: none;

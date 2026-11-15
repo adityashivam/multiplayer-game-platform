@@ -49,6 +49,12 @@ try {
   const muted = await readSettingsGeometry(page);
   assert.ok(Math.abs(muted.mute.right - desktop.mute.right) < 1, "The Muted state stays aligned at the far right");
   await click(page, '[aria-label="Unmute lobby music"]');
+  // Picking a theme recolours the platform at once and is remembered.
+  await evaluate(page, "[...document.querySelectorAll('[aria-label=\"Platform themes\"] button[aria-pressed]')].find(button=>button.textContent.startsWith('Ember')).click();");
+  await waitFor(page, "getComputedStyle(document.documentElement).getPropertyValue('--platform-accent').trim()==='#ff8a4c'");
+  await waitFor(page, "JSON.parse(localStorage.getItem('platform.themes.v1')||'{}').selectedId==='ember'");
+  await evaluate(page, "[...document.querySelectorAll('[aria-label=\"Platform themes\"] button[aria-pressed]')].find(button=>button.textContent.startsWith('Kaboom')).click();");
+  await waitFor(page, "!document.documentElement.style.getPropertyValue('--platform-accent')");
   assert.ok(desktop.preview.width >= desktop.previewFigure.width * 0.97, "Landscape preview should fill its column instead of sitting inside a wide empty frame");
   for (const dimension of ["x", "y", "width", "height"]) assert.ok(Math.abs(desktop.shell[dimension] - homeShell[dimension]) < 1, `Stable console ${dimension}`);
 

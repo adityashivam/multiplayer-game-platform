@@ -1,4 +1,7 @@
+// The header stacks above the card grid so its menus open over the cards.
 .header {
+  position: relative;
+  z-index: 20;
   display: flex;
   align-items: center;
   gap: var(--space-6);
@@ -95,19 +98,38 @@
   padding: 0 var(--space-3) 0 var(--space-4);
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-pill);
-  background: var(--glass-1);
-  -webkit-backdrop-filter: var(--glass-blur);
-  backdrop-filter: var(--glass-blur);
-  transition: border-color var(--motion-fast) ease, background var(--motion-fast) ease;
+  background: transparent;
+  isolation: isolate;
+  transition: border-color var(--motion-fast) ease;
 
-  &:hover {
+  // Glass on a backing layer, so the genre menu inside can still blur the page.
+  &::before {
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    border-radius: inherit;
+    background: var(--glass-1);
+    -webkit-backdrop-filter: var(--glass-blur);
+    backdrop-filter: var(--glass-blur);
+    transition: background var(--motion-fast) ease;
+    content: "";
+  }
+
+  &:hover::before {
     background: var(--glass-2);
   }
 }
 
+.filterControlActive .filterIcon {
+  color: var(--platform-accent);
+}
+
 .filterControlOpen {
   border-color: var(--border-strong);
-  background: var(--glass-2);
+
+  &::before {
+    background: var(--glass-2);
+  }
 }
 
 .filterIcon {
@@ -464,23 +486,30 @@
     font-size: 18px;
   }
 
+  // A quiet control: it supports the title rather than competing with it.
   select {
     max-width: 170px;
     height: var(--control-sm);
-    padding: 0 var(--space-4);
-    border: 1px solid var(--glass-border);
+    padding: 0 var(--space-2);
+    border: 1px solid transparent;
     border-radius: var(--radius-pill);
-    background: var(--glass-1);
-    color: var(--text-body);
+    background: transparent;
+    color: var(--text-muted);
     font-size: var(--type-sm);
-    font-weight: 500;
+    font-weight: 600;
     cursor: pointer;
-    transition: background var(--motion-fast) ease, border-color var(--motion-fast) ease;
+    transition: background var(--motion-fast) ease, color var(--motion-fast) ease;
 
     &:hover {
-      background: var(--glass-2);
+      background: var(--surface-hover);
+      color: var(--text-strong);
     }
   }
+}
+
+// Filter and card size: separate pills on wide screens, one pill on phones.
+.headerActions {
+  display: contents;
 }
 
 .catalogNotice {
@@ -567,11 +596,11 @@
 // Portrait capsule art; the focused card lifts and glows in its game's accent.
 .cardMedia {
   position: relative;
-  aspect-ratio: 3 / 4;
+  aspect-ratio: var(--card-aspect, 3 / 4);
   overflow: hidden;
   border: 1px solid rgba(226, 244, 250, .1);
   border-radius: var(--radius-md);
-  background: #101a20;
+  background: color-mix(in srgb, var(--surface-base) 85%, white 3%);
   box-shadow: var(--elevation-1);
   transform: translateZ(0);
   transition:
@@ -590,22 +619,32 @@
   transform: translateY(-2px);
 }
 
+// Selection is light and depth, never an outline: the card lifts with a
+// shadow and a bloom in its game's colour, its art pushes in, and the rest
+// of the shelf steps back.
 .selected .cardMedia,
 .card.selected:hover:not(:disabled) .cardMedia {
-  border-color: transparent;
+  border-color: rgba(255, 255, 255, .12);
   box-shadow:
-    0 22px 44px -16px rgba(0, 0, 0, .85),
-    0 14px 36px -18px color-mix(in srgb, var(--game-accent, #ffffff) 55%, transparent);
-  transform: scale(1.04);
+    0 26px 48px -18px rgba(0, 0, 0, .9),
+    0 18px 44px -20px color-mix(in srgb, var(--game-accent, #ffffff) 70%, transparent);
+  transform: scale(1.05);
 }
 
-// Spotlight: the selection is lit, the rest of the shelf steps back.
+.cardMedia .coverImage {
+  transition: transform 700ms var(--ease-settle);
+}
+
+.selected .cardMedia .coverImage {
+  transform: scale(1.06);
+}
+
 .gameGrid:has(.selected) .card:not(.selected) .cardMedia {
-  filter: brightness(.66) saturate(.8);
+  filter: brightness(.58) saturate(.75);
 }
 
 .gameGrid:has(.selected) .card:not(.selected):hover .cardMedia {
-  filter: brightness(.9) saturate(.95);
+  filter: brightness(.85) saturate(.92);
 }
 
 // Cards rise in, a few at a time, when a page or filter shows new games.
@@ -624,28 +663,26 @@
   outline: none;
 }
 
-// A thin edge light in the game's colour that glides between cards instead
-// of jumping; it hugs the card rather than floating around it.
+// The selection bar: a short pill in the game's colour that glides under
+// the selected card instead of an outline around it.
 .focusGlide {
   position: absolute;
   top: 0;
   left: 0;
   z-index: 3;
-  border: 1.5px solid color-mix(in srgb, var(--ring-accent, #ffffff) 45%, rgba(255, 255, 255, .85));
-  border-radius: var(--radius-md);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, .25),
-    0 0 26px -6px color-mix(in srgb, var(--ring-accent, #ffffff) 60%, transparent);
+  height: 3px;
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--ring-accent, #ffffff) 80%, white);
+  box-shadow: 0 0 12px color-mix(in srgb, var(--ring-accent, #ffffff) 70%, transparent);
   opacity: 0;
   pointer-events: none;
 
   &[data-ready="true"] {
     opacity: 1;
     transition:
-      transform var(--motion-medium) var(--ease-spring),
-      width var(--motion-medium) var(--ease-spring),
-      height var(--motion-medium) var(--ease-spring),
-      border-color var(--motion-slow) ease,
+      transform var(--motion-slow) var(--ease-spring),
+      width var(--motion-slow) var(--ease-spring),
+      background var(--motion-slow) ease,
       box-shadow var(--motion-slow) ease,
       opacity var(--motion-fast) ease;
   }
@@ -777,7 +814,7 @@
   inset: 0;
   z-index: 0;
   overflow: hidden;
-  background: #0b1117;
+  background: var(--surface-base);
   pointer-events: none;
 }
 
@@ -788,7 +825,23 @@
   height: 100%;
   object-fit: cover;
   object-position: right center;
-  animation: backdropFadeIn var(--motion-slow) var(--ease-settle) both;
+  // Each new backdrop fades in, then keeps a slow camera drift so the
+  // hero is never a still image.
+  animation:
+    backdropFadeIn var(--motion-slow) var(--ease-settle) both,
+    backdropDrift 32s ease-in-out infinite alternate;
+  transform-origin: 70% 40%;
+}
+
+// Pointer parallax: the art shifts a little against the cursor. Themes may
+// blur and dim whatever sits behind the library.
+.libraryBackdropStage {
+  position: absolute;
+  inset: -3%;
+  filter: blur(var(--backdrop-blur, 0px));
+  transform: translate3d(calc(var(--parallax-x, 0) * -16px), calc(var(--parallax-y, 0) * -10px), 0);
+  transition: transform 900ms var(--ease-settle);
+  will-change: transform;
 }
 
 .libraryBackdropShade {
@@ -796,21 +849,46 @@
   inset: 0;
   background:
     radial-gradient(ellipse at 78% 30%, color-mix(in srgb, var(--game-accent, #00daf3) 16%, transparent), transparent 62%),
-    linear-gradient(90deg, rgba(11, 17, 23, .9) 0%, rgba(11, 17, 23, .7) 42%, rgba(11, 17, 23, .25) 72%, rgba(11, 17, 23, .1) 100%),
-    linear-gradient(0deg, rgba(11, 17, 23, .92) 0%, rgba(11, 17, 23, .6) 30%, transparent 55%);
+    linear-gradient(90deg, color-mix(in srgb, var(--surface-base) 90%, transparent) 0%, color-mix(in srgb, var(--surface-base) 70%, transparent) 42%, color-mix(in srgb, var(--surface-base) 25%, transparent) 72%, color-mix(in srgb, var(--surface-base) 10%, transparent) 100%),
+    linear-gradient(0deg, color-mix(in srgb, var(--surface-base) 92%, transparent) 0%, color-mix(in srgb, var(--surface-base) 60%, transparent) 30%, transparent 55%);
 }
 
 @keyframes backdropFadeIn {
-  from { opacity: 0; transform: scale(1.03); }
-  to { opacity: 1; transform: none; }
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes backdropDrift {
+  from { transform: scale(1.02) translate3d(0, 0, 0); }
+  to { transform: scale(1.1) translate3d(-1.5%, -1%, 0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .libraryBackdropImage {
+    animation: backdropFadeIn var(--motion-slow) var(--ease-settle) both;
+  }
+
+  .libraryBackdropStage {
+    transform: none;
+    transition: none;
+  }
+}
+
+.visuallyHidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
 // Shimmering placeholder cards while the catalog loads.
 .skeletonCard {
-  aspect-ratio: 3 / 4;
+  aspect-ratio: var(--card-aspect, 3 / 4);
   border: 1px solid rgba(226, 244, 250, .06);
   border-radius: var(--radius-md);
-  background: linear-gradient(100deg, rgba(255, 255, 255, .03) 30%, rgba(255, 255, 255, .09) 50%, rgba(255, 255, 255, .03) 70%) 0 0 / 220% 100%, #101a20;
+  background: linear-gradient(100deg, rgba(255, 255, 255, .03) 30%, rgba(255, 255, 255, .09) 50%, rgba(255, 255, 255, .03) 70%) 0 0 / 220% 100%, color-mix(in srgb, var(--surface-base) 85%, white 3%);
   animation: skeletonShimmer 1.4s ease-in-out infinite;
 }
 
@@ -853,9 +931,14 @@
     background: none;
   }
 
+  // A display-size title: the hero sells the game the way a key-art poster does.
   .showcaseTitle {
-    font-size: clamp(30px, 5cqw, 52px);
-    text-shadow: 0 2px 18px rgba(0, 0, 0, .55);
+    font-size: clamp(34px, 5.6cqw, 76px);
+    font-weight: 700;
+    line-height: .98;
+    letter-spacing: -.05em;
+    text-wrap: balance;
+    text-shadow: 0 2px 24px rgba(0, 0, 0, .6);
   }
 
   .showcaseDescription {
@@ -926,7 +1009,7 @@
   max-height: 74%;
   overflow-y: auto;
   padding: var(--space-6);
-  background: linear-gradient(180deg, transparent, rgba(11, 13, 16, .7));
+  background: linear-gradient(180deg, transparent, color-mix(in srgb, var(--surface-base) 70%, transparent));
 }
 
 .showcaseEyebrow {
@@ -1006,7 +1089,7 @@
   transition: background var(--motion-fast) ease, transform var(--motion-fast) var(--ease-spring);
 
   &:hover:not(:disabled) {
-    background: #7eebf7;
+    background: var(--platform-accent-hover);
     transform: translateY(-1px);
   }
 
@@ -1165,7 +1248,7 @@
   margin: 0;
   padding: max(12px, env(safe-area-inset-top)) 12px max(12px, env(safe-area-inset-bottom));
   border: 0;
-  background: #0b0d10;
+  background: var(--surface-base);
   color: var(--text-body);
   overflow: hidden;
 
@@ -1312,7 +1395,7 @@
 
   .catalogHeading {
     grid-template-columns: minmax(0, 1fr) auto;
-    align-items: end;
+    align-items: center;
     margin-bottom: var(--space-3);
   }
 
@@ -1371,16 +1454,97 @@
     height: 22px;
   }
 
-  .filterControl {
-    padding: 0 var(--space-2) 0 var(--space-3);
-  }
-
-  .filterIcon, .zoomSlider {
-    display: none;
+  .headerTools {
+    grid-template-columns: minmax(0, 1fr) auto;
   }
 
   .searchBar {
     padding: 0 var(--space-3);
+  }
+
+  // One pill: a filter icon, a hairline, then − and +.
+  // The glass sits on a layer behind the pill: blur on the pill itself would
+  // stop the genre menu inside it from blurring the page.
+  .headerActions {
+    position: relative;
+    isolation: isolate;
+    display: flex;
+    align-items: center;
+    height: var(--control-md);
+    padding: 0 var(--space-1);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-pill);
+
+    &::before {
+      position: absolute;
+      inset: 0;
+      z-index: -1;
+      border-radius: inherit;
+      background: var(--glass-1);
+      -webkit-backdrop-filter: var(--glass-blur);
+      backdrop-filter: var(--glass-blur);
+      content: "";
+    }
+  }
+
+  .headerActions .filterControl::before {
+    display: none;
+  }
+
+  .headerActions .filterControl,
+  .headerActions .zoomControl {
+    height: 100%;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+
+  .headerActions .filterControl {
+    justify-content: center;
+    width: 36px;
+    min-width: 0;
+    padding: 0;
+  }
+
+  // The genre name lives in the menu; the icon lights when a genre is chosen.
+  .headerActions .filterControl:hover,
+  .headerActions .filterControlOpen {
+    background: transparent;
+  }
+
+  .headerActions .filterTrigger {
+    position: absolute;
+    inset: 2px;
+    border-radius: var(--radius-pill);
+    transition: background var(--motion-fast) ease;
+
+    &:hover {
+      background: var(--surface-hover);
+    }
+  }
+
+  .headerActions .filterControlOpen .filterTrigger {
+    background: var(--surface-selected);
+  }
+
+  .headerActions .filterTriggerLabel,
+  .headerActions .filterChevron,
+  .zoomSlider {
+    display: none;
+  }
+
+  .headerActions .filterIcon {
+    font-size: 20px;
+    pointer-events: none;
+  }
+
+  .headerActions .zoomControl {
+    gap: 0;
+    margin-left: var(--space-1);
+    padding: 0 0 0 var(--space-1);
+    border-left: 1px solid var(--glass-border);
   }
 
   .catalogPagination {
@@ -1401,8 +1565,9 @@
     min-height: 44px;
   }
 
+  // A slightly shorter portrait card: wide strips would crop the capsule art.
   .cardMedia {
-    aspect-ratio: 1.9;
+    aspect-ratio: 4 / 5;
   }
 }
 
@@ -1530,7 +1695,7 @@
   inset: 0;
   z-index: 40;
   overflow: hidden;
-  background: #0b0d10;
+  background: var(--surface-base);
   pointer-events: none;
   animation:
     launchGrow var(--motion-slow) var(--ease-spring) both,
@@ -1551,8 +1716,8 @@
   position: absolute;
   inset: 0;
   background:
-    linear-gradient(90deg, rgba(11, 13, 16, .85), rgba(11, 13, 16, .35) 55%, rgba(11, 13, 16, .1)),
-    linear-gradient(0deg, rgba(11, 13, 16, .9), transparent 45%);
+    linear-gradient(90deg, color-mix(in srgb, var(--surface-base) 85%, transparent), color-mix(in srgb, var(--surface-base) 35%, transparent) 55%, color-mix(in srgb, var(--surface-base) 10%, transparent)),
+    linear-gradient(0deg, color-mix(in srgb, var(--surface-base) 90%, transparent), transparent 45%);
 }
 
 .launchTitle {
@@ -1649,4 +1814,58 @@
 
 @keyframes bootCurtain {
   to { opacity: 0; visibility: hidden; }
+}
+
+.libraryBackdropDim {
+  position: absolute;
+  inset: 0;
+  background: var(--surface-base);
+  opacity: var(--backdrop-dim, 0);
+  transition: opacity var(--motion-slow) ease;
+}
+
+// Theme backgrounds: an ambient glow in the accent, optional pattern or image.
+.themeAmbient {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(60% 55% at 82% 18%, color-mix(in srgb, var(--platform-accent) 22%, transparent), transparent 70%),
+    radial-gradient(55% 50% at 10% 95%, color-mix(in srgb, var(--platform-accent) 10%, transparent), transparent 70%),
+    var(--surface-base);
+}
+
+.themePattern {
+  position: absolute;
+  inset: 0;
+  opacity: .9;
+  -webkit-mask-image: radial-gradient(120% 90% at 70% 30%, #000, transparent 85%);
+  mask-image: radial-gradient(120% 90% at 70% 30%, #000, transparent 85%);
+
+  &[data-pattern="grid"] {
+    background-image:
+      linear-gradient(color-mix(in srgb, var(--text-strong) 7%, transparent) 1px, transparent 1px),
+      linear-gradient(90deg, color-mix(in srgb, var(--text-strong) 7%, transparent) 1px, transparent 1px);
+    background-size: 44px 44px;
+  }
+
+  &[data-pattern="dots"] {
+    background-image: radial-gradient(color-mix(in srgb, var(--text-strong) 16%, transparent) 1.2px, transparent 1.8px);
+    background-size: 20px 20px;
+  }
+
+  &[data-pattern="lines"] {
+    background-image: repeating-linear-gradient(0deg, color-mix(in srgb, var(--text-strong) 6%, transparent) 0 1px, transparent 1px 7px);
+  }
+
+  &[data-pattern="diagonal"] {
+    background-image: repeating-linear-gradient(135deg, color-mix(in srgb, var(--platform-accent) 14%, transparent) 0 1px, transparent 1px 16px);
+  }
+}
+
+.themeImage {
+  position: absolute;
+  inset: 0;
+  background-position: center;
+  background-size: cover;
+  animation: backdropFadeIn var(--motion-slow) var(--ease-settle) both;
 }

@@ -72,3 +72,14 @@ test("catalog query parser rejects malformed known parameters and normalizes sup
     assert.throws(() => parseGameCatalogQuery(query), TypeError);
   }
 });
+
+test("genre labels capitalise words and letters after digits", () => {
+  const catalog = createGameCatalog([
+    { id: "a", name: "A", tags: ["3d", "party"], path: "/games/a" },
+    { id: "b", name: "B", tags: ["Real-time"], path: "/games/b" },
+  ]);
+  const labels = catalog.query({}).genres.map((genre) => genre.label);
+  assert.ok(labels.includes("3D"), JSON.stringify(labels));
+  assert.ok(labels.includes("Party"), JSON.stringify(labels));
+  assert.ok(labels.includes("Real-time"), JSON.stringify(labels));
+});

@@ -18,6 +18,7 @@ export default function PlatformShell({
   onAction,
   controllerDisabled = false,
   immersive = false,
+  accentColor = null,
 }) {
   const [portraitShellCollapsed, setPortraitShellCollapsed] = useState(false);
   // Games may read the sticks; browsing the library needs only the D-pad and buttons.
@@ -33,6 +34,7 @@ export default function PlatformShell({
           portraitShellCollapsed && styles.platformConsolePortraitExpanded,
           immersive && styles.platformConsoleImmersive,
         )}
+        style={accentColor ? { "--shell-accent": accentColor } : undefined}
       >
         <div className={classNames(styles.platformControllerPane, styles.platformControllerPaneLeft)}>
           <PlatformController

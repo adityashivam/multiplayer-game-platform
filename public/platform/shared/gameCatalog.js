@@ -94,7 +94,7 @@ export function createGameCatalog(games) {
     const genres = tags.filter((tag) => !NON_GENRE_TAG_PATTERN.test(tag)).map(normalizeCatalogGenre);
     for (const genre of genres) {
       if (!genreLabels.has(genre)) {
-        genreLabels.set(genre, genre === "realtime" ? "Real-time" : genre.replace(/\b\w/g, (letter) => letter.toUpperCase()));
+        genreLabels.set(genre, genre === "realtime" ? "Real-time" : genre.replace(/\b\w|(?<=\d)[a-z]/g, (letter) => letter.toUpperCase()));
       }
     }
     return {
