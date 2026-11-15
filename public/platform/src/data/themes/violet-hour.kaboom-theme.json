@@ -1,0 +1,41 @@
+{
+  "format": "kaboom-theme",
+  "version": 2,
+  "id": "violet-hour",
+  "name": "Violet Hour",
+  "author": "Kaboom",
+  "colors": {
+    "accent": "#b49bff",
+    "accentText": "#1a0f3d",
+    "background": "#0b0a11",
+    "surface": "#14121d",
+    "text": "#f3f1fa",
+    "textMuted": "#aaa5bf",
+    "chassis": "#1c1a24"
+  },
+  "glass": 0.68,
+  "radius": 1.25,
+  "fonts": {
+    "heading": "playfair-display",
+    "body": "inter",
+    "mono": "system-mono"
+  },
+  "icons": {
+    "style": "outlined",
+    "fill": false,
+    "weight": 300,
+    "nav": {}
+  },
+  "cards": {
+    "shape": "portrait"
+  },
+  "background": {
+    "style": "pattern",
+    "pattern": "dots",
+    "dim": 0,
+    "blur": 0
+  },
+  "disc": {
+    "style": "editorial"
+  }
+}

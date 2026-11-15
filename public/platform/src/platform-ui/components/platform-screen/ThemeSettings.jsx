@@ -4,7 +4,9 @@ import {
   BUILT_IN_PLATFORM_THEMES,
   PLATFORM_THEME_BACKGROUND_STYLES,
   PLATFORM_THEME_CARD_SHAPES,
+  PLATFORM_THEME_DISC_STYLES,
   PLATFORM_THEME_FONTS,
+  PLATFORM_THEME_MONO_FONTS,
   PLATFORM_THEME_ICON_STYLES,
   PLATFORM_THEME_ICON_WEIGHTS,
   PLATFORM_THEME_LIMITS,
@@ -102,6 +104,11 @@ function ThemeCustomizer({ theme, onCustomize, onReport }) {
           {Object.entries(PLATFORM_THEME_FONTS).map(([fontId, font]) => <option key={fontId} value={fontId}>{font.label}</option>)}
         </select>
       </CustomizeRow>
+      <CustomizeRow label="Mono font" htmlFor={`${idPrefix}-mono`}>
+        <select id={`${idPrefix}-mono`} className={styles.customizeSelect} value={theme.fonts.mono} onChange={(event) => change({ fonts: { mono: event.target.value } })}>
+          {Object.entries(PLATFORM_THEME_MONO_FONTS).map(([fontId, font]) => <option key={fontId} value={fontId}>{font.label}</option>)}
+        </select>
+      </CustomizeRow>
       <CustomizeRow label="Icons">
         <SegmentedChoice label="Icon style" value={theme.icons.style} options={readLabels(PLATFORM_THEME_ICON_STYLES)} onChange={(style) => change({ icons: { style } })} />
       </CustomizeRow>
@@ -116,6 +123,9 @@ function ThemeCustomizer({ theme, onCustomize, onReport }) {
       </CustomizeRow>
       <CustomizeRow label="Card shape">
         <SegmentedChoice label="Card shape" value={theme.cards.shape} options={readLabels(PLATFORM_THEME_CARD_SHAPES)} onChange={(shape) => change({ cards: { shape } })} />
+      </CustomizeRow>
+      <CustomizeRow label="Disc style">
+        <SegmentedChoice label="Disc style" value={theme.disc.style} options={PLATFORM_THEME_DISC_STYLES} onChange={(style) => change({ disc: { style } })} />
       </CustomizeRow>
       <CustomizeRow label="Corners" htmlFor={`${idPrefix}-radius`}>
         <input id={`${idPrefix}-radius`} type="range" className={styles.customizeRange} min="0" max="1.5" step="0.05" value={theme.radius} onChange={(event) => change({ radius: Number(event.target.value) })} />

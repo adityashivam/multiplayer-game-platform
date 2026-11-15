@@ -1,3 +1,8 @@
+// Theme tokens (colours, glass, text, radii, fonts, icon pack, card shape) are
+// generated from the default theme's JSON into _theme-defaults.generated.scss;
+// the tokens below are the ones themes do not control.
+@use "theme-defaults.generated";
+
 // Registered so the console shell's light can fade between game colours.
 @property --shell-accent {
   syntax: "<color>";
@@ -6,17 +11,11 @@
 }
 
 :root {
-  --platform-font-heading: "Space Grotesk", sans-serif;
-  --platform-font-body: "Manrope", sans-serif;
   // Legacy names kept for existing modules; they now resolve to the neutral
   // console palette so every surface reads as the same glass.
   --platform-surface: rgba(255, 255, 255, .05);
   --platform-surface-inset: rgba(0, 0, 0, .24);
   --platform-border: rgba(255, 255, 255, .1);
-  --platform-text: #f2f4f5;
-  --platform-text-muted: #a3adb4;
-  --platform-accent: var(--color-accent, #00daf3);
-  --platform-accent-text: #062126;
   --platform-focus: #b5f6fc;
   --platform-warning: #ebc780;
   --platform-danger: #f0a5a5;
@@ -26,9 +25,6 @@
   // Console design tokens. Every platform surface is the same frosted glass
   // at one of three elevations; spacing, radii, type and motion come from
   // these scales rather than one-off values.
-  --glass-1: rgba(16, 18, 22, .5);
-  --glass-2: rgba(16, 18, 22, .66);
-  --glass-3: rgba(12, 14, 17, .82);
   --glass-blur: blur(22px) saturate(1.2);
   --glass-border: rgba(255, 255, 255, .09);
   --glass-highlight: inset 0 1px 0 rgba(255, 255, 255, .06);
@@ -36,18 +32,6 @@
   --elevation-2: 0 12px 32px rgba(0, 0, 0, .36);
   --elevation-3: 0 24px 64px rgba(0, 0, 0, .48);
   --platform-warm: #ffb547;
-  // Theme-able surfaces: the screen's base colour, the console chassis and
-  // the primary action's hover. Platform themes override these.
-  --surface-base: #0b0d10;
-  --platform-accent-hover: #7eebf7;
-  --chassis: #1c1b1b;
-  --chassis-deep: #0e0e0e;
-  // Icon pack and card shape; themes swap the Material Symbols family,
-  // fill and weight, and the library's card aspect ratio.
-  --icon-font-family: "Material Symbols Outlined";
-  --icon-fill: 0;
-  --icon-weight: 400;
-  --card-aspect: 3 / 4;
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;
@@ -56,10 +40,6 @@
   --space-6: 24px;
   --space-8: 32px;
   --space-10: 40px;
-  --radius-sm: 8px;
-  --radius-md: 14px;
-  --radius-lg: 22px;
-  --radius-pill: 999px;
   // 11px is the floor for platform text; nothing smaller is readable at arm's length.
   --type-xs: 11px;
   --type-sm: 13px;
@@ -76,10 +56,6 @@
   --surface-hover: rgba(255, 255, 255, .07);
   --surface-selected: rgba(255, 255, 255, .1);
   --border-strong: rgba(255, 255, 255, .22);
-  --text-strong: #f4f6f7;
-  --text-body: #d2d8dc;
-  --text-muted: #a3adb4;
-  --text-faint: #7d878e;
   --motion-fast: 120ms;
   --motion-medium: 200ms;
   --motion-slow: 320ms;
@@ -88,7 +64,6 @@
   --ease-spring: cubic-bezier(.22, 1, .36, 1);
   --ease-exit: cubic-bezier(.4, 0, 1, 1);
   --motion-exit: 160ms;
-  --focus-ring: rgba(255, 255, 255, .9);
   --color-primary: #c3f5ff;
   --color-secondary: #ffb4a2;
   --color-background: #131313;
@@ -100,10 +75,8 @@
   --color-surface: #201f1f;
   --color-surface-alt: #353534;
   --color-surface-dark: #0e0e0e;
-  --color-text: #e5e2e1;
   --color-muted: #bac9cc;
   --color-divider: #3b494c;
-  --color-accent: #00daf3;
   --color-border: #3b494c;
   --color-border-dark: #849396;
   --color-card-from: #2a2a2a;

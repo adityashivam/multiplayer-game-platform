@@ -1,0 +1,41 @@
+{
+  "format": "kaboom-theme",
+  "version": 2,
+  "id": "ember",
+  "name": "Ember",
+  "author": "Kaboom",
+  "colors": {
+    "accent": "#ff8a4c",
+    "accentText": "#240d02",
+    "background": "#0e0b09",
+    "surface": "#17110d",
+    "text": "#f7f0ea",
+    "textMuted": "#b5a698",
+    "chassis": "#211a16"
+  },
+  "glass": 0.7,
+  "radius": 1,
+  "fonts": {
+    "heading": "fraunces",
+    "body": "inter",
+    "mono": "system-mono"
+  },
+  "icons": {
+    "style": "rounded",
+    "fill": false,
+    "weight": 400,
+    "nav": {}
+  },
+  "cards": {
+    "shape": "portrait"
+  },
+  "background": {
+    "style": "game-art",
+    "pattern": "grid",
+    "dim": 0.15,
+    "blur": 0
+  },
+  "disc": {
+    "style": "editorial"
+  }
+}

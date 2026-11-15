@@ -25,7 +25,8 @@ async function openLibrary(viewport, initScript = "") {
   pages.push(page);
   await send("Page.navigate", { url: baseUrl }, page);
   await waitFor(page, "document.querySelectorAll('[data-library-card-id]').length>=4&&document.querySelector('[data-library-backdrop] img')", 20000);
-  await evaluate(page, "await new Promise(resolve=>setTimeout(resolve,700));");
+  // Measure layout only after web fonts load, so text widths are final.
+  await evaluate(page, "await document.fonts.ready;await new Promise(resolve=>setTimeout(resolve,700));");
   return page;
 }
 
@@ -180,6 +181,20 @@ async function verifyDiscLibrary() {
   assert.equal(await evaluate(page, "return localStorage.getItem('platform.library-layout.v1');"), "grid");
   await evaluate(page, "document.querySelector('[aria-label=\"Disc layout\"]').click();");
   await waitFor(page, "document.querySelector('[data-library-disc]')");
+
+  // Each theme's disc style keeps the selection in the band and fits the screen.
+  for (const [themeName, discStyle] of [["Ember", "editorial"], ["Graphite", "instrument"], ["8-Bit", "instrument"], ["Classic Disc", "classic"], ["Kaboom", "cinematic"]]) {
+    await evaluate(page, `
+      document.querySelector('[aria-label=Config]').click();await new Promise(resolve=>setTimeout(resolve,700));
+      [...document.querySelectorAll('[aria-label="Platform themes"] button[aria-pressed]')].find((button)=>button.textContent.startsWith(${JSON.stringify(themeName)})).click();
+      await new Promise(resolve=>setTimeout(resolve,700));document.querySelector('[aria-label=Multi]').click();
+    `);
+    await waitFor(page, `document.querySelector('[data-disc-style="${discStyle}"]')`);
+    await evaluate(page, "await new Promise(resolve=>setTimeout(resolve,900));");
+    const styled = await readDiscState(page);
+    assert.ok(styled.inBand && !styled.overflow, `${themeName} (${discStyle}) keeps the selection in place and fits ${JSON.stringify(styled)}`);
+    await capture(page, `phone-portrait-disc-${themeName.toLowerCase().replace(/\s+/g, "-")}`);
+  }
 
   // Enter plays the selected game with the launch zoom.
   await evaluate(page, "await new Promise(resolve=>setTimeout(resolve,400));document.querySelector('[data-library-disc] [aria-pressed=\"true\"]').focus();");

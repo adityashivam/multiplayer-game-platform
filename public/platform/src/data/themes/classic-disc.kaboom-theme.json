@@ -1,0 +1,41 @@
+{
+  "format": "kaboom-theme",
+  "version": 2,
+  "id": "classic-disc",
+  "name": "Classic Disc",
+  "author": "Kaboom",
+  "colors": {
+    "accent": "#a8d8ff",
+    "accentText": "#0b1a26",
+    "background": "#0a0c11",
+    "surface": "#141822",
+    "text": "#f3f6fa",
+    "textMuted": "#a7b0bd",
+    "chassis": "#2b303b"
+  },
+  "glass": 0.7,
+  "radius": 1,
+  "fonts": {
+    "heading": "outfit",
+    "body": "inter",
+    "mono": "system-mono"
+  },
+  "icons": {
+    "style": "rounded",
+    "fill": false,
+    "weight": 400,
+    "nav": {}
+  },
+  "cards": {
+    "shape": "portrait"
+  },
+  "background": {
+    "style": "game-art",
+    "pattern": "grid",
+    "dim": 0.25,
+    "blur": 4
+  },
+  "disc": {
+    "style": "classic"
+  }
+}

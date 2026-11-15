@@ -589,8 +589,14 @@
     pointer-events: none;
   }
 
+  // Collapsed, the toggle sits at the bottom edge where the deck was, below
+  // the dock (which lifts to make room) instead of over the content.
+  .platformConsolePortraitExpanded {
+    --dock-bottom-gap: 40px;
+  }
+
   .platformConsolePortraitExpanded .platformPortraitToggle {
-    bottom: 72px;
+    bottom: 8px;
   }
 
   .platformConsolePortraitExpanded .platformScreen {

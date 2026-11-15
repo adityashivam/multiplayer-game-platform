@@ -10,8 +10,17 @@
  * image must be embedded as a raster data URL.
  */
 
+import kaboomTheme from "../../data/themes/kaboom.kaboom-theme.json" with { type: "json" };
+import emberTheme from "../../data/themes/ember.kaboom-theme.json" with { type: "json" };
+import auroraTheme from "../../data/themes/aurora.kaboom-theme.json" with { type: "json" };
+import violetHourTheme from "../../data/themes/violet-hour.kaboom-theme.json" with { type: "json" };
+import eightBitTheme from "../../data/themes/eight-bit.kaboom-theme.json" with { type: "json" };
+import graphiteTheme from "../../data/themes/graphite.kaboom-theme.json" with { type: "json" };
+import classicDiscTheme from "../../data/themes/classic-disc.kaboom-theme.json" with { type: "json" };
+
 /** @typedef {{accent:string,accentText:string,background:string,surface:string,text:string,textMuted:string,chassis:string}} PlatformThemeColors */
-/** @typedef {{heading:string,body:string}} PlatformThemeFonts */
+/** @typedef {{heading:string,body:string,mono:string}} PlatformThemeFonts */
+/** @typedef {{style:"glass"|"editorial"|"cinematic"|"instrument"|"classic"}} PlatformThemeDisc */
 /** @typedef {"solo"|"multi"|"friends"|"profile"|"config"} PlatformNavIconKey */
 /** @typedef {{style:"outlined"|"rounded"|"sharp",fill:boolean,weight:number,nav:Partial<Record<PlatformNavIconKey,string>>}} PlatformThemeIcons */
 /** @typedef {{shape:"portrait"|"tall"|"square"|"landscape"}} PlatformThemeCards */
@@ -31,6 +40,7 @@
  * @property {PlatformThemeIcons} icons
  * @property {PlatformThemeCards} cards
  * @property {PlatformThemeBackground} background
+ * @property {PlatformThemeDisc} disc
  */
 /** @typedef {{ok:true,theme:PlatformTheme}|{ok:false,error:string}} PlatformThemeParseResult */
 
@@ -69,10 +79,41 @@ export const PLATFORM_THEME_FONTS = Object.freeze({
   // same size, so themes using them normalise sizes by x-height.
   "press-start-2p": { label: "Press Start 2P", family: "Press Start 2P", fallback: "monospace", pixel: true },
   vt323: { label: "VT323", family: "VT323", fallback: "monospace", pixel: true },
+  // Serif display faces for editorial themes.
+  fraunces: { label: "Fraunces", family: "Fraunces", fallback: "serif" },
+  "playfair-display": { label: "Playfair Display", family: "Playfair Display", fallback: "serif" },
+});
+
+/**
+ * Monospace fonts for labels in technical looks (the Instrument disc).
+ * `system-mono` uses the device's own monospace and loads nothing.
+ */
+export const PLATFORM_THEME_MONO_FONTS = Object.freeze({
+  "system-mono": { label: "System mono", family: null, stack: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" },
+  "jetbrains-mono": { label: "JetBrains Mono", family: "JetBrains Mono", stack: "\"JetBrains Mono\", ui-monospace, monospace" },
+  "ibm-plex-mono": { label: "IBM Plex Mono", family: "IBM Plex Mono", stack: "\"IBM Plex Mono\", ui-monospace, monospace" },
+  vt323: { label: "VT323", family: "VT323", stack: "\"VT323\", ui-monospace, monospace" },
+});
+
+/**
+ * How the portrait disc library looks. Each style is a coherent preset of
+ * disc surface, name treatment, selection marker, art and Play button;
+ * the theme's colours, fonts and corners still apply on top.
+ */
+export const PLATFORM_THEME_DISC_STYLES = Object.freeze({
+  cinematic: "Cinematic",
+  editorial: "Editorial",
+  instrument: "Instrument",
+  classic: "Classic disc",
+  glass: "Glass",
 });
 
 /** Fonts index.html already loads; themes don't fetch them again. */
 const PRELOADED_FONT_IDS = new Set(["space-grotesk", "manrope", "press-start-2p", "vt323"]);
+/** Builds a Google Fonts stylesheet URL for an allowlisted family. */
+function readGoogleFontUrl(family) {
+  return `https://fonts.googleapis.com/css2?family=${encodeURIComponent(family).replace(/%20/g, "+")}:wght@400;500;600;700&display=swap`;
+}
 /** x-height ratio pixel themes normalise every font to. */
 const PIXEL_FONT_SIZE_ADJUST = "0.5";
 
@@ -101,7 +142,7 @@ export const PLATFORM_THEME_BACKGROUND_STYLES = Object.freeze({
 export const PLATFORM_THEME_PATTERNS = Object.freeze({ grid: "Grid", dots: "Dots", lines: "Lines", diagonal: "Diagonal" });
 
 const COLOR_KEYS = /** @type {const} */ (["accent", "accentText", "background", "surface", "text", "textMuted", "chassis"]);
-const TOP_LEVEL_KEYS = new Set(["format", "version", "id", "name", "author", "colors", "glass", "radius", "fonts", "icons", "cards", "background"]);
+const TOP_LEVEL_KEYS = new Set(["format", "version", "id", "name", "author", "colors", "glass", "radius", "fonts", "icons", "cards", "background", "disc"]);
 const HEX_COLOR = /^#[0-9a-f]{6}$/i;
 const THEME_ID = /^[a-z0-9][a-z0-9-]{0,39}$/;
 const ICON_GLYPH = /^[a-z0-9_]{1,40}$/;
@@ -113,74 +154,35 @@ const MIN_CONTRAST = Object.freeze({ text: 7, textMuted: 3.5, accentText: 4.5 })
 const MAX_BACKGROUND_LUMINANCE = 0.05;
 
 const DEFAULT_SECTIONS = Object.freeze({
-  fonts: Object.freeze({ heading: "space-grotesk", body: "manrope" }),
+  fonts: Object.freeze({ heading: "space-grotesk", body: "manrope", mono: "system-mono" }),
   icons: Object.freeze({ style: "outlined", fill: false, weight: 400, nav: Object.freeze({}) }),
   cards: Object.freeze({ shape: "portrait" }),
   background: Object.freeze({ style: "game-art", pattern: "grid", dim: 0, blur: 0 }),
+  disc: Object.freeze({ style: "cinematic" }),
 });
 
-/** @param {object} theme @returns {PlatformTheme} */
-function withVersion(theme) {
-  return { format: PLATFORM_THEME_FORMAT, version: PLATFORM_THEME_VERSION, author: "Kaboom", ...theme };
-}
-
 /**
- * Built-in themes. The first is the platform default; its values match the
- * fallbacks in global.scss.
+ * Built-in themes, loaded from their JSON files: the same format players
+ * import and export, so a theme file is the single source of a look. Each
+ * goes through the same validation as an imported theme; a broken built-in
+ * stops the app at load rather than rendering half a theme. The first is the
+ * platform default, and the CSS fallbacks in styles/_theme-defaults.generated.scss
+ * are generated from it (npm run platform:theme-defaults).
  * @type {readonly PlatformTheme[]}
  */
 export const BUILT_IN_PLATFORM_THEMES = Object.freeze([
-  withVersion({
-    id: DEFAULT_PLATFORM_THEME_ID, name: "Kaboom",
-    colors: { accent: "#00daf3", accentText: "#062126", background: "#0b0d10", surface: "#101216", text: "#f4f6f7", textMuted: "#a3adb4", chassis: "#1c1b1b" },
-    glass: 0.66, radius: 1, ...DEFAULT_SECTIONS,
-  }),
-  withVersion({
-    id: "ember", name: "Ember",
-    colors: { accent: "#ff8a4c", accentText: "#240d02", background: "#0e0b09", surface: "#17110d", text: "#f7f0ea", textMuted: "#b5a698", chassis: "#211a16" },
-    glass: 0.7, radius: 1,
-    fonts: { heading: "sora", body: "inter" },
-    icons: { style: "rounded", fill: false, weight: 400, nav: {} },
-    cards: { shape: "portrait" },
-    background: { style: "game-art", pattern: "grid", dim: 0.15, blur: 0 },
-  }),
-  withVersion({
-    id: "aurora", name: "Aurora",
-    colors: { accent: "#46e3a8", accentText: "#03251a", background: "#070d0c", surface: "#0c1715", text: "#eef7f3", textMuted: "#9fb6ad", chassis: "#141c1a" },
-    glass: 0.62, radius: 1.15,
-    fonts: { heading: "outfit", body: "manrope" },
-    icons: { style: "rounded", fill: true, weight: 400, nav: { multi: "public", solo: "sports_esports" } },
-    cards: { shape: "tall" },
-    background: { style: "ambient", pattern: "grid", dim: 0, blur: 0 },
-  }),
-  withVersion({
-    id: "violet-hour", name: "Violet Hour",
-    colors: { accent: "#b49bff", accentText: "#1a0f3d", background: "#0b0a11", surface: "#14121d", text: "#f3f1fa", textMuted: "#aaa5bf", chassis: "#1c1a24" },
-    glass: 0.68, radius: 1.25,
-    fonts: { heading: "exo-2", body: "inter" },
-    icons: { style: "outlined", fill: false, weight: 300, nav: {} },
-    cards: { shape: "portrait" },
-    background: { style: "pattern", pattern: "dots", dim: 0, blur: 0 },
-  }),
-  withVersion({
-    id: "eight-bit", name: "8-Bit",
-    colors: { accent: "#f8b800", accentText: "#1a1000", background: "#0d0c1d", surface: "#1d1b3a", text: "#fcfcfc", textMuted: "#bcbcd0", chassis: "#56566a" },
-    glass: 0.94, radius: 0,
-    fonts: { heading: "press-start-2p", body: "vt323" },
-    icons: { style: "sharp", fill: true, weight: 600, nav: { solo: "joystick", multi: "videogame_asset", friends: "group", profile: "face", config: "build" } },
-    cards: { shape: "square" },
-    background: { style: "pattern", pattern: "lines", dim: 0, blur: 0 },
-  }),
-  withVersion({
-    id: "graphite", name: "Graphite",
-    colors: { accent: "#e9eaec", accentText: "#111214", background: "#0a0a0b", surface: "#141416", text: "#f5f5f6", textMuted: "#a2a3a8", chassis: "#1b1b1d" },
-    glass: 0.74, radius: 0.7,
-    fonts: { heading: "rajdhani", body: "inter" },
-    icons: { style: "sharp", fill: false, weight: 300, nav: { config: "settings" } },
-    cards: { shape: "square" },
-    background: { style: "game-art", pattern: "lines", dim: 0.35, blur: 6 },
-  }),
-]);
+  kaboomTheme,
+  emberTheme,
+  auroraTheme,
+  violetHourTheme,
+  eightBitTheme,
+  classicDiscTheme,
+  graphiteTheme,
+].map((source) => {
+  const result = validatePlatformTheme(source);
+  if (!result.ok) throw new Error(`Built-in theme "${source?.id}" is invalid: ${result.error}`);
+  return Object.freeze(result.theme);
+}));
 
 /** @param {string} hex @returns {[number,number,number]} */
 function readRgb(hex) {
@@ -255,13 +257,14 @@ function isNumberInRange(value, min, max) {
 function validateFonts(fonts) {
   if (fonts === undefined) return { ok: true, value: { ...DEFAULT_SECTIONS.fonts } };
   if (!isPlainObject(fonts)) return { ok: false, error: `"fonts" must be an object.` };
-  const unknown = findUnknownKey(fonts, ["heading", "body"], "fonts");
+  const unknown = findUnknownKey(fonts, ["heading", "body", "mono"], "fonts");
   if (unknown) return { ok: false, error: unknown };
   const value = { ...DEFAULT_SECTIONS.fonts, ...fonts };
   for (const key of ["heading", "body"]) {
     if (!Object.hasOwn(PLATFORM_THEME_FONTS, value[key])) return { ok: false, error: `fonts.${key} must be one of: ${Object.keys(PLATFORM_THEME_FONTS).join(", ")}.` };
   }
-  return { ok: true, value: { heading: value.heading, body: value.body } };
+  if (!Object.hasOwn(PLATFORM_THEME_MONO_FONTS, value.mono)) return { ok: false, error: `fonts.mono must be one of: ${Object.keys(PLATFORM_THEME_MONO_FONTS).join(", ")}.` };
+  return { ok: true, value: { heading: value.heading, body: value.body, mono: value.mono } };
 }
 
 /** @returns {{ok:true,value:PlatformThemeIcons}|{ok:false,error:string}} */
@@ -314,6 +317,17 @@ function validateBackground(background) {
   return { ok: true, value: { style: value.style, pattern: value.pattern, dim: value.dim, blur: value.blur, ...(value.image ? { image: value.image } : {}) } };
 }
 
+/** @returns {{ok:true,value:PlatformThemeDisc}|{ok:false,error:string}} */
+function validateDisc(disc) {
+  if (disc === undefined) return { ok: true, value: { ...DEFAULT_SECTIONS.disc } };
+  if (!isPlainObject(disc)) return { ok: false, error: `"disc" must be an object.` };
+  const unknown = findUnknownKey(disc, ["style"], "disc");
+  if (unknown) return { ok: false, error: unknown };
+  const style = disc.style ?? DEFAULT_SECTIONS.disc.style;
+  if (!Object.hasOwn(PLATFORM_THEME_DISC_STYLES, style)) return { ok: false, error: `disc.style must be one of: ${Object.keys(PLATFORM_THEME_DISC_STYLES).join(", ")}.` };
+  return { ok: true, value: { style } };
+}
+
 /**
  * Validate an untrusted theme object (format version 1 or 2). Every key and
  * value is checked; the first problem is reported in words a theme author can
@@ -355,6 +369,8 @@ export function validatePlatformTheme(candidate) {
   if (!cards.ok) return cards;
   const background = validateBackground(candidate.background);
   if (!background.ok) return background;
+  const disc = validateDisc(candidate.disc);
+  if (!disc.ok) return disc;
 
   return {
     ok: true,
@@ -371,6 +387,7 @@ export function validatePlatformTheme(candidate) {
       icons: icons.value,
       cards: cards.value,
       background: background.value,
+      disc: disc.value,
     },
   };
 }
@@ -435,6 +452,7 @@ export function readPlatformThemeVariables(theme) {
     "--radius-pill": theme.radius < 0.25 ? radius(8) : "999px",
     "--platform-font-heading": readFontStack(theme.fonts.heading),
     "--platform-font-body": readFontStack(theme.fonts.body),
+    "--platform-font-mono": PLATFORM_THEME_MONO_FONTS[theme.fonts.mono].stack,
     "--icon-font-family": `"${PLATFORM_THEME_ICON_STYLES[theme.icons.style].family}"`,
     "--icon-fill": theme.icons.fill ? "1" : "0",
     "--icon-weight": String(theme.icons.weight),
@@ -472,7 +490,9 @@ export function applyPlatformTheme(theme, root) {
 export function readPlatformThemeFontUrls(theme) {
   const urls = [...new Set([theme.fonts.heading, theme.fonts.body])]
     .filter((fontId) => !PRELOADED_FONT_IDS.has(fontId))
-    .map((fontId) => `https://fonts.googleapis.com/css2?family=${encodeURIComponent(PLATFORM_THEME_FONTS[fontId].family).replace(/%20/g, "+")}:wght@400;500;600;700&display=swap`);
+    .map((fontId) => readGoogleFontUrl(PLATFORM_THEME_FONTS[fontId].family));
+  const mono = PLATFORM_THEME_MONO_FONTS[theme.fonts.mono];
+  if (mono.family && !PRELOADED_FONT_IDS.has(theme.fonts.mono)) urls.push(readGoogleFontUrl(mono.family));
   if (theme.icons.style !== "outlined") {
     const family = PLATFORM_THEME_ICON_STYLES[theme.icons.style].family.replace(/ /g, "+");
     urls.push(`https://fonts.googleapis.com/css2?family=${family}:opsz,wght,FILL@20..48,100..700,0..1&display=block`);
@@ -485,7 +505,7 @@ export function readPlatformThemeFontUrls(theme) {
  * The result goes through full validation, so editor controls can't produce
  * an unsafe or unreadable theme.
  * @param {PlatformTheme} baseTheme
- * @param {{colors?:Partial<PlatformThemeColors>,glass?:number,radius?:number,fonts?:Partial<PlatformThemeFonts>,icons?:Partial<PlatformThemeIcons>,cards?:Partial<PlatformThemeCards>,background?:Partial<PlatformThemeBackground>}} changes
+ * @param {{colors?:Partial<PlatformThemeColors>,glass?:number,radius?:number,fonts?:Partial<PlatformThemeFonts>,icons?:Partial<PlatformThemeIcons>,cards?:Partial<PlatformThemeCards>,background?:Partial<PlatformThemeBackground>,disc?:Partial<PlatformThemeDisc>}} changes
  * @returns {PlatformThemeParseResult}
  */
 export function createCustomPlatformTheme(baseTheme, changes) {
@@ -506,6 +526,7 @@ export function createCustomPlatformTheme(baseTheme, changes) {
     icons: { ...baseTheme.icons, ...changes.icons, nav: { ...baseTheme.icons.nav, ...changes.icons?.nav } },
     cards: { ...baseTheme.cards, ...changes.cards },
     background,
+    disc: { ...baseTheme.disc, ...changes.disc },
   });
 }
 

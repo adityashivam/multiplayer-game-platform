@@ -28,6 +28,8 @@ const KEY_STEPS = Object.freeze({ ArrowUp: -1, ArrowLeft: -1, ArrowDown: 1, Arro
 function DiscSpotlight({ game, disabled, onActivate, onMore }) {
   const details = readGameLibraryDetails(game);
   const meta = [details.playerLabel, ...details.controlLabels].join(" · ");
+  // Spec rows replace the meta line in the Instrument style.
+  const specs = [["Genre", details.genreLabel], ["Players", details.playerLabel], ["Input", details.controlLabels.join(" · ") || "—"]];
   return (
     <section className={styles.spotlight} style={{ "--game-accent": details.accentColor }} aria-labelledby="disc-selected-title" data-disc-spotlight={game.id}>
       <div className={styles.spotlightArt} data-launch-origin={game.id} key={`art-${game.id}`}>
@@ -37,6 +39,11 @@ function DiscSpotlight({ game, disabled, onActivate, onMore }) {
       <div className={styles.spotlightText} key={`text-${game.id}`}>
         <h2 id="disc-selected-title" className={styles.spotlightTitle}>{game.name}</h2>
         <p className={styles.spotlightMeta}>{meta}</p>
+        <dl className={styles.spotlightSpecs}>
+          {specs.map(([label, value]) => (
+            <div key={label}><dt>{label}</dt><dd>{value}</dd></div>
+          ))}
+        </dl>
         {game.description && <p className={styles.spotlightDescription}>{game.description}</p>}
         {game.description && onMore && (
           <button type="button" className={styles.spotlightMore} onClick={onMore} aria-label={`More about ${game.name}`}>More</button>
@@ -49,8 +56,9 @@ function DiscSpotlight({ game, disabled, onActivate, onMore }) {
         disabled={disabled || !game.path}
         aria-label={`Play ${game.name}`}
       >
-        <span className="material-symbols-outlined" aria-hidden="true">play_arrow</span>
-        Play
+        <span className={`material-symbols-outlined ${styles.spotlightPlayIcon}`} aria-hidden="true">play_arrow</span>
+        <span>Play</span>
+        <span className={`material-symbols-outlined ${styles.spotlightPlayArrow}`} aria-hidden="true">arrow_forward</span>
       </button>
     </section>
   );
@@ -63,10 +71,13 @@ function DiscSpotlight({ game, disabled, onActivate, onMore }) {
  * keys and the console D-pad step one game; Enter plays. Names are library
  * cards (`data-library-card-id`), so selection, focus, sounds and launch
  * work as in the grid.
- * @param {{games:object[],selectedIndex:number,loading:boolean,onSelectIndex:(index:number,focus?:boolean)=>void,onActivate:(path:string)=>void,onMore?:()=>void,registerCardRef?:(index:number,node:HTMLElement|null)=>void}} props
+ * `discStyle` comes from the platform theme: "cinematic", "editorial",
+ * "instrument", "classic" or "glass". Names curve along the rim, like print
+ * on a real disc, in "classic" and "glass"; the others keep them upright.
+ * @param {{games:object[],selectedIndex:number,loading:boolean,discStyle?:"glass"|"editorial"|"cinematic"|"instrument"|"classic",onSelectIndex:(index:number,focus?:boolean)=>void,onActivate:(path:string)=>void,onMore?:()=>void,registerCardRef?:(index:number,node:HTMLElement|null)=>void}} props
  * @returns {React.ReactElement}
  */
-export default function LibraryDisc({ games, selectedIndex, loading, onSelectIndex, onActivate, onMore, registerCardRef }) {
+export default function LibraryDisc({ games, selectedIndex, loading, discStyle = "cinematic", onSelectIndex, onActivate, onMore, registerCardRef }) {
   const discRef = useRef(null);
   const sheenRef = useRef(null);
   const itemRefs = useRef(new Map());
@@ -77,6 +88,9 @@ export default function LibraryDisc({ games, selectedIndex, loading, onSelectInd
   const [columnWidth, setColumnWidth] = useState(176);
   const geometryRef = useRef(geometry);
   const count = games.length;
+  const uprightNames = discStyle !== "glass" && discStyle !== "classic";
+  const uprightRef = useRef(uprightNames);
+  uprightRef.current = uprightNames;
   const selectedGame = games[selectedIndex] || games[0];
 
   // Paint is imperative: one transform per mounted name and one for the rim,
@@ -90,7 +104,8 @@ export default function LibraryDisc({ games, selectedIndex, loading, onSelectInd
         continue;
       }
       element.style.visibility = "visible";
-      element.style.transform = `translate(${placement.x.toFixed(1)}px, ${placement.y.toFixed(1)}px) translateY(-50%) rotate(${placement.angleDeg.toFixed(2)}deg) scale(${placement.scale.toFixed(3)})`;
+      const rotation = uprightRef.current ? 0 : placement.angleDeg;
+      element.style.transform = `translate(${placement.x.toFixed(1)}px, ${placement.y.toFixed(1)}px) translateY(-50%) rotate(${rotation.toFixed(2)}deg) scale(${placement.scale.toFixed(3)})`;
       element.style.opacity = placement.opacity.toFixed(3);
     }
     // The CD sheen sweeps a little as the disc turns.
@@ -239,7 +254,7 @@ export default function LibraryDisc({ games, selectedIndex, loading, onSelectInd
   const plateFadeEnd = columnWidth - plateLeft;
 
   return (
-    <div className={styles.discLayout}>
+    <div className={styles.discLayout} data-disc-style={discStyle}>
       <div
         className={styles.disc}
         ref={discRef}
@@ -262,6 +277,7 @@ export default function LibraryDisc({ games, selectedIndex, loading, onSelectInd
         </div>
         <div className={styles.band} style={{ top: geometry.centerY }} aria-hidden="true" />
         <span className={styles.notch} style={{ top: geometry.centerY }} aria-hidden="true" />
+        <span className={styles.discCounter} aria-hidden="true">SEL {String(selectedIndex + 1).padStart(2, "0")}/{String(count).padStart(2, "0")}</span>
         {games.map((game, index) => {
           const selected = index === selectedIndex;
           return (
@@ -283,7 +299,8 @@ export default function LibraryDisc({ games, selectedIndex, loading, onSelectInd
                 registerCardRef?.(index, node);
               }}
             >
-              {game.name}
+              <span className={styles.discNumber} aria-hidden="true">{String(index + 1).padStart(2, "0")}</span>
+              <span className={styles.discName}>{game.name}</span>
             </button>
           );
         })}

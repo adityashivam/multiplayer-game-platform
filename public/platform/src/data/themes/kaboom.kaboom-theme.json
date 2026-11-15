@@ -1,0 +1,41 @@
+{
+  "format": "kaboom-theme",
+  "version": 2,
+  "id": "kaboom",
+  "name": "Kaboom",
+  "author": "Kaboom",
+  "colors": {
+    "accent": "#00daf3",
+    "accentText": "#062126",
+    "background": "#0b0d10",
+    "surface": "#101216",
+    "text": "#f4f6f7",
+    "textMuted": "#a3adb4",
+    "chassis": "#1c1b1b"
+  },
+  "glass": 0.66,
+  "radius": 1,
+  "fonts": {
+    "heading": "space-grotesk",
+    "body": "manrope",
+    "mono": "system-mono"
+  },
+  "icons": {
+    "style": "outlined",
+    "fill": false,
+    "weight": 400,
+    "nav": {}
+  },
+  "cards": {
+    "shape": "portrait"
+  },
+  "background": {
+    "style": "game-art",
+    "pattern": "grid",
+    "dim": 0,
+    "blur": 0
+  },
+  "disc": {
+    "style": "cinematic"
+  }
+}

@@ -425,6 +425,7 @@ export default function App() {
           onSelectIndex={selectLibraryGame}
           onActivate={openGamePath}
           layout={libraryLayout}
+          discStyle={platformTheme.selectedTheme.disc.style}
           cardScale={cardScale}
           onCardScaleChange={handleZoomChange}
           registerCardRef={(index, node) => {

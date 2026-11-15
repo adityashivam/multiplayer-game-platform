@@ -49,6 +49,7 @@ export default function LobbyList({
   onSelectIndex,
   onActivate,
   layout = "grid",
+  discStyle = "cinematic",
   cardScale = 1,
   onCardScaleChange,
   registerCardRef,
@@ -172,6 +173,7 @@ export default function LobbyList({
               games={games}
               selectedIndex={selectedIndex}
               loading={loading}
+              discStyle={discStyle}
               onSelectIndex={onSelectIndex}
               onActivate={onActivate}
               onMore={() => setPreviewOpen(true)}

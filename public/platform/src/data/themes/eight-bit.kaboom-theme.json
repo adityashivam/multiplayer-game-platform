@@ -1,0 +1,47 @@
+{
+  "format": "kaboom-theme",
+  "version": 2,
+  "id": "eight-bit",
+  "name": "8-Bit",
+  "author": "Kaboom",
+  "colors": {
+    "accent": "#f8b800",
+    "accentText": "#1a1000",
+    "background": "#0d0c1d",
+    "surface": "#1d1b3a",
+    "text": "#fcfcfc",
+    "textMuted": "#bcbcd0",
+    "chassis": "#56566a"
+  },
+  "glass": 0.94,
+  "radius": 0,
+  "fonts": {
+    "heading": "press-start-2p",
+    "body": "vt323",
+    "mono": "vt323"
+  },
+  "icons": {
+    "style": "sharp",
+    "fill": true,
+    "weight": 600,
+    "nav": {
+      "solo": "joystick",
+      "multi": "videogame_asset",
+      "friends": "group",
+      "profile": "face",
+      "config": "build"
+    }
+  },
+  "cards": {
+    "shape": "square"
+  },
+  "background": {
+    "style": "pattern",
+    "pattern": "lines",
+    "dim": 0,
+    "blur": 0
+  },
+  "disc": {
+    "style": "instrument"
+  }
+}

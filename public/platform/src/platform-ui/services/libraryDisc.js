@@ -48,7 +48,8 @@ export function placeLibraryDiscItem(offset, geometry) {
     // Names read inward toward the hub, so they turn against the rim angle.
     angleDeg: 0 - angleDeg,
     scale: 1.1 - distance * 0.07,
-    opacity: 1 - Math.min(Math.abs(offset) / 4.2, 0.8),
+    // Neighbours stay readable; only names far round the rim fade to 40%.
+    opacity: 1 - Math.min(Math.abs(offset) / 5.5, 0.6),
   };
 }
 

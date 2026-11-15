@@ -394,7 +394,10 @@
   gap: 0;
   width: min(560px, calc(100% - 32px));
   height: 54px;
-  margin: 0 auto var(--space-3);
+  // The shell raises the dock when the console deck is collapsed, making room
+  // for the deck toggle beneath it.
+  margin: 0 auto var(--dock-bottom-gap, var(--space-3));
+  transition: margin-bottom var(--motion-slow) var(--ease-spring);
   padding: 5px;
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-pill);

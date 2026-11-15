@@ -1,0 +1,44 @@
+{
+  "format": "kaboom-theme",
+  "version": 2,
+  "id": "aurora",
+  "name": "Aurora",
+  "author": "Kaboom",
+  "colors": {
+    "accent": "#46e3a8",
+    "accentText": "#03251a",
+    "background": "#070d0c",
+    "surface": "#0c1715",
+    "text": "#eef7f3",
+    "textMuted": "#9fb6ad",
+    "chassis": "#141c1a"
+  },
+  "glass": 0.62,
+  "radius": 1.15,
+  "fonts": {
+    "heading": "outfit",
+    "body": "manrope",
+    "mono": "system-mono"
+  },
+  "icons": {
+    "style": "rounded",
+    "fill": true,
+    "weight": 400,
+    "nav": {
+      "multi": "public",
+      "solo": "sports_esports"
+    }
+  },
+  "cards": {
+    "shape": "tall"
+  },
+  "background": {
+    "style": "ambient",
+    "pattern": "grid",
+    "dim": 0,
+    "blur": 0
+  },
+  "disc": {
+    "style": "cinematic"
+  }
+}

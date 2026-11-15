@@ -138,7 +138,7 @@
   container-type: size;
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
+  gap: var(--space-3);
   min-width: 0;
   min-height: 0;
 }
@@ -150,7 +150,7 @@
   position: relative;
   flex: none;
   width: 100%;
-  height: max(96px, min(calc(100cqw * 4 / 3), calc(100cqh - 182px)));
+  height: max(96px, min(calc(100cqw * 4 / 3), calc(100cqh - 192px)));
   overflow: hidden;
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-md);
@@ -254,7 +254,8 @@
   backdrop-filter: var(--glass-blur);
   transition: background var(--motion-fast) ease, border-color var(--motion-fast) ease, transform var(--motion-fast) var(--ease-spring);
 
-  > span {
+  > .spotlightPlayIcon,
+  > .spotlightPlayArrow {
     color: var(--platform-accent);
     font-size: clamp(17px, 9cqw, 20px);
     font-variation-settings: "FILL" 1;
@@ -288,5 +289,401 @@
 @media (prefers-reduced-motion: reduce) {
   .spotlightArt, .spotlightText {
     animation: none;
+  }
+}
+
+// Upright names don't need the clearance tilted ones do, so they get more
+// room, and unselected names use body text so they stay readable.
+.discLayout:not([data-disc-style="glass"]):not([data-disc-style="classic"]) .discItem {
+  max-width: calc(100% - 30px);
+  color: var(--text-body);
+
+  &[aria-pressed="true"] {
+    color: var(--text-strong);
+  }
+}
+
+// Extras only some styles show.
+.discNumber,
+.discCounter,
+.spotlightSpecs,
+.spotlightPlayArrow {
+  display: none;
+}
+
+.discCounter {
+  position: absolute;
+  top: var(--space-1);
+  left: var(--space-3);
+  color: var(--text-muted);
+  font: 500 var(--type-xs) / 1 var(--platform-font-mono);
+  letter-spacing: .08em;
+  pointer-events: none;
+}
+
+.spotlightSpecs {
+  margin: var(--space-1) 0 0;
+
+  > div {
+    display: flex;
+    justify-content: space-between;
+    gap: var(--space-2);
+    padding: 3px 0;
+    border-top: 1px solid var(--glass-border);
+  }
+
+  dt, dd {
+    margin: 0;
+    overflow: hidden;
+    font: 500 var(--type-xs) / 1.4 var(--platform-font-mono);
+    letter-spacing: .06em;
+    text-overflow: ellipsis;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  dt { flex-shrink: 0; color: var(--text-muted); }
+  dd { min-width: 0; color: var(--text-strong); text-align: right; }
+}
+
+// ── Cinematic: no plate; upright names fade along the curve, a thin bar
+// marks the selection, the art bleeds to the edge, Play is a white button.
+.discLayout[data-disc-style="cinematic"] {
+  .plate,
+  .notch,
+  .spotlightGenre {
+    display: none;
+  }
+
+  .band {
+    left: 12px;
+    right: auto;
+    width: 2px;
+    height: 22px;
+    border: 0;
+    border-radius: 1px;
+    background: var(--text-strong);
+  }
+
+  .discItem {
+    padding-left: var(--space-4);
+    font: 500 var(--type-sm) / 1.2 var(--platform-font-body);
+    letter-spacing: 0;
+
+    &[aria-pressed="true"] {
+      font-weight: 600;
+    }
+  }
+
+  .spotlightArt {
+    width: calc(100% + var(--screen-inline-padding, 12px));
+    margin-right: calc(-1 * var(--screen-inline-padding, 12px));
+    border: 0;
+    border-radius: var(--radius-sm) 0 0 var(--radius-sm);
+    box-shadow: none;
+  }
+
+  .spotlightPlay {
+    border: 0;
+    border-radius: var(--radius-sm);
+    background: var(--text-strong);
+    color: var(--surface-base);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+
+    > .spotlightPlayIcon { color: inherit; }
+
+    &:hover:not(:disabled) {
+      background: color-mix(in srgb, var(--text-strong) 86%, transparent);
+    }
+  }
+}
+
+// ── Editorial: a single hairline arc, numbered upright small caps, a short
+// rule marks the selection, a quiet frame for the art, Play as a text link.
+.discLayout[data-disc-style="editorial"] {
+  .grooves,
+  .sheen,
+  .notch,
+  .spotlightGenre {
+    display: none;
+  }
+
+  .plate {
+    border-color: color-mix(in srgb, var(--text-strong) 20%, transparent);
+    background: transparent;
+    box-shadow: none;
+  }
+
+  .band {
+    left: 6px;
+    right: auto;
+    width: 12px;
+    height: 1px;
+    border: 0;
+    border-radius: 0;
+    background: var(--text-strong);
+  }
+
+  .discItem {
+    padding-left: var(--space-3);
+    font: 500 var(--type-xs) / 1.2 var(--platform-font-body);
+    letter-spacing: .08em;
+    text-transform: uppercase;
+
+    &[aria-pressed="true"] {
+      font-size: var(--type-sm);
+    }
+  }
+
+  .discNumber {
+    display: inline;
+    margin-right: var(--space-2);
+    color: var(--text-faint);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .spotlightArt {
+    border: 0;
+    border-radius: 3px;
+    box-shadow: none;
+  }
+
+  .spotlightTitle {
+    font-weight: 500;
+    letter-spacing: -.01em;
+  }
+
+  .spotlightMeta {
+    letter-spacing: .12em;
+    text-transform: uppercase;
+  }
+
+  .spotlightMore {
+    color: var(--text-strong);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+
+  .spotlightPlay {
+    justify-content: space-between;
+    padding: 0;
+    border: 0;
+    border-top: 1px solid var(--text-strong);
+    border-radius: 0;
+    background: transparent;
+    font: 600 var(--type-xs) var(--platform-font-body);
+    letter-spacing: .16em;
+    text-transform: uppercase;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+
+    &:hover:not(:disabled) {
+      border-color: var(--platform-accent);
+      background: transparent;
+    }
+  }
+
+  .spotlightPlayIcon { display: none; }
+
+  .spotlightPlayArrow {
+    display: inline;
+    color: var(--text-strong);
+    transition: transform var(--motion-medium) var(--ease-spring);
+  }
+
+  .spotlightPlay:hover .spotlightPlayArrow {
+    transform: translateX(3px);
+  }
+}
+
+// ── Instrument: a machined dial with two rings and an engraved index,
+// mono labels and a counter, spec rows, and a single outlined accent.
+.discLayout[data-disc-style="instrument"] {
+  .grooves,
+  .sheen,
+  .spotlightGenre,
+  .spotlightMeta {
+    display: none;
+  }
+
+  .plate {
+    border-color: color-mix(in srgb, var(--text-strong) 16%, transparent);
+    background:
+      radial-gradient(closest-side, transparent 92.5%, color-mix(in srgb, var(--text-strong) 9%, transparent) 93%, transparent 93.6%),
+      color-mix(in srgb, var(--surface-base) 72%, var(--chassis));
+    box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .35);
+  }
+
+  .band {
+    border: 0;
+    background: transparent;
+  }
+
+  .notch {
+    border-top-width: 5px;
+    border-bottom-width: 5px;
+    border-left-width: 7px;
+  }
+
+  .discCounter {
+    display: block;
+  }
+
+  .discItem {
+    padding-left: var(--space-4);
+    font: 500 var(--type-xs) / 1.2 var(--platform-font-mono);
+    letter-spacing: .06em;
+    text-transform: uppercase;
+
+    &[aria-pressed="true"] {
+      font-size: var(--type-sm);
+    }
+  }
+
+  .spotlightArt {
+    border: 1px solid var(--glass-border);
+    border-radius: 2px;
+    box-shadow: none;
+  }
+
+  .spotlightTitle {
+    font: 500 clamp(13px, 7.5cqw, 16px) / 1.2 var(--platform-font-mono);
+    letter-spacing: .04em;
+    text-transform: uppercase;
+  }
+
+  .spotlightSpecs {
+    display: block;
+  }
+
+  .spotlightDescription {
+    -webkit-line-clamp: 2;
+  }
+
+  .spotlightPlay {
+    border: 1px solid var(--platform-accent);
+    border-radius: 2px;
+    background: transparent;
+    font: 500 var(--type-xs) var(--platform-font-mono);
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+
+    &:hover:not(:disabled) {
+      background: color-mix(in srgb, var(--platform-accent) 12%, transparent);
+    }
+  }
+}
+
+// ── Classic disc: a polished silver CD. Fine data-track grooves, a rainbow
+// reflection that sweeps as the disc turns, a bright rim, names printed in
+// dark ink around the disc, and cover art framed like a clear jewel case.
+.discLayout[data-disc-style="classic"] {
+  .plate {
+    // A deep satin silver, not a mirror: bright enough to read as metal,
+    // calm enough to sit in a dark interface.
+    border: 1px solid rgba(255, 255, 255, .3);
+    background:
+      radial-gradient(closest-side, transparent 96.5%, rgba(255, 255, 255, .45) 97.2%, rgba(60, 66, 76, .9) 98.4%, rgba(255, 255, 255, .3) 99.4%),
+      conic-gradient(from 0deg, #8c939e, #b3b9c2 8%, #767d89 19%, #a8afb9 31%, #828a95 44%, #b8bec7 56%, #737a86 68%, #a3aab4 81%, #878e99 92%, #8c939e);
+    box-shadow:
+      0 0 0 1px rgba(0, 0, 0, .35),
+      inset 0 0 0 2px rgba(255, 255, 255, .25),
+      0 18px 40px -14px rgba(0, 0, 0, .7);
+  }
+
+  // Concentric data tracks.
+  .grooves {
+    background: repeating-radial-gradient(circle, rgba(40, 46, 56, .10) 0 1px, transparent 1px 3px);
+  }
+
+  // The rainbow diffraction of light on a disc; it sweeps as the disc turns.
+  .sheen {
+    background: conic-gradient(
+      from 210deg,
+      transparent 0deg,
+      rgba(255, 60, 160, .55) 14deg,
+      rgba(255, 210, 60, .5) 26deg,
+      rgba(70, 255, 170, .5) 38deg,
+      rgba(60, 160, 255, .55) 50deg,
+      rgba(190, 80, 255, .5) 62deg,
+      transparent 80deg,
+      transparent 168deg,
+      rgba(60, 160, 255, .45) 184deg,
+      rgba(70, 255, 170, .4) 196deg,
+      rgba(255, 210, 60, .4) 208deg,
+      rgba(255, 60, 160, .45) 220deg,
+      transparent 238deg,
+      transparent 360deg
+    );
+    -webkit-mask-image: radial-gradient(closest-side, transparent 30%, #000 62%, #000 96%, transparent 97%);
+    mask-image: radial-gradient(closest-side, transparent 30%, #000 62%, #000 96%, transparent 97%);
+    // Overlay keeps the silver bright while the colours show through.
+    mix-blend-mode: overlay;
+    opacity: .62;
+  }
+
+  // A polished highlight across the face, like light catching the plastic.
+  .plate::after {
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    background: linear-gradient(115deg, transparent 40%, rgba(255, 255, 255, .22) 47%, transparent 54%);
+    mix-blend-mode: soft-light;
+    content: "";
+  }
+
+  .band {
+    left: 18px;
+    right: 6px;
+    height: 30px;
+    border: 1px solid rgba(255, 255, 255, .35);
+    background: rgba(14, 16, 20, .82);
+    box-shadow: 0 6px 14px -6px rgba(0, 0, 0, .6);
+  }
+
+  .notch {
+    border-left-color: rgba(14, 16, 20, .9);
+  }
+
+  // Names printed in dark ink; the selected one reads light on its label.
+  .discItem {
+    color: rgba(12, 14, 18, .9);
+    font: 700 var(--type-sm) / 1.2 var(--platform-font-heading);
+    letter-spacing: .01em;
+    text-shadow: 0 1px 0 rgba(255, 255, 255, .25);
+
+    &[aria-pressed="true"] {
+      color: #f6f8fa;
+      text-shadow: none;
+    }
+  }
+
+  // Cover art in a clear jewel case: a thin bright edge, a darker frame and a hinge.
+  .spotlightArt {
+    border: 1px solid rgba(255, 255, 255, .42);
+    border-radius: 4px;
+    box-shadow: 0 18px 36px -18px rgba(0, 0, 0, .8);
+
+    // The case frame and hinge sit above the art.
+    &::after {
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      box-shadow:
+        inset 0 0 0 4px rgba(10, 12, 16, .55),
+        inset 12px 0 0 0 rgba(255, 255, 255, .07),
+        inset 0 1px 0 4px rgba(255, 255, 255, .12);
+      background: linear-gradient(120deg, rgba(255, 255, 255, .14), transparent 32%);
+      pointer-events: none;
+      content: "";
+    }
+  }
+
+  .spotlightPlay {
+    border-color: rgba(255, 255, 255, .5);
+    background: linear-gradient(180deg, rgba(255, 255, 255, .22), rgba(255, 255, 255, .06)), var(--glass-2);
   }
 }

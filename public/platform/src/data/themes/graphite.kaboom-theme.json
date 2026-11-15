@@ -1,0 +1,43 @@
+{
+  "format": "kaboom-theme",
+  "version": 2,
+  "id": "graphite",
+  "name": "Graphite",
+  "author": "Kaboom",
+  "colors": {
+    "accent": "#e9eaec",
+    "accentText": "#111214",
+    "background": "#0a0a0b",
+    "surface": "#141416",
+    "text": "#f5f5f6",
+    "textMuted": "#a2a3a8",
+    "chassis": "#1b1b1d"
+  },
+  "glass": 0.74,
+  "radius": 0.7,
+  "fonts": {
+    "heading": "rajdhani",
+    "body": "inter",
+    "mono": "jetbrains-mono"
+  },
+  "icons": {
+    "style": "sharp",
+    "fill": false,
+    "weight": 300,
+    "nav": {
+      "config": "settings"
+    }
+  },
+  "cards": {
+    "shape": "square"
+  },
+  "background": {
+    "style": "game-art",
+    "pattern": "lines",
+    "dim": 0.35,
+    "blur": 6
+  },
+  "disc": {
+    "style": "instrument"
+  }
+}

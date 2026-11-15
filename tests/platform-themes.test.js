@@ -91,7 +91,7 @@ test("a theme sets only known custom properties with safe values", () => {
   const variables = readPlatformThemeVariables(validatePlatformTheme(sampleTheme).theme);
   assert.deepEqual(Object.keys(variables), [...PLATFORM_THEME_VARIABLE_NAMES]);
   for (const value of Object.values(variables)) {
-    assert.match(value, /^(#[0-9a-f]{6}|rgba\(\d+, \d+, \d+, [\d.]+\)|\d+px|[\d.]+|\d+ \/ \d+|"[A-Za-z0-9 ]+"(, (sans-serif|monospace))?|none|weight style)$/, value);
+    assert.match(value, /^(#[0-9a-f]{6}|rgba\(\d+, \d+, \d+, [\d.]+\)|\d+px|[\d.]+|\d+ \/ \d+|"[A-Za-z0-9 ]+"(, (sans-serif|monospace))?|none|weight style|("[A-Za-z0-9 ]+", )?ui-monospace(, SFMono-Regular, Menlo, Consolas)?, monospace)$/, value);
   }
   assert.equal(variables["--radius-md"], "15px");
 });
@@ -139,7 +139,8 @@ test("version 1 files still import and come back as complete version 2 themes", 
   const result = validatePlatformTheme(sampleTheme);
   assert.equal(result.ok, true);
   assert.equal(result.theme.version, 2);
-  assert.deepEqual(result.theme.fonts, { heading: "space-grotesk", body: "manrope" });
+  assert.deepEqual(result.theme.fonts, { heading: "space-grotesk", body: "manrope", mono: "system-mono" });
+  assert.deepEqual(result.theme.disc, { style: "cinematic" }, "themes without a disc style get the default");
   assert.equal(result.theme.icons.style, "outlined");
   assert.equal(result.theme.cards.shape, "portrait");
   assert.equal(result.theme.background.style, "game-art");
@@ -230,4 +231,18 @@ test("pixel-font themes normalise text size and keep pixels crisp", () => {
   const regular = readPlatformThemeVariables(BUILT_IN_PLATFORM_THEMES[0]);
   assert.equal(regular["--font-size-adjust"], "none");
   assert.equal(regular["--font-synthesis"], "weight style");
+});
+
+test("disc styles and mono fonts come from fixed lists", () => {
+  for (const style of ["glass", "editorial", "cinematic", "instrument"]) {
+    assert.equal(validatePlatformTheme({ ...sampleTheme, version: 2, disc: { style } }).ok, true, style);
+  }
+  assert.match(validatePlatformTheme({ ...sampleTheme, version: 2, disc: { style: "vinyl" } }).error, /disc\.style/);
+  assert.match(validatePlatformTheme({ ...sampleTheme, version: 2, disc: { style: "editorial", spin: 3 } }).error, /disc\.spin/);
+  assert.match(validatePlatformTheme({ ...sampleTheme, version: 2, fonts: { heading: "inter", body: "inter", mono: "Courier" } }).error, /fonts\.mono/);
+  const technical = validatePlatformTheme({ ...sampleTheme, version: 2, fonts: { heading: "fraunces", body: "inter", mono: "jetbrains-mono" } }).theme;
+  assert.equal(readPlatformThemeVariables(technical)["--platform-font-heading"], "\"Fraunces\", serif");
+  assert.ok(readPlatformThemeFontUrls(technical).some((url) => url.includes("family=JetBrains+Mono")));
+  const custom = createCustomPlatformTheme(BUILT_IN_PLATFORM_THEMES[0], { disc: { style: "instrument" } });
+  assert.equal(custom.theme.disc.style, "instrument");
 });

@@ -1,27 +1,40 @@
 # Platform themes
 
 Players choose a theme in **Settings → Theme**. Themes change how the
-platform looks: colours, glass, corners, fonts, icon pack, card shape and
-background. They never change its layout.
+platform looks: colours, glass, corners, fonts, icon pack, card shape,
+background and the style of the portrait disc library. They never change its
+layout or behaviour.
+
+A theme JSON file is the single source of truth for a look. The built-in
+themes are JSON files in the same format players import and export, and the
+platform's CSS fallbacks are generated from the default theme's file.
 
 Players can:
 
-- Pick one of six built-in themes: Kaboom (the default), Ember, Aurora,
-  Violet Hour, 8-Bit (a retro pixel console) and Graphite.
-- Open **Customize** to change the accent and base colour, heading and body
-  fonts, icon style, weight and fill, card shape, corners, glass, and the
-  background (game art, ambient, pattern or their own image, with dim and
-  blur). Edits save as "My theme".
+- Pick one of seven built-in themes: Kaboom (the default), Ember, Aurora,
+  Violet Hour, 8-Bit (a retro pixel console), Classic Disc (a shiny CD) and
+  Graphite.
+- Open **Customize** to change the accent and base colour, heading, body and
+  mono fonts, icon style, weight and fill, card shape, disc style, corners,
+  glass, and the background (game art, ambient, pattern or their own image,
+  with dim and blur). Edits save as "My theme".
 - Import a theme from a JSON file or pasted text, export the current theme to
   share it, and remove themes they imported.
 
 Themes are stored in this browser only (up to 12 imported themes, about
 3.5 MB in total). Nothing is uploaded.
 
-The format and its validation are in
-`public/platform/src/platform-ui/services/platformThemes.js`. The Settings card
-is `ThemeSettings.jsx`. `usePlatformTheme.js` applies the selected theme when
-the app starts and loads the fonts it needs.
+Where things live:
+
+- Built-in themes: `public/platform/src/data/themes/<id>.kaboom-theme.json`.
+- Format, validation and the CSS variables a theme sets:
+  `public/platform/src/platform-ui/services/platformThemes.js`.
+- Generated CSS fallbacks: `styles/_theme-defaults.generated.scss`, written by
+  `npm run platform:theme-defaults` (run automatically by `npm run platform:build`)
+  from the default theme's JSON. `tests/platform-theme-defaults.test.js` fails if
+  the committed file drifts, or if `global.scss` repeats a theme token by hand.
+- The Settings card is `ThemeSettings.jsx`; `usePlatformTheme.js` applies the
+  selected theme when the app starts and loads the fonts it needs.
 
 ## Format (version 2)
 
@@ -46,11 +59,12 @@ the app starts and loads the fonts it needs.
   "fonts": { "heading": "outfit", "body": "inter" },
   "icons": { "style": "rounded", "fill": false, "weight": 400, "nav": { "solo": "sports_esports" } },
   "cards": { "shape": "tall" },
-  "background": { "style": "pattern", "pattern": "dots", "dim": 0.2, "blur": 0 }
+  "background": { "style": "pattern", "pattern": "dots", "dim": 0.2, "blur": 0 },
+  "disc": { "style": "cinematic" }
 }
 ```
 
-`fonts`, `icons`, `cards` and `background` are optional; missing ones use the
+`fonts`, `icons`, `cards`, `background` and `disc` are optional; missing ones use the
 defaults shown in the tables. Version 1 files (colours, glass and radius only)
 still import and are upgraded to version 2. Exports are always version 2.
 
@@ -77,6 +91,11 @@ still import and are upgraded to version 2. Exports are always version 2.
 |-------|--------------------------|
 | `fonts.heading` | `space-grotesk` (default), `manrope`, `inter`, `outfit`, `sora`, `rajdhani`, `oxanium`, `chakra-petch`, `exo-2`, `orbitron`, and the pixel fonts `press-start-2p` and `vt323` |
 | `fonts.body` | the same list (default `manrope`) |
+| `fonts.mono` | `system-mono` (default: the device's own monospace, loads nothing), `jetbrains-mono`, `ibm-plex-mono`, `vt323` |
+
+The heading and body lists also include the serif faces `fraunces` and
+`playfair-display`, used by editorial themes. The mono font labels technical
+looks such as the Instrument disc.
 
 Fonts load from Google Fonts using URLs the platform builds from this list.
 A theme can't name any other font or URL.
@@ -102,6 +121,21 @@ their space and pixels stay crisp.
 | `cards.shape` | `portrait` 3:4 (default), `tall` 2:3, `square` 1:1, `landscape` 4:3 |
 
 Very short screens still use a compact card crop so the library fits.
+
+### Disc style
+
+The portrait library's disc (names on a turning disc beside the selected
+game's art) has four presets. Each is a coherent combination of disc surface,
+name treatment, selection marker, art and Play button; the theme's colours,
+fonts and corners still apply on top.
+
+| `disc.style` | Look |
+|--------------|------|
+| `cinematic` (default) | No plate; upright names fade along the curve, a thin bar marks the selection, the art bleeds to the edge and fades under the title, Play is a solid light button |
+| `editorial` | A single hairline arc, numbered upright small caps, a short rule marks the selection, a quiet frame for the art, Play as a text link with an arrow |
+| `instrument` | A machined dial with two rings and an engraved index, mono labels and a counter, spec rows (genre, players, input), an outlined accent Play |
+| `classic` | A polished silver CD: data-track grooves, a rainbow reflection that sweeps as it turns, a bright rim, names printed in dark ink around the disc, and cover art in a clear jewel case |
+| `glass` | The original frosted disc with a soft sheen and names tilted along the rim |
 
 ### Background
 
@@ -135,10 +169,18 @@ Import errors name the field to fix, for example
 `colors.text needs more contrast against the background.` or
 `background.image must be an embedded PNG, JPEG or WebP (a data: URL); links aren't allowed.`
 
-## Adding a built-in theme
+## Adding or changing a built-in theme
 
-Add an entry to `BUILT_IN_PLATFORM_THEMES` in `platformThemes.js`. The tests
-in `tests/platform-themes.test.js` check that every built-in theme passes the
-same validation as an imported one. The first entry is the default theme. Its
-values must match the fallbacks in `styles/global.scss`, because choosing it
-clears the theme properties.
+1. Add or edit `public/platform/src/data/themes/<id>.kaboom-theme.json`. Built-ins
+   are stored in full, normalised form (every section present), exactly as
+   **Export** writes them, so the easiest start is exporting a theme from
+   Settings.
+2. For a new theme, import it in `platformThemes.js` and add it to the
+   `BUILT_IN_PLATFORM_THEMES` list. Every built-in goes through the same
+   validation as an imported theme; an invalid file stops the app at load.
+3. If you changed the default theme (the first in the list), run
+   `npm run platform:theme-defaults` to regenerate the CSS fallbacks.
+
+`tests/platform-theme-defaults.test.js` checks that every JSON file is a
+listed built-in, that each is valid and stored in full, and that the
+generated CSS matches the default theme.
