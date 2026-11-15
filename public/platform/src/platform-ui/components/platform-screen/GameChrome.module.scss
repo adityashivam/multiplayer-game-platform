@@ -1,53 +1,161 @@
-// Reserved row above the play surface: the runtime area starts below it, so
-// no game HUD ever sits under platform controls.
+// Floating game menu: one small see-through button over the play surface
+// that opens into a frosted pill of platform actions. It never reserves a
+// row, so the game keeps the whole screen.
 .toolbar {
-  --toolbar-height: 40px;
   --toolbar-button: 32px;
+  --menu-button: 40px;
 
-  position: relative;
+  position: absolute;
   z-index: 4;
-  flex: none;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  height: var(--toolbar-height);
-  min-width: 0;
-  padding: 0 6px 0 4px;
-  border-bottom: 1px solid var(--platform-border);
-  background: var(--platform-surface-inset);
+  gap: 6px;
+  max-width: calc(100% - 20px);
   font-family: var(--platform-font-body);
+  pointer-events: none;
+
+  &[data-side="right"] {
+    flex-direction: row-reverse;
+  }
+
+  > * {
+    pointer-events: auto;
+  }
 }
 
-.toolbarIdentity,
-.toolbarActions {
+.menuLauncher,
+.menuBadge {
+  position: relative;
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  padding: 0;
+  border: 1px solid rgba(240, 244, 242, .16);
+  border-radius: 50%;
+  background: rgba(17, 28, 35, .78);
+  color: var(--platform-text);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, .3);
+  cursor: pointer;
+  transition: opacity 160ms ease, background 160ms ease, border-color 160ms ease, transform 160ms ease;
+
+  &:disabled {
+    cursor: not-allowed;
+  }
+}
+
+// Idle, the button lets the game show through; any attention makes it solid.
+.menuLauncher {
+  width: var(--menu-button);
+  height: var(--menu-button);
+  opacity: .55;
+  touch-action: none;
+  cursor: grab;
+
+  > :global(.material-symbols-outlined) {
+    font-size: 21px;
+  }
+
+  &:hover:not(:disabled),
+  &:focus-visible,
+  &[aria-expanded="true"] {
+    opacity: 1;
+    border-color: rgba(0, 218, 243, .45);
+  }
+
+  .toolbar[data-dragging="true"] & {
+    opacity: 1;
+    cursor: grabbing;
+    transform: scale(1.06);
+  }
+}
+
+.menuBadge {
+  width: 30px;
+  height: 30px;
+  opacity: .7;
+
+  > :global(.material-symbols-outlined) {
+    font-size: 17px;
+  }
+
+  &[aria-pressed="true"] {
+    color: var(--platform-accent);
+  }
+
+  &:hover:not(:disabled),
+  &:focus-visible {
+    opacity: 1;
+  }
+}
+
+.menuDot {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 8px;
+  height: 8px;
+  border: 1.5px solid #0d161c;
+  border-radius: 50%;
+}
+
+.menuDotConnected {
+  background: var(--platform-accent);
+}
+
+.menuDotReconnecting {
+  background: var(--platform-warning);
+}
+
+.menuDotDisconnected {
+  background: var(--platform-danger);
+}
+
+// Open, the actions sit on frosted glass so the game stays visible behind.
+.menuPill {
   display: flex;
   align-items: center;
   gap: 2px;
   min-width: 0;
+  max-width: 100%;
+  padding: 4px 6px;
+  overflow-x: auto;
+  border: 1px solid rgba(240, 244, 242, .14);
+  border-radius: 999px;
+  background: rgba(13, 22, 28, .5);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, .35), inset 0 1px 0 rgba(255, 255, 255, .06);
+  -webkit-backdrop-filter: blur(16px) saturate(1.4);
+  backdrop-filter: blur(16px) saturate(1.4);
+  scrollbar-width: none;
+  animation: menuPillIn 140ms ease-out both;
+
+  .toolbar[data-side="right"] & {
+    flex-direction: row-reverse;
+    animation-name: menuPillInFromRight;
+  }
 }
 
-.toolbarIdentity {
-  flex: 1 1 auto;
-  gap: 8px;
-  overflow: hidden;
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .menuPill {
+    background: rgba(17, 28, 35, .96);
+  }
 }
 
-.toolbarActions {
-  flex: none;
-  justify-content: flex-end;
+@media (prefers-reduced-transparency: reduce) {
+  .menuPill {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    background: rgba(17, 28, 35, .96);
+  }
 }
 
-.toolbarTitle {
-  min-width: 0;
-  overflow: hidden;
-  color: var(--platform-text);
-  font-family: var(--platform-font-heading);
-  font-size: 13px;
-  font-weight: 600;
-  letter-spacing: -.01em;
-  white-space: nowrap;
-  text-overflow: ellipsis;
+@keyframes menuPillIn {
+  from { opacity: 0; transform: translateX(-8px) scale(.96); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes menuPillInFromRight {
+  from { opacity: 0; transform: translateX(8px) scale(.96); }
+  to { opacity: 1; transform: none; }
 }
 
 .connectionIndicator {
@@ -256,6 +364,13 @@
   to { opacity: 1; }
 }
 
+// Touch screens cannot hover, so the idle button stays a little more visible.
+@media (hover: none) {
+  .menuLauncher {
+    opacity: .65;
+  }
+}
+
 @media (pointer: coarse) {
   .toolbar {
     --toolbar-button: 34px;
@@ -268,21 +383,11 @@
   }
 }
 
-@media (max-width: 520px) {
-  .toolbarTitle {
-    display: none;
-  }
-}
-
 // Phones held sideways: every pixel of height is play space.
 @media (max-height: 540px) and (orientation: landscape) {
   .toolbar {
-    --toolbar-height: 36px;
+    --menu-button: 36px;
     --toolbar-button: 30px;
-  }
-
-  .toolbarTitle {
-    display: none;
   }
 
   .networkHeader {
@@ -295,8 +400,14 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .toolbarButton {
+  .toolbarButton,
+  .menuLauncher,
+  .menuBadge {
     transition: none;
+  }
+
+  .menuPill {
+    animation: none;
   }
 
   .networkPanel {

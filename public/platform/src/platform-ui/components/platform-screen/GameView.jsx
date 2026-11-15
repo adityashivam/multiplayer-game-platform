@@ -11,6 +11,13 @@ import useVoiceChat from "../../hooks/useVoiceChat.js";
 import { TOGGLE_NETWORK_PANEL_EVENT } from "../../constants/events.js";
 import styles from "../../PlatformApp.module.scss";
 import { TouchControlSurface, TouchLayoutEditor } from "../touch-controls/index.js";
+import {
+  HOME_SCREEN_FULLSCREEN_TIP,
+  readHomeScreenFullscreenEnvironment,
+  shouldSuggestHomeScreenFullscreen,
+} from "../../services/homeScreenFullscreen.js";
+
+const HOME_SCREEN_TIP_MS = 6000;
 
 const FRAME_SAMPLE_WINDOW = 120;
 const FRAME_METRIC_PUSH_MS = 1000;
@@ -84,6 +91,7 @@ export default function GameView({
   const [voiceDialogOpen, setVoiceDialogOpen] = useState(false);
   const [quickVoiceJoinPending, setQuickVoiceJoinPending] = useState(false);
   const [touchNotice, setTouchNotice] = useState("");
+  const [homeScreenTipShown, setHomeScreenTipShown] = useState(false);
   const networkButtonRef = useRef(null);
   // A paused match shows a small non-modal recovery notice; only pre-match
   // readiness and join errors are blocking dialogs.
@@ -154,6 +162,18 @@ export default function GameView({
     const noticeTimer = window.setTimeout(() => setTouchNotice(""), 2800);
     return () => window.clearTimeout(noticeTimer);
   }, [touchProfileStatus, touchEditorOpen]);
+
+  useEffect(() => {
+    if (!homeScreenTipShown) return undefined;
+    const tipTimer = window.setTimeout(() => setHomeScreenTipShown(false), HOME_SCREEN_TIP_MS);
+    return () => window.clearTimeout(tipTimer);
+  }, [homeScreenTipShown]);
+
+  /** iPhone pages cannot go truly fullscreen, so entering also explains the home-screen route. */
+  const toggleFullscreenWithTip = () => {
+    if (!isFullscreen && shouldSuggestHomeScreenFullscreen(readHomeScreenFullscreenEnvironment(window))) setHomeScreenTipShown(true);
+    onToggleFullscreen?.();
+  };
   const runtimeKind = runtimeSpec?.kind || "module";
   const runtimeMount = runtimeSpec?.mount || "canvas";
   const showModuleCanvas = runtimeKind === "module" && runtimeMount !== "dom";
@@ -440,33 +460,6 @@ export default function GameView({
 
   return (
     <div id="game-view" className={styles.gameView}>
-      <GameToolbar
-        showNetworkUi={showNetworkUi}
-        gameName={game?.name}
-        connection={connection}
-        connectionIcons={icons?.connection}
-        networkPanelOpen={networkPanelOpen}
-        networkButtonRef={networkButtonRef}
-        onToggleNetwork={() => setNetworkPanelOpen((prev) => !prev)}
-        isFullscreen={isFullscreen}
-        onToggleFullscreen={onToggleFullscreen}
-        fullscreenIcon={fullscreenIcon}
-        allowTouchCustomization={allowTouchCustomization}
-        onEditControls={() => { setNetworkPanelOpen(false); onTouchEditorChange?.(true); }}
-        disabled={Boolean(platformDialogOpen)}
-        expandedPlayArea={expandedPlayArea}
-        onHome={onRequestHome}
-        onInvite={onOpenInvite}
-        voiceState={voice.state}
-        voiceAvailable={voice.available}
-        voiceDialogOpen={visibleVoiceDialogOpen}
-        voiceUnavailableReason={voice.unavailableReason}
-        onOpenVoice={openVoiceDialog}
-        onJoinVoice={joinVoiceFromToolbar}
-        onMicrophoneMutedChange={(muted) => performQuickVoiceAction(() => voice.setMicrophoneMuted(muted))}
-        onDeafenedChange={voice.setDeafened}
-        onResumeVoicePlayback={() => performQuickVoiceAction(voice.resumePlayback)}
-      />
       <div className={styles.canvasFrame}>
         <div id="game-root" className={styles.gameRuntimeRoot}>
           <div
@@ -497,6 +490,33 @@ export default function GameView({
           enabled={touchControlsEnabled}
           disabled={Boolean(platformDialogOpen || gameLoadError)}
         />}
+        <GameToolbar
+          showNetworkUi={showNetworkUi}
+          gameId={game?.id}
+          connection={connection}
+          connectionIcons={icons?.connection}
+          networkPanelOpen={networkPanelOpen}
+          networkButtonRef={networkButtonRef}
+          onToggleNetwork={() => setNetworkPanelOpen((prev) => !prev)}
+          isFullscreen={isFullscreen}
+          onToggleFullscreen={toggleFullscreenWithTip}
+          fullscreenIcon={fullscreenIcon}
+          allowTouchCustomization={allowTouchCustomization}
+          onEditControls={() => { setNetworkPanelOpen(false); onTouchEditorChange?.(true); }}
+          disabled={Boolean(platformDialogOpen)}
+          expandedPlayArea={expandedPlayArea}
+          onHome={onRequestHome}
+          onInvite={onOpenInvite}
+          voiceState={voice.state}
+          voiceAvailable={voice.available}
+          voiceDialogOpen={visibleVoiceDialogOpen}
+          voiceUnavailableReason={voice.unavailableReason}
+          onOpenVoice={openVoiceDialog}
+          onJoinVoice={joinVoiceFromToolbar}
+          onMicrophoneMutedChange={(muted) => performQuickVoiceAction(() => voice.setMicrophoneMuted(muted))}
+          onDeafenedChange={voice.setDeafened}
+          onResumeVoicePlayback={() => performQuickVoiceAction(voice.resumePlayback)}
+        />
         {showNetworkUi && networkPanelOpen && (
           <NetworkPanel rows={networkRows} onClose={() => {
             setNetworkPanelOpen(false);
@@ -512,6 +532,7 @@ export default function GameView({
           onSave={(nextProfile, orientation) => { onSaveTouchProfile?.(nextProfile, orientation); onTouchEditorChange?.(false); }}
         />}
         {!touchEditorOpen && touchNotice && <div className={styles.touchProfileFeedback} role="status">{touchNotice}</div>}
+        {!touchEditorOpen && !touchNotice && homeScreenTipShown && <div className={styles.touchProfileFeedback} role="status">{HOME_SCREEN_FULLSCREEN_TIP}</div>}
       </div>
       {/* Platform dialogs cover the whole game view, toolbar included; it is disabled while they are open. */}
       {visibleVoiceDialogOpen && <VoiceChatDialog

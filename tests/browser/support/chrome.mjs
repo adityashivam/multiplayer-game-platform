@@ -73,9 +73,26 @@ export async function createBrowserTestSession(prefix, { extraArgs = [] } = {}) 
     await writeFile(screenshotPath, Buffer.from(screenshot.data, "base64"));
     return screenshotPath;
   }
-  async function click(sessionId, selector) {
-    const point = await evaluate(sessionId, `const element=document.querySelector(${JSON.stringify(selector)});if(!element)throw Error('Missing control '+${JSON.stringify(selector)});const bounds=element.getBoundingClientRect();return{x:bounds.x+bounds.width/2,y:bounds.y+bounds.height/2};`);
+  async function pressAt(sessionId, point) {
     for (const type of ["mousePressed", "mouseReleased"]) await send("Input.dispatchMouseEvent", { type, button: "left", clickCount: 1, ...point }, sessionId);
+  }
+  /** Open the platform's floating game menu so its actions can be found and clicked. */
+  async function openGameMenu(sessionId) {
+    const toggle = await evaluate(sessionId, `const toggle=document.querySelector('[data-platform-game-menu-toggle][aria-expanded="false"]:not(:disabled)');if(!toggle)return null;const bounds=toggle.getBoundingClientRect();return{x:bounds.x+bounds.width/2,y:bounds.y+bounds.height/2};`);
+    if (!toggle) return;
+    await pressAt(sessionId, toggle);
+    await waitFor(sessionId, "document.querySelector('[data-platform-game-menu-toggle][aria-expanded=\"true\"]')", 5000);
+  }
+  async function click(sessionId, selector) {
+    const locate = `const element=document.querySelector(${JSON.stringify(selector)});if(!element)return null;const bounds=element.getBoundingClientRect();return{x:bounds.x+bounds.width/2,y:bounds.y+bounds.height/2};`;
+    let point = await evaluate(sessionId, locate);
+    if (!point) {
+      // Platform actions live in the collapsed game menu until it is opened.
+      await openGameMenu(sessionId);
+      point = await evaluate(sessionId, locate);
+    }
+    if (!point) throw Error(`Missing control ${selector}`);
+    await pressAt(sessionId, point);
   }
   async function clickText(sessionId, text) {
     await evaluate(sessionId, `const button=[...document.querySelectorAll('button')].find(button=>{const clone=button.cloneNode(true);clone.querySelectorAll('[aria-hidden=true]').forEach(icon=>icon.remove());return clone.textContent.trim()===${JSON.stringify(text)}&&button.getBoundingClientRect().width>0});if(!button)throw Error('Missing button '+${JSON.stringify(text)});button.click();`);
@@ -85,7 +102,7 @@ export async function createBrowserTestSession(prefix, { extraArgs = [] } = {}) 
     await send("Input.dispatchKeyEvent", { type: active ? "keyDown" : "keyUp", code, key: keyValue, windowsVirtualKeyCode: keyCodes[code] || 0 }, sessionId);
   }
   return {
-    send, evaluate, waitFor, newPage, capture, click, clickText, key, exceptions, failures,
+    send, evaluate, waitFor, newPage, capture, click, clickText, key, openGameMenu, exceptions, failures,
     async close() {
       for (const request of pending.values()) { clearTimeout(request.timer); request.reject(Error("Browser closed")); }
       pending.clear();

@@ -5,6 +5,10 @@
   gap: 0;
   flex: 1;
   min-height: 0;
+  // Keep the floating menu and play surface clear of the notch, status bar,
+  // rounded corners and home indicator; the insets are zero on desktops.
+  padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
+  background: #000;
   font-size: 0.92rem;
 }
 
@@ -25,6 +29,13 @@
 }
 
 .canvasFrame {
+  // The game view already insets this surface, so touch controls inside it
+  // must not add the device safe area a second time.
+  --platform-safe-top: 0px;
+  --platform-safe-right: 0px;
+  --platform-safe-bottom: 0px;
+  --platform-safe-left: 0px;
+
   flex: 1;
   min-height: 0;
   background: #000;

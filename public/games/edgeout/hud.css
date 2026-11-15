@@ -18,7 +18,7 @@
 .eo-hud button { cursor: pointer; pointer-events: auto; font: inherit; }
 .eo-hud button:focus-visible { outline: 2px solid var(--eo-you); outline-offset: 4px; }
 
-.eo-wordmark { position: absolute; top: 25px; left: 3%; font: 700 clamp(12px, 1.6cqw, 20px) "Space Grotesk", sans-serif; letter-spacing: .02em; }
+.eo-wordmark { position: absolute; top: 25px; left: max(3%, var(--platform-menu-inset-left, 0px)); font: 700 clamp(12px, 1.6cqw, 20px) "Space Grotesk", sans-serif; letter-spacing: .02em; }
 .eo-wordmark > span { display: block; margin-top: 4px; font: 700 7px "Manrope", sans-serif; letter-spacing: .2em; color: #9fb0c8; }
 
 .eo-scoreboard { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); display: flex; align-items: stretch; height: 64px; border: 1px solid var(--eo-line); border-radius: 12px; background: var(--eo-panel); box-shadow: 0 6px 24px #02060f55; overflow: hidden; }
@@ -39,7 +39,7 @@
 .eo-round strong { margin-top: 4px; font: 600 13px "Space Grotesk", sans-serif; letter-spacing: .04em; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .eo-warning .eo-round strong { color: var(--eo-warn); animation: eo-blink 420ms steps(2) infinite; }
 
-.eo-sound { position: absolute; top: 27px; right: 3%; border: 1px solid var(--eo-line); border-radius: 8px; background: #0a1220b8; color: #d6e2f2; padding: 7px 9px; font-size: 9px !important; }
+.eo-sound { position: absolute; top: 27px; right: max(3%, var(--platform-menu-inset-right, 0px)); border: 1px solid var(--eo-line); border-radius: 8px; background: #0a1220b8; color: #d6e2f2; padding: 7px 9px; font-size: 9px !important; }
 
 .eo-announcement { position: absolute; top: 27%; left: 10%; right: 10%; text-align: center; font: 700 clamp(26px, 5cqw, 64px) "Space Grotesk", sans-serif; letter-spacing: -.03em; text-shadow: 0 4px 26px #020611; }
 .eo-announcement[data-tone="good"] { color: var(--eo-you); }

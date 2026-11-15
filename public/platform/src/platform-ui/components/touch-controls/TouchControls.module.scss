@@ -3,12 +3,14 @@
 .editor {
   --touch-layout-scale: 1;
   --touch-top-inset: 56px;
-  --touch-safe-top: env(safe-area-inset-top, 0px);
-  --touch-safe-left: env(safe-area-inset-left, 0px);
-  --touch-safe-right: env(safe-area-inset-right, 0px);
+  // In a game the surrounding view already pads for the safe area and sets
+  // --platform-safe-* to zero; elsewhere the device insets apply.
+  --touch-safe-top: var(--platform-safe-top, env(safe-area-inset-top, 0px));
+  --touch-safe-left: var(--platform-safe-left, env(safe-area-inset-left, 0px));
+  --touch-safe-right: var(--platform-safe-right, env(safe-area-inset-right, 0px));
   --touch-left-inset: max(12px, var(--touch-safe-left));
   --touch-right-inset: max(12px, var(--touch-safe-right));
-  --touch-bottom-inset: max(12px, env(safe-area-inset-bottom, 0px));
+  --touch-bottom-inset: max(12px, var(--platform-safe-bottom, env(safe-area-inset-bottom, 0px)));
   font-family: var(--platform-font-body);
   color: var(--platform-text);
 }

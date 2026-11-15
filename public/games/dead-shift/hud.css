@@ -16,7 +16,7 @@
 .ds-hud button:focus-visible { outline: 2px solid #00cee6; outline-offset: 3px; }
 .ds-hud button:disabled { cursor: default; }
 .ds-grain { position: absolute; inset: 0; background: radial-gradient(ellipse at center, transparent 40%, #040c0b99); }
-.ds-match-strip { position: absolute; top: max(16px, 3cqh); left: 2.5%; right: 2.5%; display: flex; align-items: start; justify-content: space-between; gap: 12px; }
+.ds-match-strip { position: absolute; top: max(16px, 3cqh); left: max(2.5%, var(--platform-menu-inset-left, 0px)); right: max(2.5%, var(--platform-menu-inset-right, 0px)); display: flex; align-items: start; justify-content: space-between; gap: 12px; }
 .ds-brand { display: flex; align-items: center; gap: 10px; font: 700 clamp(10px, 1.4cqw, 15px) "Space Grotesk", sans-serif; letter-spacing: .08em; }
 .ds-brand-mark { font-size: clamp(18px, 2.8cqw, 31px); letter-spacing: -.12em; }
 .ds-brand-mark > span { color: var(--ds-amber); margin: 0 2px; }

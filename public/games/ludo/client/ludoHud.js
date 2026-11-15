@@ -291,7 +291,7 @@ function setHudText(element, message) {
 
 const LUDO_HUD_STYLES = `
 .ludo-hud, .ludo-hud * { box-sizing:border-box; }
-.ludo-hud { --ludo-piece-color:#fa5b6a; --ludo-turn-color:#fa5b6a; position:absolute; top:26px; right:14px; bottom:14px; z-index:2; width:268px; display:flex; flex-direction:column; gap:20px; padding:22px; overflow:auto; overscroll-behavior:contain; color:#edf3ff; background:rgba(13,24,45,.95); border:1px solid rgba(190,215,255,.12); border-radius:22px; box-shadow:0 18px 45px rgba(0,0,0,.16); font-family:Manrope,sans-serif; scrollbar-width:thin; scrollbar-color:#40516b transparent; }
+.ludo-hud { --ludo-piece-color:#fa5b6a; --ludo-turn-color:#fa5b6a; position:absolute; top:26px; right:max(14px, var(--platform-menu-inset-right, 0px)); bottom:14px; z-index:2; width:268px; display:flex; flex-direction:column; gap:20px; padding:22px; overflow:auto; overscroll-behavior:contain; color:#edf3ff; background:rgba(13,24,45,.95); border:1px solid rgba(190,215,255,.12); border-radius:22px; box-shadow:0 18px 45px rgba(0,0,0,.16); font-family:Manrope,sans-serif; scrollbar-width:thin; scrollbar-color:#40516b transparent; }
 .ludo-hud [hidden] { display:none !important; }
 .ludo-hud button, .ludo-hud summary { font:inherit; -webkit-tap-highlight-color:transparent; touch-action:manipulation; }
 .ludo-hud button { cursor:pointer; }

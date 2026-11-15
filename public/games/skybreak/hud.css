@@ -44,7 +44,7 @@
 .sb-feed li.sb-mine { color: #ffd23f; }
 .sb-feed li.sb-lost { color: var(--sb-warn); }
 .sb-radar { position: absolute; bottom: 4%; left: 50%; transform: translateX(-50%); width: clamp(100px, 13cqw, 150px); height: auto; border-radius: 50%; background: #04110ccc; border: 1px solid var(--sb-line); }
-.sb-sound { position: absolute; top: 24px; right: 3%; border: 1px solid var(--sb-line); border-radius: 8px; background: #07141ab8; color: #d8fff0; padding: 7px 9px; font-size: 9px !important; }
+.sb-sound { position: absolute; top: 24px; right: max(3%, var(--platform-menu-inset-right, 0px)); border: 1px solid var(--sb-line); border-radius: 8px; background: #07141ab8; color: #d8fff0; padding: 7px 9px; font-size: 9px !important; }
 
 .sb-warning { position: absolute; top: 24%; left: 50%; transform: translateX(-50%); font: 700 clamp(13px, 1.8cqw, 22px) "Space Grotesk", sans-serif; letter-spacing: .12em; color: #ffd23f; text-shadow: 0 2px 12px #000; white-space: nowrap; }
 .sb-hud[data-threat="incoming"] .sb-warning, .sb-hud[data-threat="lock"] .sb-warning { color: var(--sb-warn); animation: sb-blink 300ms steps(2) infinite; }

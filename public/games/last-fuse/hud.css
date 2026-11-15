@@ -42,7 +42,7 @@
 .lf-holder small { color: var(--lf-bad); }
 
 .lf-minimap { position: absolute; top: 66px; right: 3%; width: 156px; height: 156px; border: 1px solid var(--lf-line); border-radius: 14px; background: #10131ce6; box-shadow: 0 6px 24px #0006; }
-.lf-sound { position: absolute; top: 27px; right: 3%; border: 1px solid var(--lf-line); border-radius: 8px; background: #0d0f15b8; color: #e2dbd2; padding: 7px 9px; font-size: 9px !important; }
+.lf-sound { position: absolute; top: 27px; right: max(3%, var(--platform-menu-inset-right, 0px)); border: 1px solid var(--lf-line); border-radius: 8px; background: #0d0f15b8; color: #e2dbd2; padding: 7px 9px; font-size: 9px !important; }
 
 .lf-marker { position: absolute; left: 0; top: 0; display: flex; flex-direction: column; align-items: center; gap: 2px; margin: -26px 0 0 -20px; width: 40px; color: var(--lf-bad); font: 800 7px "Manrope", sans-serif; letter-spacing: .14em; text-shadow: 0 1px 4px #000; }
 .lf-marker b { width: 14px; height: 14px; border-radius: 50%; background: var(--lf-bad); box-shadow: 0 0 12px var(--lf-bad); animation: lf-pulse 500ms ease-in-out infinite alternate; }

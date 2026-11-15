@@ -76,10 +76,26 @@ async function capture(id, name) {
   const screenshot = await send("Page.captureScreenshot", { format: "png" }, id);
   await writeFile(path.join(tmpdir(), `touch-layout-${name}.png`), Buffer.from(screenshot.data, "base64"));
 }
-async function click(id, selector) {
-  const point = await evaluate(id, `const bounds=document.querySelector(${JSON.stringify(selector)}).getBoundingClientRect();return{x:bounds.x+bounds.width/2,y:bounds.y+bounds.height/2};`);
+async function pressAt(id, point) {
   await send("Input.dispatchMouseEvent", { type: "mousePressed", button: "left", clickCount: 1, ...point }, id);
   await send("Input.dispatchMouseEvent", { type: "mouseReleased", button: "left", clickCount: 1, ...point }, id);
+}
+async function openGameMenu(id) {
+  const toggle = await evaluate(id, `const toggle=document.querySelector('[data-platform-game-menu-toggle][aria-expanded="false"]:not(:disabled)');if(!toggle)return null;const bounds=toggle.getBoundingClientRect();return{x:bounds.x+bounds.width/2,y:bounds.y+bounds.height/2};`);
+  if (!toggle) return;
+  await pressAt(id, toggle);
+  await waitFor(id, `document.querySelector('[data-platform-game-menu-toggle][aria-expanded="true"]')`, 5000);
+}
+async function click(id, selector) {
+  const locate = `const element=document.querySelector(${JSON.stringify(selector)});if(!element)return null;const bounds=element.getBoundingClientRect();return{x:bounds.x+bounds.width/2,y:bounds.y+bounds.height/2};`;
+  let point = await evaluate(id, locate);
+  if (!point) {
+    // Platform actions stay folded inside the floating game menu until it opens.
+    await openGameMenu(id);
+    point = await evaluate(id, locate);
+  }
+  if (!point) throw Error(`Missing control ${selector}`);
+  await pressAt(id, point);
 }
 async function key(id, code, key, active) {
   const keyCodes = { KeyW: 87, KeyA: 65, KeyD: 68, KeyS: 83, Space: 32, KeyR: 82, Escape: 27 };
@@ -112,7 +128,7 @@ async function verifyThumbPreset(id, presetId, fingers) {
   await selectLivePreset(id, presetId);
   await waitFor(id, "touchProbe.last.players.p1.health>0");
   const points = await evaluate(id, `
-    function point(controlId,id){const b=document.querySelector('[data-platform-touch-game] [data-touch-control-id="'+controlId+'"]').getBoundingClientRect();return{id,x:b.x+b.width/2,y:b.y+b.height/2,radiusX:2,radiusY:2,force:1};}
+    function point(controlId,id){const control=document.querySelector('[data-platform-touch-game] [data-touch-control-id="'+controlId+'"]');if(!control)throw Error('Missing touch control '+controlId+'; present: '+[...document.querySelectorAll('[data-touch-control-id]')].map(element=>element.dataset.touchControlId+(element.closest('[data-platform-touch-game]')?'':'(outside)')).join(',')+'; surfaces: '+document.querySelectorAll('[data-platform-touch-game]').length);const b=control.getBoundingClientRect();return{id,x:b.x+b.width/2,y:b.y+b.height/2,radiusX:2,radiusY:2,force:1};}
     return{move:point('move',1),fire:point('fire',2),look:{id:3,x:610,y:310,radiusX:2,radiusY:2,force:1}};
   `);
   const startPoints = fingers === 2 ? [points.move, points.fire] : Object.values(points);
@@ -132,19 +148,39 @@ async function verifyThumbPreset(id, presetId, fingers) {
   console.log(`${fingers}-FINGER MOVEMENT, AIM AND FIRE PASSED`);
 }
 
+/**
+ * Pick a game in Config's touch settings through "Change game". The default
+ * is simply the first catalog game, which changes as games are added.
+ */
+async function chooseTouchSettingsGame(page, gameName) {
+  const titleIncludes = `document.querySelector('[aria-labelledby=touch-settings-title]')?.textContent.includes(${JSON.stringify(gameName)})`;
+  await waitFor(page, "document.querySelector('[aria-label=\"Choose game for touch controls\"]')");
+  if (await evaluate(page, `return Boolean(${titleIncludes});`)) return;
+  await searchTouchGamePicker(page, gameName);
+  await evaluate(page, `[...document.querySelectorAll('[aria-label="Choose a game for touch controls"] button')].find(button=>button.textContent.includes(${JSON.stringify(gameName)})).click();`);
+  await waitFor(page, `${titleIncludes}&&!document.querySelector('[aria-label="Choose a game for touch controls"]')`);
+}
+
+/** Open the touch game picker and search it, waiting for a matching entry. */
+async function searchTouchGamePicker(page, gameName) {
+  await click(page, "[aria-label=\"Choose game for touch controls\"]");
+  await waitFor(page, "document.querySelector('[aria-label=\"Search games with customizable controls\"]')");
+  await evaluate(page, `const input=document.querySelector('[aria-label="Search games with customizable controls"]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,${JSON.stringify(gameName)});input.dispatchEvent(new Event('input',{bubbles:true}));`);
+  await waitFor(page, `[...document.querySelectorAll('[aria-label="Choose a game for touch controls"] button')].some(button=>button.textContent.includes(${JSON.stringify(gameName)}))`);
+}
+
 try {
   const p1 = await newPage(baseUrl, 1600, 1000);
   await waitFor(p1, "document.querySelector('[aria-label=Config]')");
   await click(p1, "[aria-label=Config]");
-  await waitFor(p1, "document.querySelector('[aria-labelledby=touch-settings-title]')?.textContent.includes('Dead Shift')&&document.querySelector('[aria-label=\"Choose game for touch controls\"]')");
+  await searchTouchGamePicker(p1, "Kaboom Pong");
+  console.log("PONG LISTED", "Bundled Pong opts into the shared touch editor");
+  await key(p1, "Escape", "Escape", true); await key(p1, "Escape", "Escape", false);
+  await waitFor(p1, "!document.querySelector('[aria-label=\"Choose a game for touch controls\"]')");
+  await chooseTouchSettingsGame(p1, "Dead Shift");
   await sleep(300);
   await capture(p1, "touch-settings-desktop");
   console.log("CONFIG READY", await evaluate(p1, "return document.querySelector('[aria-labelledby=touch-settings-title]').innerText;"));
-  await click(p1, "[aria-label=\"Choose game for touch controls\"]");
-  await waitFor(p1, "document.querySelector('[aria-label=\"Choose a game for touch controls\"]')?.textContent.includes('Dead Shift')");
-  const pickerText = await evaluate(p1, "return document.querySelector('[aria-label=\"Choose a game for touch controls\"]').innerText;");
-  assert.ok(pickerText.includes("Kaboom Pong"), "Bundled Pong now opts into the shared touch editor");
-  await key(p1, "Escape", "Escape", true); await key(p1, "Escape", "Escape", false);
   await clickText(p1, "Edit layout");
   await waitFor(p1, "[...document.querySelectorAll('[role=dialog]')].some(dialog=>dialog.textContent.includes('Edit controls'))");
   await capture(p1, "touch-editor-desktop");
@@ -170,7 +206,7 @@ try {
   await send("Page.reload", {}, p1);
   await waitFor(p1, "document.querySelector('[aria-label=Config]')");
   await click(p1, "[aria-label=Config]");
-  await waitFor(p1, "document.querySelector('[aria-labelledby=touch-settings-title]')?.textContent.includes('Dead Shift')");
+  await chooseTouchSettingsGame(p1, "Dead Shift");
   assert.deepEqual(await readProfile(p1), saved, "Saved layout must survive reload");
   await send("Emulation.setDeviceMetricsOverride", { width: 390, height: 844, deviceScaleFactor: 1, mobile: true }, p1);
   await clickText(p1, "Portrait");
@@ -226,7 +262,7 @@ try {
   assert.equal(playArea.fullscreen, true, "Landscape Play uses native fullscreen when the browser permits it");
   assert.ok(playArea.canvas.width >= 998 && playArea.canvas.height >= 598, "Explicit expanded mode must fill the host");
   const points = await evaluate(p1, `
-    function point(controlId,id){const b=document.querySelector('[data-platform-touch-game] [data-touch-control-id="'+controlId+'"]').getBoundingClientRect();return{id,x:b.x+b.width/2,y:b.y+b.height/2,radiusX:2,radiusY:2,force:1};}
+    function point(controlId,id){const control=document.querySelector('[data-platform-touch-game] [data-touch-control-id="'+controlId+'"]');if(!control)throw Error('Missing touch control '+controlId+'; present: '+[...document.querySelectorAll('[data-touch-control-id]')].map(element=>element.dataset.touchControlId+(element.closest('[data-platform-touch-game]')?'':'(outside)')).join(',')+'; surfaces: '+document.querySelectorAll('[data-platform-touch-game]').length);const b=control.getBoundingClientRect();return{id,x:b.x+b.width/2,y:b.y+b.height/2,radiusX:2,radiusY:2,force:1};}
     return{move:point('move',1),fire:point('fire',2),aim:point('aim',3),look:{id:4,x:610,y:310,radiusX:2,radiusY:2,force:1}};
   `);
   const beforeTouch = await evaluate(p1, "return {...touchProbe.last.players.p1};");
@@ -292,7 +328,8 @@ try {
   await evaluate(p1, "const bridge=await import('/platform/frontend-engine/endGameBridge.js');bridge.showEndGameModal({title:'Focus test',subtitle:'Touch editor priority',phase:'ready'});");
   await waitFor(p1, "document.querySelector('[aria-label=\"Match results\"]')");
   await key(p1, "Tab", "Tab", true); await key(p1, "Tab", "Tab", false);
-  assert.equal(await evaluate(p1, "return document.activeElement.closest('[role=dialog]')?.getAttribute('aria-label');"), "Match results");
+  const focusAfterTab = await evaluate(p1, "const active=document.activeElement;return{dialog:active.closest('[role=dialog]')?.getAttribute('aria-label')??null,active:active.tagName+' '+(active.getAttribute('aria-label')||active.textContent.trim().slice(0,30)),modals:[...document.querySelectorAll('[aria-modal=true]')].map(modal=>modal.getAttribute('aria-label')+':'+modal.getAttribute('role'))};");
+  assert.equal(focusAfterTab.dialog, "Match results", JSON.stringify(focusAfterTab));
   await evaluate(p1, "const bridge=await import('/platform/frontend-engine/endGameBridge.js');bridge.hideEndGameModal();");
   await clickText(p1, "Cancel");
   assert.ok(await evaluate(p1, "return savedGameCanvas===document.querySelector('#game-canvas');"));
@@ -309,8 +346,12 @@ try {
   assert.equal(await evaluate(p1, "return document.querySelectorAll('script[id^=game-runtime-pong-]').length;"), 0, "Landscape startup also applies to the platform-bound Pong layout");
   await send("Emulation.setDeviceMetricsOverride", { width: 844, height: 390, deviceScaleFactor: 1, mobile: true }, p1);
   await waitFor(p1, "location.pathname.startsWith('/games/pong/')&&typeof get==='function'&&document.querySelector('#game-canvas')", 25000);
-  await waitFor(p1, "document.querySelector('[aria-label=\"Customize touch controls\"]')&&document.querySelector('[data-platform-touch-game=pong]')");
-  assert.equal(await evaluate(p1, "return Boolean(document.querySelector('[aria-label=\"Customize touch controls\"]')&&document.querySelector('[data-platform-touch-game=pong]'));"), true, "Pong now exposes its developer-approved layout through the shared editor");
+  await waitFor(p1, "document.querySelector('[data-platform-game-menu-toggle]')&&document.querySelector('[data-platform-touch-game=pong]')");
+  // A waiting-room dialog disables the game menu; when it can open, it offers the editor.
+  await openGameMenu(p1);
+  const pongMenu = await evaluate(p1, "return{surface:Boolean(document.querySelector('[data-platform-touch-game=pong]')),menuOpen:Boolean(document.querySelector('[data-platform-game-menu-toggle][aria-expanded=\"true\"]')),customize:Boolean(document.querySelector('[aria-label=\"Customize touch controls\"]'))};");
+  assert.equal(pongMenu.surface, true, "Pong binds its developer-approved layout to the shared touch surface");
+  if (pongMenu.menuOpen) assert.equal(pongMenu.customize, true, "Pong's game menu offers the shared touch editor");
   assert.equal(exceptions.length, 0, JSON.stringify(exceptions));
   console.log("PLATFORM-BOUND GAME EDITOR AND RUNTIME PASSED");
 } finally {

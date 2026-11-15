@@ -3,7 +3,7 @@ import { createBrowserTestSession, delay } from "./support/chrome.mjs";
 
 const baseUrl = process.env.PLATFORM_BASE_URL || "http://localhost:3100";
 const browser = await createBrowserTestSession("game-presentation");
-const { evaluate, waitFor, newPage, send, click, clickText, capture } = browser;
+const { evaluate, waitFor, newPage, send, click, clickText, capture, openGameMenu } = browser;
 const pages = [];
 const nativeProbeScript = `
   window.presentationProbe={requests:[]};
@@ -25,21 +25,24 @@ async function verifyExpanded(page) {
   assert.ok(Math.abs(bounds.x) < 1 && Math.abs(bounds.y) < 1);
   assert.ok(Math.abs(bounds.width - bounds.viewportWidth) < 2 && Math.abs(bounds.height - bounds.viewportHeight) < 2);
   assert.equal(bounds.controllerVisible, false, "the outer console's controllers are hidden");
-  await verifyToolbarReservesSpace(page);
+  await verifyGameMenuFloats(page);
 }
 
-/** Platform controls sit in their own row, so no game HUD can be covered by them. */
-async function verifyToolbarReservesSpace(page) {
+/** Platform controls collapse to one small button inside the play surface, top-left by default. */
+async function verifyGameMenuFloats(page) {
   const layout = await evaluate(page, `
-    const toolbar=document.querySelector('[aria-label="Game session controls"]').getBoundingClientRect();
+    const launcher=document.querySelector('[data-platform-game-menu-toggle]').getBoundingClientRect();
     const surface=document.getElementById('game-root').getBoundingClientRect();
-    return{toolbarBottom:toolbar.bottom,toolbarHeight:toolbar.height,surfaceTop:surface.top};
+    return{launcher:launcher.toJSON(),surface:surface.toJSON(),actionsShown:Boolean(document.querySelector('[aria-label="Leave game"]'))};
   `);
-  assert.ok(layout.surfaceTop >= layout.toolbarBottom - 0.5, `the play surface starts below the toolbar: ${JSON.stringify(layout)}`);
-  assert.ok(layout.toolbarHeight <= 41, `the toolbar stays slim: ${layout.toolbarHeight}px`);
+  assert.ok(layout.launcher.width <= 44 && layout.launcher.height <= 44, `the collapsed menu is small: ${JSON.stringify(layout.launcher)}`);
+  assert.ok(layout.launcher.left >= layout.surface.left && layout.launcher.top >= layout.surface.top, "the menu sits inside the play surface");
+  assert.ok(layout.launcher.left - layout.surface.left < 30 && layout.launcher.top - layout.surface.top < 30, "the menu starts in the top-left corner");
+  assert.equal(layout.actionsShown, false, "actions stay folded away until the menu is opened");
 }
 
 async function returnToLibrary(page) {
+  await openGameMenu(page);
   await evaluate(page, "await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));");
   const hitTarget = await evaluate(page, `const button=document.querySelector('[aria-label="Leave game"]');const r=button.getBoundingClientRect();const target=document.elementFromPoint(r.x+r.width/2,r.y+r.height/2);return{disabled:button.disabled,hit:target?.closest('[aria-label="Leave game"]')===button,target:target?.outerHTML.slice(0,200)};`);
   assert.equal(hitTarget.disabled, false);

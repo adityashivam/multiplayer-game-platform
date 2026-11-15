@@ -34,7 +34,7 @@
 .bl-away { opacity: .45; }
 
 .bl-minimap { position: absolute; top: 66px; right: 3%; width: 150px; height: 150px; border: 1px solid var(--bl-line); border-radius: 14px; background: #1d6f9fd9; box-shadow: 0 6px 24px #0005; }
-.bl-sound { position: absolute; top: 27px; right: 3%; border: 1px solid var(--bl-line); border-radius: 8px; background: #0c1a14b8; color: #e2ece5; padding: 7px 9px; font-size: 9px !important; }
+.bl-sound { position: absolute; top: 27px; right: max(3%, var(--platform-menu-inset-right, 0px)); border: 1px solid var(--bl-line); border-radius: 8px; background: #0c1a14b8; color: #e2ece5; padding: 7px 9px; font-size: 9px !important; }
 
 .bl-announcement { position: absolute; top: 28%; left: 8%; right: 8%; text-align: center; font: 700 clamp(22px, 4.2cqw, 54px) "Space Grotesk", sans-serif; letter-spacing: -.03em; text-shadow: 0 4px 22px #0009; }
 .bl-announcement[data-tone="good"] { color: var(--bl-good); }

@@ -13,7 +13,7 @@
 .sd-hud [hidden] { display: none !important; }
 .sd-hud button { cursor: pointer; pointer-events: auto; font: inherit; }
 .sd-hud button:focus-visible { outline: 3px solid #00cfe5; outline-offset: 4px; }
-.sd-race-header { position: absolute; left: 3%; right: 3%; top: max(14px, 3cqh); display: flex; align-items: center; justify-content: space-between; }
+.sd-race-header { position: absolute; left: max(3%, var(--platform-menu-inset-left, 0px)); right: max(3%, var(--platform-menu-inset-right, 0px)); top: max(14px, 3cqh); display: flex; align-items: center; justify-content: space-between; }
 .sd-brand { display: flex; align-items: center; gap: 9px; font: 700 clamp(12px, 2cqw, 21px) "Space Grotesk", sans-serif; letter-spacing: -.04em; }
 .sd-brand small { display: block; font: 700 clamp(6px, .65cqw, 8px) "Manrope", sans-serif; letter-spacing: .14em; margin-top: 3px; }
 .sd-brand-symbol { display: grid; place-items: center; width: 33px; height: 33px; background: #faf6df; border-radius: 11px; color: #3a9ca5; font-size: 26px; text-shadow: none; transform: rotate(-8deg); }

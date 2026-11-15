@@ -56,6 +56,7 @@ async function waitUntilPlaying(page, gameId) {
 }
 
 async function openVoice(page) {
+  await browser.openGameMenu(page);
   const toolbarAvailable = await evaluate(page, `
     const voiceButton = document.querySelector('[aria-label="Voice chat"]');
     return Boolean(voiceButton && !voiceButton.disabled);
@@ -131,6 +132,7 @@ try {
     await waitUntilPlaying(first, gameId);
     await waitUntilPlaying(second, gameId);
     assert.equal(await evaluate(first, "return voiceTest.captureRequests.length;"), 0, "the game never opens a microphone automatically");
+    await browser.openGameMenu(first);
     assert.equal(await evaluate(first, "return Boolean(document.querySelector('[aria-label=\"Voice chat\"]'));"), true);
 
     await click(first, '[aria-label="Turn on voice"]');
@@ -238,7 +240,8 @@ try {
       failedPeer.dispatchEvent(failureEvent);
       delete failedPeer.connectionState;
     `);
-    await waitFor(first, "document.querySelector('[aria-label=\"Voice chat\"]').dataset.voiceStatus === 'error'");
+    await browser.openGameMenu(first);
+    await waitFor(first, "document.querySelector('[aria-label=\"Voice chat\"]')?.dataset.voiceStatus === 'error'");
     assert.equal(await evaluate(first, "return voiceTest.streams.some(stream => stream.getAudioTracks().some(track => track.readyState === 'live' && track.enabled));"), true, "a peer-link error does not end the local voice membership");
     assert.equal(await evaluate(first, "return Boolean(document.querySelector('[aria-label=\"Mute microphone\"]'));"), true, "live microphones always keep a quick mute control");
     await click(first, '[aria-label="Mute microphone"]');

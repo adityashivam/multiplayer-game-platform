@@ -14,7 +14,7 @@
 .rb-hud [hidden] { display: none !important; }
 .rb-hud button { cursor: pointer; pointer-events: auto; font: inherit; }
 .rb-hud button:focus-visible { outline: 2px solid var(--rb-teal); outline-offset: 4px; }
-.rb-wordmark { position: absolute; top: 25px; left: 3%; font: 700 clamp(11px, 1.5cqw, 19px) "Space Grotesk", sans-serif; letter-spacing: -.04em; }
+.rb-wordmark { position: absolute; top: 25px; left: max(3%, var(--platform-menu-inset-left, 0px)); font: 700 clamp(11px, 1.5cqw, 19px) "Space Grotesk", sans-serif; letter-spacing: -.04em; }
 .rb-wordmark > span { display: block; margin-top: 4px; font: 600 7px "Manrope", sans-serif; letter-spacing: .2em; color: #b0c4c6; }
 .rb-scoreboard { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); display: flex; align-items: stretch; min-width: 240px; max-width: 64%; height: 61px; border: 1px solid #c4e4e51a; border-radius: 12px; background: #0b1822d9; box-shadow: 0 5px 20px #030b1133; overflow: hidden; }
 .rb-team { display: flex; align-items: center; justify-content: center; gap: 12px; padding: 8px 17px; border-bottom: 2px solid currentColor; }
@@ -26,7 +26,7 @@
 .rb-clock small { font-size: 6px; color: #a4b7bb; font-weight: 800; letter-spacing: .13em; white-space: nowrap; }
 .rb-clock strong { margin-top: 3px; font: 600 23px "Space Grotesk", sans-serif; font-variant-numeric: tabular-nums; }
 .rb-final-seconds .rb-clock strong { color: #ffce91; }
-.rb-sound { position: absolute; top: 27px; right: 3%; border: 1px solid #b2d4d526; border-radius: 8px; background: #0b1822b8; color: #d4e1e1; padding: 7px 9px; font-size: 9px !important; }
+.rb-sound { position: absolute; top: 27px; right: max(3%, var(--platform-menu-inset-right, 0px)); border: 1px solid #b2d4d526; border-radius: 8px; background: #0b1822b8; color: #d4e1e1; padding: 7px 9px; font-size: 9px !important; }
 .rb-announcement { position: absolute; top: 26%; left: 15%; right: 15%; text-align: center; font: 700 clamp(20px, 4.2cqw, 50px) "Space Grotesk", sans-serif; letter-spacing: -.06em; text-shadow: 0 3px 22px #06131c; }
 .rb-intro { position: absolute; inset: 0; padding: 8%; display: flex; align-items: center; background: linear-gradient(90deg, #071723e0, #07172350 70%, transparent); }
 .rb-intro > div { max-width: 65%; }
