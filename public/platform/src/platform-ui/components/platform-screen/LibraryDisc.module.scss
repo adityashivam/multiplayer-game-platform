@@ -143,11 +143,14 @@
   min-height: 0;
 }
 
+// The art always spans the column, so its edges line up with the text and
+// Play. When height is short it gets shorter (cropping from the bottom of
+// the art) rather than narrower.
 .spotlightArt {
   position: relative;
   flex: none;
-  width: min(100%, max(84px, calc((100cqh - 196px) * .75)));
-  aspect-ratio: 3 / 4;
+  width: 100%;
+  height: max(96px, min(calc(100cqw * 4 / 3), calc(100cqh - 182px)));
   overflow: hidden;
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-md);
@@ -189,7 +192,8 @@
   margin: 0;
   overflow: hidden;
   color: var(--text-strong);
-  font: 700 var(--type-lg) / 1.12 var(--platform-font-heading);
+  // Type follows the column width so the panel stays in proportion.
+  font: 700 clamp(15px, 9cqw, 20px) / 1.15 var(--platform-font-heading);
   letter-spacing: -.02em;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
@@ -209,7 +213,7 @@
   margin: var(--space-1) 0 0;
   overflow: hidden;
   color: var(--text-body);
-  font-size: var(--type-sm);
+  font-size: clamp(11px, 6.2cqw, 13px);
   line-height: 1.45;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 3;
@@ -238,13 +242,13 @@
   gap: var(--space-2);
   flex: none;
   width: 100%;
-  height: var(--control-md);
+  height: clamp(34px, 19cqw, 40px);
   margin-top: auto;
   border: 1px solid color-mix(in srgb, var(--platform-accent) 55%, transparent);
   border-radius: var(--radius-pill);
   background: color-mix(in srgb, var(--platform-accent) 18%, var(--glass-2));
   color: var(--text-strong);
-  font: 700 var(--type-md) var(--platform-font-body);
+  font: 700 clamp(13px, 7.2cqw, 15px) var(--platform-font-body);
   cursor: pointer;
   -webkit-backdrop-filter: var(--glass-blur);
   backdrop-filter: var(--glass-blur);
@@ -252,7 +256,7 @@
 
   > span {
     color: var(--platform-accent);
-    font-size: 20px;
+    font-size: clamp(17px, 9cqw, 20px);
     font-variation-settings: "FILL" 1;
   }
 

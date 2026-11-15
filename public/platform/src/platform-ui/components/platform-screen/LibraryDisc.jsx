@@ -231,11 +231,8 @@ export default function LibraryDisc({ games, selectedIndex, loading, onSelectInd
     onSelectIndex(clampLibraryDiscIndex(next, count), true);
   }
 
-  // Mount only the names near the selection; the rest are off the disc.
-  const firstMounted = Math.max(0, selectedIndex - LIBRARY_DISC.renderRadius);
-  const lastMounted = Math.min(count - 1, selectedIndex + LIBRARY_DISC.renderRadius);
-  const mounted = [];
-  for (let index = firstMounted; index <= lastMounted; index += 1) mounted.push(index);
+  // Every game on the page stays mounted (pages are bounded), so each is a
+  // reachable library card; names off the visible arc are hidden.
   const plateRadius = geometry.radius + 18;
   const plateLeft = geometry.centerX - plateRadius;
   // Where the plate meets the spotlight it fades out rather than ending in a cut.
@@ -265,8 +262,7 @@ export default function LibraryDisc({ games, selectedIndex, loading, onSelectInd
         </div>
         <div className={styles.band} style={{ top: geometry.centerY }} aria-hidden="true" />
         <span className={styles.notch} style={{ top: geometry.centerY }} aria-hidden="true" />
-        {mounted.map((index) => {
-          const game = games[index];
+        {games.map((game, index) => {
           const selected = index === selectedIndex;
           return (
             <button

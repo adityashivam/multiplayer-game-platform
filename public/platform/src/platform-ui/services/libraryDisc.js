@@ -5,8 +5,8 @@
  * leftmost point; neighbours follow the curve, shrink and fade.
  */
 
-/** Degrees between neighbouring names, and how many names to keep mounted. */
-export const LIBRARY_DISC = Object.freeze({ stepDeg: 12, maxVisibleDeg: 64, renderRadius: 7, rimInsetPx: 26 });
+/** Degrees between neighbouring names, the widest visible angle, and the rim's inset from the left edge. */
+export const LIBRARY_DISC = Object.freeze({ stepDeg: 12, maxVisibleDeg: 64, rimInsetPx: 26 });
 
 /** @typedef {{radius:number,centerX:number,centerY:number,maxAngleDeg:number}} LibraryDiscGeometry */
 /** @typedef {{visible:boolean,x:number,y:number,angleDeg:number,scale:number,opacity:number}} LibraryDiscPlacement */
