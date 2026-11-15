@@ -9,8 +9,7 @@
     color: var(--text-muted);
     font-size: var(--type-xs);
     font-weight: 600;
-    letter-spacing: .08em;
-    text-transform: uppercase;
+    letter-spacing: .04em;
   }
 }
 
@@ -22,7 +21,7 @@
   height: var(--control-lg);
   padding: 0 var(--space-4);
   border: 1px solid var(--glass-border);
-  border-radius: var(--radius-pill);
+  border-radius: var(--radius-sm);
   background: var(--platform-surface-inset);
 
   > span {
@@ -41,8 +40,9 @@
     outline: none;
     background: transparent;
     color: var(--text-strong);
-    font-family: inherit;
-    font-size: var(--type-sm);
+    // A link is an address, so it reads in the theme's monospace.
+    font-family: var(--platform-font-mono);
+    font-size: var(--type-xs);
 
     &::placeholder {
       color: var(--platform-text-muted);

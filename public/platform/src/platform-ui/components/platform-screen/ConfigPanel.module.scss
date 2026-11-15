@@ -381,12 +381,12 @@
 .applyAction {
   align-self: flex-end;
   padding: 0 var(--space-4);
-  border-color: transparent;
-  background: var(--platform-accent);
-  color: var(--platform-accent-text);
+  border-color: var(--action-primary-border);
+  background: var(--action-primary-bg);
+  color: var(--action-primary-text);
 
   &:hover:not(:disabled) {
-    background: var(--platform-accent-hover);
+    background: var(--action-primary-bg-hover);
   }
 }
 

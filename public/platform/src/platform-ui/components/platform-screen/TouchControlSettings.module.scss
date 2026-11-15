@@ -130,8 +130,8 @@
 .orientationTabs > button:hover { color: var(--text-strong); }
 .orientationTabs > button[aria-pressed="true"] { color: var(--text-strong); background: var(--surface-selected); }
 .orientationTabs > button:focus-visible { outline: 2px solid var(--focus-ring); }
-.editButton { background: var(--platform-accent); border-color: var(--platform-accent); color: var(--platform-accent-text); }
-.editButton:hover { background: var(--platform-accent-hover); }
+.editButton { background: var(--action-primary-bg); border-color: var(--action-primary-border); color: var(--action-primary-text); }
+.editButton:hover { background: var(--action-primary-bg-hover); }
 .previewFrame { min-width: 0; }
 .preferenceRow { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); padding: var(--space-4) 0; border-bottom: 1px solid var(--glass-border); }
 .preferenceRow > div { min-width: 0; }

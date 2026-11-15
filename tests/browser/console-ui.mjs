@@ -182,6 +182,25 @@ async function verifyDiscLibrary() {
   await evaluate(page, "document.querySelector('[aria-label=\"Disc layout\"]').click();");
   await waitFor(page, "document.querySelector('[data-library-disc]')");
 
+  // More opens the full preview: title-free scene art that bleeds to the
+  // edges, the description, and Play, all inside the screen.
+  await evaluate(page, "document.querySelector('[aria-label^=\"More about\"]').click();");
+  await waitFor(page, "document.querySelector('dialog[open] [data-showcase-art]')");
+  await evaluate(page, "await new Promise(resolve=>setTimeout(resolve,500));");
+  const preview = await evaluate(page, `
+    const dialog=document.querySelector('dialog[open]');const art=dialog.querySelector('[class*=showcaseArtwork]').getBoundingClientRect();
+    const play=dialog.querySelector('[aria-label^="Play "]').getBoundingClientRect();
+    return {art:dialog.querySelector('[data-showcase-art]').dataset.showcaseArt,artLeft:art.left,artWidth:art.width,
+      description:dialog.querySelector('[class*=showcaseDescription]')?.getClientRects().length>0,
+      playInside:play.bottom<=innerHeight&&play.top>=0};
+  `);
+  assert.equal(preview.art, "scene", "the preview uses the game's scene art, not the titled cover");
+  assert.ok(preview.artLeft === 0 && preview.artWidth === 390, `the art bleeds edge to edge ${JSON.stringify(preview)}`);
+  assert.ok(preview.description && preview.playInside, `the preview shows the description and Play ${JSON.stringify(preview)}`);
+  await capture(page, "phone-portrait-preview");
+  await evaluate(page, "document.querySelector('dialog[open] button').click();");
+  await waitFor(page, "!document.querySelector('dialog[open]')");
+
   // Each theme's disc style keeps the selection in the band and fits the screen.
   for (const [themeName, discStyle] of [["Ember", "editorial"], ["Graphite", "instrument"], ["8-Bit", "instrument"], ["Classic Disc", "classic"], ["Kaboom", "cinematic"]]) {
     await evaluate(page, `

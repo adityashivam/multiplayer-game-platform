@@ -6,6 +6,11 @@ import styles from "./GameLibrary.module.scss";
 /** Show the selected game's advertised capabilities and launch its existing catalog path. */
 export default function GameShowcase({ game, onActivate, disabled = false }) {
   const gameDetails = readGameLibraryDetails(game);
+  // Scene art carries no baked-in title, so it can bleed edge to edge under the
+  // name. The portrait capsule suits the tall preview best; only the legacy
+  // cover (title painted in) is fitted whole.
+  const sceneUrl = gameDetails.capsuleUrl || gameDetails.backdropUrl;
+  const artworkUrl = sceneUrl || gameDetails.coverUrl;
 
   return (
     <section
@@ -13,8 +18,16 @@ export default function GameShowcase({ game, onActivate, disabled = false }) {
       style={{ "--game-accent": gameDetails.accentColor }}
       aria-labelledby="selected-game-title"
       data-selected-game={game.id}
+      data-showcase-art={sceneUrl ? "scene" : "cover"}
     >
-      <GameArtwork key={game.id} coverUrl={gameDetails.coverUrl} className={styles.showcaseArtwork} eager contain ambient />
+      <GameArtwork
+        key={game.id}
+        coverUrl={artworkUrl}
+        className={sceneUrl ? `${styles.showcaseArtwork} ${styles.showcaseArtworkScene}` : styles.showcaseArtwork}
+        eager
+        contain={!sceneUrl}
+        ambient={!sceneUrl}
+      />
       <div className={styles.showcaseShade} />
       <div className={styles.showcaseContent}>
         <p className={styles.showcaseEyebrow}>

@@ -181,12 +181,16 @@
     height: var(--control-lg);
     margin-top: var(--space-2);
     padding: 0 var(--space-6);
-    border: 0;
-    border-radius: var(--radius-pill);
-    background: var(--platform-accent);
-    color: var(--platform-accent-text);
+    border: 1px solid var(--action-primary-border);
+    border-radius: var(--radius-md);
+    background: var(--action-primary-bg);
+    color: var(--action-primary-text);
     font-size: var(--type-md);
-    font-weight: 700;
+    font-weight: 600;
+
+    &:hover {
+      background: var(--action-primary-bg-hover);
+    }
 
     &:focus-visible {
       outline: 2px solid var(--focus-ring);
@@ -238,10 +242,10 @@
 .shareButton {
   min-height: 40px;
   padding: 8px 14px;
-  border: 1px solid transparent;
+  border: 1px solid var(--action-primary-border);
   border-radius: var(--platform-radius);
-  background: var(--platform-accent);
-  color: var(--platform-accent-text);
+  background: var(--action-primary-bg);
+  color: var(--action-primary-text);
   font-size: 12px;
   font-weight: 600;
 }

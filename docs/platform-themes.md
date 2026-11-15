@@ -75,8 +75,8 @@ still import and are upgraded to version 2. Exports are always version 2.
 | `format`, `version` | `"kaboom-theme"` and `1` or `2` | Identifies the file |
 | `id` | lower-case letters, numbers and dashes, up to 40; not a built-in id | Importing the same id again replaces that theme |
 | `name`, `author` | text, up to 40 characters (`author` optional) | Shown on the theme tile |
-| `colors.accent` | `#rrggbb` | Primary buttons, switches, selection and active tabs |
-| `colors.accentText` | `#rrggbb`, contrast ≥ 4.5 against `accent` | Text on primary buttons |
+| `colors.accent` | `#rrggbb` | Primary buttons (an accent tint, edge and icon on glass), switches, selection and active tabs |
+| `colors.accentText` | `#rrggbb`, contrast ≥ 4.5 against `accent` | Text on solid accent fills (switch knobs, touch controls) |
 | `colors.background` | `#rrggbb`, dark (relative luminance ≤ 0.05) | The screen behind every page |
 | `colors.surface` | `#rrggbb` | Tint of the frosted glass panels, menus and dialogs |
 | `colors.text` | `#rrggbb`, contrast ≥ 7 against `background` | Headings and main text |

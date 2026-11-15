@@ -56,6 +56,13 @@
   --surface-hover: rgba(255, 255, 255, .07);
   --surface-selected: rgba(255, 255, 255, .1);
   --border-strong: rgba(255, 255, 255, .22);
+  // Primary actions: accent-tinted glass with an accent edge, not a solid
+  // bright fill, so the main button reads as decisive without shouting.
+  --action-primary-bg: color-mix(in srgb, var(--platform-accent) 16%, var(--glass-2));
+  --action-primary-bg-hover: color-mix(in srgb, var(--platform-accent) 26%, var(--glass-2));
+  --action-primary-border: color-mix(in srgb, var(--platform-accent) 58%, transparent);
+  --action-primary-text: var(--text-strong);
+  --action-primary-icon: var(--platform-accent);
   --motion-fast: 120ms;
   --motion-medium: 200ms;
   --motion-slow: 320ms;

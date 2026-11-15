@@ -1000,7 +1000,6 @@
     min-width: 200px;
     height: 46px;
     padding: 0 var(--space-5);
-    border-radius: var(--radius-pill);
     box-shadow: 0 10px 24px -12px rgba(0, 0, 0, .8);
     transition: background var(--motion-fast) ease, transform var(--motion-fast) var(--ease-spring);
 
@@ -1127,16 +1126,18 @@
   height: var(--control-lg);
   margin-top: var(--space-5);
   padding: 0 var(--space-5);
-  border: 0;
-  border-radius: var(--radius-pill);
-  background: var(--platform-accent);
-  color: var(--platform-accent-text);
+  border: 1px solid var(--action-primary-border);
+  border-radius: var(--radius-md);
+  background: var(--action-primary-bg);
+  color: var(--action-primary-text);
   font-size: var(--type-md);
-  font-weight: 700;
+  font-weight: 600;
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
   transition: background var(--motion-fast) ease, transform var(--motion-fast) var(--ease-spring);
 
   &:hover:not(:disabled) {
-    background: var(--platform-accent-hover);
+    background: var(--action-primary-bg-hover);
     transform: translateY(-1px);
   }
 
@@ -1150,6 +1151,7 @@
   }
 
   :global(.material-symbols-outlined) {
+    color: var(--action-primary-icon);
     font-size: 21px;
     font-variation-settings: "FILL" 1;
   }
@@ -1293,7 +1295,7 @@
   height: 100dvh;
   max-height: 100dvh;
   margin: 0;
-  padding: max(12px, env(safe-area-inset-top)) 12px max(12px, env(safe-area-inset-bottom));
+  padding: 0;
   border: 0;
   background: var(--surface-base);
   color: var(--text-body);
@@ -1302,41 +1304,138 @@
   &[open] {
     display: flex;
     flex-direction: column;
-    gap: 10px;
   }
 
   &::backdrop {
     background: rgba(5, 6, 8, .85);
   }
 
+  // The art fills the screen edge to edge; the details sit on its faded lower
+  // edge, the way a store page leads with key art rather than a framed card.
   .showcase {
     flex: 1;
     min-height: 0;
     height: auto;
+    justify-content: flex-end;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+  }
+
+  .showcaseArtwork {
+    position: absolute;
+    inset: 0 0 auto;
+    flex: none;
+    height: 84%;
+  }
+
+  .showcaseArtworkScene {
+    -webkit-mask-image: linear-gradient(180deg, #000 48%, transparent 96%);
+    mask-image: linear-gradient(180deg, #000 48%, transparent 96%);
+  }
+
+  .showcaseArtworkScene .coverImage {
+    object-position: center 20%;
   }
 
   .showcaseContent {
-    max-height: 70%;
-    padding: var(--space-6);
+    width: min(100%, 560px);
+    max-height: 62%;
+    padding: var(--space-6) var(--space-5) max(var(--space-5), env(safe-area-inset-bottom));
+    background: linear-gradient(180deg, transparent, var(--surface-base) var(--space-6));
+  }
+
+  .showcaseEyebrow {
+    color: var(--text-muted);
+    letter-spacing: .12em;
+  }
+
+  .eyebrowLine {
+    background: var(--game-accent);
   }
 
   .showcaseTitle {
-    font-size: clamp(30px, 8vw, 48px);
+    font-size: clamp(26px, 7vw, 34px);
+    font-weight: 600;
+    line-height: 1.08;
+    letter-spacing: -.03em;
+    text-wrap: balance;
+  }
+
+  // Phones hide these in the library hero; the preview is where they belong.
+  .showcaseDescription,
+  .capabilities {
+    display: flex;
+  }
+
+  .showcaseDescription {
+    display: block;
+    max-width: 52ch;
+    margin-bottom: var(--space-4);
+  }
+
+  .playButton {
+    margin-top: var(--space-5);
   }
 }
 
+// Back floats on the art as a small glass control, inside the safe area.
 .previewBack {
+  position: absolute;
+  top: max(var(--space-3), env(safe-area-inset-top));
+  left: max(var(--space-3), env(safe-area-inset-left));
+  z-index: 2;
   display: inline-flex;
   align-items: center;
-  align-self: flex-start;
   gap: var(--space-2);
   height: var(--control-md);
   padding: 0 var(--space-4) 0 var(--space-3);
   border: 1px solid var(--glass-border);
-  border-radius: var(--radius-pill);
-  background: var(--glass-1);
-  color: var(--text-body);
+  border-radius: var(--radius-md);
+  background: var(--glass-2);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  color: var(--text-strong);
   font-size: var(--type-sm);
+  font-weight: 600;
+  transition: background var(--motion-fast) ease;
+
+  &:hover {
+    background: var(--glass-3);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 2px;
+  }
+}
+
+// Landscape: the art takes the right of the screen and fades leftward into
+// the details, so nothing is cropped to a sliver.
+@media (orientation: landscape) {
+  .previewDialog {
+    .showcase {
+      justify-content: center;
+    }
+
+    .showcaseArtwork {
+      inset: 0 0 0 auto;
+      width: 58%;
+      height: 100%;
+    }
+
+    .showcaseArtworkScene {
+      -webkit-mask-image: linear-gradient(270deg, #000 50%, transparent 100%);
+      mask-image: linear-gradient(270deg, #000 50%, transparent 100%);
+    }
+
+    .showcaseContent {
+      width: min(52%, 520px);
+      max-height: 100%;
+      padding: calc(var(--control-md) + var(--space-6)) var(--space-6) var(--space-5) max(var(--space-6), env(safe-area-inset-left));
+      background: none;
+    }
+  }
 }
 
 @container (max-width: 720px) {
