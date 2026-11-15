@@ -5,7 +5,8 @@ import { createBrowserTestSession, delay } from "./support/chrome.mjs";
  * Console-grade look-and-feel checks at the four target screen sizes: nothing
  * overflows or truncates, the backdrop follows focus, the focus ring sits on
  * the selected card, launching zooms into a title card, and the first-load
- * reveal respects reduced motion.
+ * reveal respects reduced motion. Portrait phones also get the disc library:
+ * names on a turning disc beside the selected game's art and description.
  */
 const baseUrl = process.env.PLATFORM_BASE_URL || "http://localhost:3100";
 const browser = await createBrowserTestSession("console-ui");
@@ -119,6 +120,75 @@ async function verifyCardZoom(page, viewport) {
   await evaluate(page, "localStorage.removeItem('platform.library-card-scale.v1');");
 }
 
+const GRID_LAYOUT_SCRIPT = "try{localStorage.setItem('platform.library-layout.v1','grid')}catch{}";
+
+async function readDiscState(page) {
+  return evaluate(page, `
+    const selected=document.querySelector('[data-library-disc] [data-library-card-id][aria-pressed="true"]');
+    const spotlight=document.querySelector('[data-disc-spotlight]');
+    const band=document.querySelector('[data-library-disc] [class*="band"]')?.getBoundingClientRect();
+    const box=selected?.getBoundingClientRect();
+    return{selected:selected?.dataset.libraryCardId,spotlight:spotlight?.dataset.discSpotlight,
+      order:[...document.querySelectorAll('[data-library-disc] [data-library-card-id]')].map((item)=>item.dataset.libraryCardId),
+      title:spotlight?.querySelector('h2')?.textContent,description:spotlight?.querySelector('p:nth-of-type(2)')?.textContent??'',
+      playLabel:spotlight?.querySelector('[aria-label^="Play "]')?.getAttribute('aria-label'),
+      inBand:Boolean(box&&band&&Math.abs((box.top+box.height/2)-(band.top+band.height/2))<4),
+      overflow:document.documentElement.scrollWidth>innerWidth};
+  `);
+}
+
+async function verifyDiscLibrary() {
+  // Pages share storage, so clear the grid choice the portrait grid checks made.
+  const page = await openLibrary({ width: 390, height: 844, mobile: true }, "try{localStorage.removeItem('platform.library-layout.v1')}catch{}");
+  await waitFor(page, "document.querySelector('[data-library-disc]')&&document.querySelector('[data-disc-spotlight]')");
+  await evaluate(page, "await new Promise(resolve=>setTimeout(resolve,500));");
+  await capture(page, "phone-portrait-disc");
+  const start = await readDiscState(page);
+  assert.ok(start.selected && start.selected === start.spotlight, `the spotlight shows the selected game ${JSON.stringify(start)}`);
+  assert.ok(start.inBand, "the selected name rests in the notch band");
+  assert.ok(start.description.length > 20 && start.playLabel === `Play ${start.title}`, "the spotlight shows the description and a Play button");
+  assert.equal(start.overflow, false, "the disc layout fits the screen");
+  assert.equal(await evaluate(page, "return document.querySelector('[aria-label=\"Disc layout\"]').getAttribute('aria-pressed');"), "true");
+
+  // Arrow keys and the wheel step one game along the rim.
+  await evaluate(page, "document.querySelector('[data-library-disc] [aria-pressed=\"true\"]').focus();");
+  await key(page, "ArrowDown", "ArrowDown", true);
+  await key(page, "ArrowDown", "ArrowDown", false);
+  await evaluate(page, "await new Promise(resolve=>setTimeout(resolve,500));");
+  const stepped = await readDiscState(page);
+  assert.notEqual(stepped.selected, start.selected, "ArrowDown moves to the next game");
+  assert.equal(stepped.spotlight, stepped.selected);
+  assert.ok(stepped.inBand, "the disc turns the new selection into the band");
+  await evaluate(page, "const disc=document.querySelector('[data-library-disc]');disc.dispatchEvent(new WheelEvent('wheel',{deltaY:-40,bubbles:true,cancelable:true}));await new Promise(resolve=>setTimeout(resolve,500));");
+  assert.equal((await readDiscState(page)).selected, start.selected, "one wheel notch back returns to the first game");
+
+  // A drag turns the disc and settles on a game.
+  await evaluate(page, `
+    const disc=document.querySelector('[data-library-disc]');const box=disc.getBoundingClientRect();
+    const send=(type,y)=>disc.dispatchEvent(new PointerEvent(type,{bubbles:true,pointerId:9,button:0,isPrimary:true,clientX:box.left+60,clientY:y}));
+    const startY=box.top+box.height/2;send('pointerdown',startY);
+    for(let step=1;step<=10;step+=1){send('pointermove',startY-step*10);await new Promise(resolve=>setTimeout(resolve,16));}
+    send('pointerup',startY-100);await new Promise(resolve=>setTimeout(resolve,800));
+  `);
+  const dragged = await readDiscState(page);
+  assert.notEqual(dragged.selected, start.selected, "dragging up turns the disc to later games");
+  assert.ok(dragged.inBand && dragged.spotlight === dragged.selected, `the disc settles on a game ${JSON.stringify(dragged)}`);
+
+  // Switching to the grid is remembered; switching back restores the disc.
+  await evaluate(page, "document.querySelector('[aria-label=\"Grid layout\"]').click();");
+  await waitFor(page, "document.querySelector('[data-game-grid]')&&!document.querySelector('[data-library-disc]')");
+  assert.equal(await evaluate(page, "return localStorage.getItem('platform.library-layout.v1');"), "grid");
+  await evaluate(page, "document.querySelector('[aria-label=\"Disc layout\"]').click();");
+  await waitFor(page, "document.querySelector('[data-library-disc]')");
+
+  // Enter plays the selected game with the launch zoom.
+  await evaluate(page, "await new Promise(resolve=>setTimeout(resolve,400));document.querySelector('[data-library-disc] [aria-pressed=\"true\"]').focus();");
+  await send("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 }, page);
+  await send("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 }, page);
+  await waitFor(page, "location.pathname.startsWith('/games/')", 10000);
+  console.log("DISC LIBRARY PASSED");
+}
+
 async function verifyLaunchZoom(page, viewport) {
   await evaluate(page, "document.querySelector('[data-library-card-id][aria-pressed=\"true\"]').focus();");
   await send("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 }, page);
@@ -131,7 +201,9 @@ async function verifyLaunchZoom(page, viewport) {
 
 try {
   for (const viewport of VIEWPORTS) {
-    const page = await openLibrary(viewport);
+    // Grid checks run on every size; portrait phones choose the grid explicitly
+    // because their default is the disc, which has its own checks below.
+    const page = await openLibrary(viewport, viewport.name === "phone-portrait" ? GRID_LAYOUT_SCRIPT : "");
     await capture(page, `${viewport.name}-library`);
     await verifyFit(page, viewport);
     await verifyFocusRing(page, viewport);
@@ -143,6 +215,8 @@ try {
     if (!viewport.mobile) await verifyLaunchZoom(page, viewport);
     console.log("CONSOLE UI PASSED", viewport.name);
   }
+
+  await verifyDiscLibrary();
 
   const reducedMotion = await newPage("about:blank", 1280, 800, false);
   pages.push(reducedMotion);

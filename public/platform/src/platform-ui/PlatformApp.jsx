@@ -17,6 +17,9 @@ import usePlatformRoute from "./hooks/usePlatformRoute.js";
 import useTouchProfile from "./hooks/useTouchProfile.js";
 import useRoomLifecycle from "./hooks/useRoomLifecycle.js";
 import usePlatformTheme from "./hooks/usePlatformTheme.js";
+import useMediaQuery from "./hooks/useMediaQuery.js";
+import { PORTRAIT_LIBRARY_QUERY, readLibraryLayoutChoice, resolveLibraryLayout, saveLibraryLayoutChoice } from "./services/libraryLayout.js";
+import { clampLibraryDiscIndex } from "./services/libraryDisc.js";
 import { createRoomInvitePolicy } from "./services/roomInvitePolicy.js";
 import { getGameRuntimeSpec } from "./services/gameRuntime.js";
 import { readSpatialCatalogIndex } from "./services/catalogNavigation.js";
@@ -42,6 +45,10 @@ export default function App() {
   const [cardScale, setCardScale] = useState(() => readLibraryZoom());
   // Applied at startup so the chosen theme shows before Settings is opened.
   const platformTheme = usePlatformTheme();
+  // Grid or disc: portrait screens default to the disc unless the player chose.
+  const portraitLibrary = useMediaQuery(PORTRAIT_LIBRARY_QUERY);
+  const [libraryLayoutChoice, setLibraryLayoutChoice] = useState(() => readLibraryLayoutChoice());
+  const libraryLayout = resolveLibraryLayout(libraryLayoutChoice, portraitLibrary);
   const [catalogQuery, setCatalogQuery] = useState({ page: 1, q: "", genre: "all", sort: "name-asc" });
   const [touchEditorOpen, setTouchEditorOpen] = useState(false);
   const [voiceDialogOpen, setVoiceDialogOpen] = useState(false);
@@ -204,9 +211,13 @@ export default function App() {
       if (isGameView || activeTab === "config" || loadingGames || !visibleGames.length) return;
 
       const cardBoxes = visibleGames.map((_game, index) => cardRefs.current[index]?.getBoundingClientRect() ?? { left: 0, top: 0, width: 0, height: 0 });
+      // On the disc every direction steps along the rim, one game at a time.
+      const discStep = { up: -1, left: -1, down: 1, right: 1 }[direction] ?? 0;
 
       setSelectedIndex((current) => {
-        const nextIndex = readSpatialCatalogIndex(cardBoxes, current, direction);
+        const nextIndex = libraryLayout === "disc"
+          ? clampLibraryDiscIndex(direction === "home" ? 0 : direction === "end" ? visibleGames.length - 1 : current + discStep, visibleGames.length)
+          : readSpatialCatalogIndex(cardBoxes, current, direction);
 
         focusSelectedCardRef.current = nextIndex !== current;
         if (nextIndex !== current) {
@@ -216,8 +227,14 @@ export default function App() {
         return nextIndex;
       });
     },
-    [activeTab, ensureLobbyMusicPlayback, isGameView, loadingGames, triggerHaptic, visibleGames.length],
+    [activeTab, ensureLobbyMusicPlayback, isGameView, libraryLayout, loadingGames, triggerHaptic, visibleGames.length],
   );
+
+  const changeLibraryLayout = useCallback((layout) => {
+    uiSounds.play("tab");
+    setLibraryLayoutChoice(layout);
+    saveLibraryLayoutChoice(layout);
+  }, []);
 
   const selectLibraryGame = useCallback((index, shouldFocus = false) => {
     if (loadingGames) return;
@@ -376,7 +393,10 @@ export default function App() {
       {!isGameView && <BootReveal />}
       {!isGameView && activeTab !== "config" && (
         <LobbyHeader
-          showZoomControls={activeTab !== "config"}
+          libraryLayout={libraryLayout}
+          onLibraryLayoutChange={changeLibraryLayout}
+          showLayoutToggle={portraitLibrary}
+          showZoomControls={activeTab !== "config" && libraryLayout === "grid"}
           canZoomIn={canZoomIn}
           canZoomOut={canZoomOut}
           zoomScale={cardScale}
@@ -404,6 +424,7 @@ export default function App() {
           selectedIndex={selectedIndex}
           onSelectIndex={selectLibraryGame}
           onActivate={openGamePath}
+          layout={libraryLayout}
           cardScale={cardScale}
           onCardScaleChange={handleZoomChange}
           registerCardRef={(index, node) => {
@@ -481,7 +502,9 @@ function describeLaunchFromCard(games, path, card) {
   const screen = card?.closest("[data-platform-screen]");
   let from = null;
   if (card && screen && card.dataset.libraryCardId === game.id) {
-    const cardBounds = (card.querySelector("[data-card-media]") || card).getBoundingClientRect();
+    // A layout may mark where its art is (the disc's spotlight); else the card's media.
+    const origin = screen.querySelector(`[data-launch-origin="${CSS.escape(game.id)}"]`) || card.querySelector("[data-card-media]") || card;
+    const cardBounds = origin.getBoundingClientRect();
     const screenBounds = screen.getBoundingClientRect();
     from = {
       top: Math.max(0, cardBounds.top - screenBounds.top),

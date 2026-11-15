@@ -235,6 +235,50 @@
   min-width: 0;
 }
 
+// Grid / Disc switch: two icon buttons; the chosen one is lit.
+.layoutToggle {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  gap: 2px;
+  height: var(--control-md);
+  padding: 0 var(--space-1);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-pill);
+  background: var(--glass-1);
+}
+
+.layoutToggleButton {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-muted);
+  transition: background var(--motion-fast) ease, color var(--motion-fast) ease;
+
+  :global(.material-symbols-outlined) {
+    font-size: 19px;
+  }
+
+  &:hover {
+    color: var(--text-strong);
+  }
+
+  &[aria-pressed="true"] {
+    background: var(--surface-selected);
+    color: var(--platform-accent);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 1px;
+  }
+}
+
 // One glass pill: smaller, a continuous size slider, bigger.
 .zoomControl {
   display: flex;
@@ -1545,6 +1589,16 @@
     margin-left: var(--space-1);
     padding: 0 0 0 var(--space-1);
     border-left: 1px solid var(--glass-border);
+  }
+
+  .headerActions .layoutToggle {
+    height: 100%;
+    margin-left: var(--space-1);
+    padding: 0 0 0 var(--space-1);
+    border: 0;
+    border-left: 1px solid var(--glass-border);
+    border-radius: 0;
+    background: transparent;
   }
 
   .catalogPagination {

@@ -5,10 +5,14 @@ import { MAX_CATALOG_SEARCH_LENGTH } from "../../../../shared/gameCatalog.js";
 import { LIBRARY_ZOOM } from "../../services/libraryZoom.js";
 
 /**
- * Library search, genre filter and the card-size control.
- * @param {{showZoomControls?:boolean,canZoomIn?:boolean,canZoomOut?:boolean,zoomScale?:number,onZoomChange?:(scale:number)=>void,searchQuery?:string,onSearchChange?:(query:string)=>void,filterOptions?:{value:string,label:string}[],activeFilter?:string,onFilterChange?:(genre:string)=>void,onZoomIn?:()=>void,onZoomOut?:()=>void}} props
+ * Library search, genre filter, the Grid/Disc layout switch (portrait) and
+ * the card-size control (grid only).
+ * @param {{libraryLayout?:"grid"|"disc",onLibraryLayoutChange?:(layout:"grid"|"disc")=>void,showLayoutToggle?:boolean,showZoomControls?:boolean,canZoomIn?:boolean,canZoomOut?:boolean,zoomScale?:number,onZoomChange?:(scale:number)=>void,searchQuery?:string,onSearchChange?:(query:string)=>void,filterOptions?:{value:string,label:string}[],activeFilter?:string,onFilterChange?:(genre:string)=>void,onZoomIn?:()=>void,onZoomOut?:()=>void}} props
  */
 export default function LobbyHeader({
+  libraryLayout = "grid",
+  onLibraryLayoutChange,
+  showLayoutToggle = false,
   showZoomControls = false,
   canZoomIn = true,
   canZoomOut = true,
@@ -135,6 +139,23 @@ export default function LobbyHeader({
               </div>
             ) : null}
           </div>
+
+          {showLayoutToggle ? (
+            <div className={styles.layoutToggle} role="group" aria-label="Library layout">
+              {[["grid", "grid_view", "Grid layout"], ["disc", "album", "Disc layout"]].map(([layout, icon, label]) => (
+                <button
+                  key={layout}
+                  type="button"
+                  className={styles.layoutToggleButton}
+                  aria-pressed={libraryLayout === layout}
+                  aria-label={label}
+                  onClick={() => onLibraryLayoutChange?.(layout)}
+                >
+                  <span className="material-symbols-outlined" aria-hidden="true">{icon}</span>
+                </button>
+              ))}
+            </div>
+          ) : null}
 
           {showZoomControls ? (
             <div className={styles.zoomControl} role="group" aria-label="Card size">

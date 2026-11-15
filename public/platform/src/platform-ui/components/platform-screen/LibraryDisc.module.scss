@@ -1,0 +1,288 @@
+// Portrait library: the disc on the left, the selected game's spotlight on the right.
+.discLayout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--space-3);
+  flex: 1;
+  min-height: 0;
+}
+
+.disc {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  touch-action: none;
+  cursor: grab;
+  user-select: none;
+
+  &:active {
+    cursor: grabbing;
+  }
+}
+
+// The disc's plate, like a CD seen at an angle: only its left edge shows and
+// the hub sits off to the right. A thin bright rim catches the light.
+.plate {
+  position: absolute;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--text-strong) 22%, transparent);
+  border-radius: 50%;
+  background:
+    radial-gradient(closest-side, transparent 97.5%, color-mix(in srgb, var(--text-strong) 10%, transparent) 98.5%, transparent 99.5%),
+    var(--glass-1);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, .04),
+    inset 18px 0 40px -24px rgba(255, 255, 255, .18);
+  -webkit-mask-image: linear-gradient(90deg, #000 var(--plate-fade-start, 100px), transparent var(--plate-fade-end, 170px));
+  mask-image: linear-gradient(90deg, #000 var(--plate-fade-start, 100px), transparent var(--plate-fade-end, 170px));
+  pointer-events: none;
+}
+
+// Fine concentric grooves, too faint to read as marks.
+.grooves {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: repeating-radial-gradient(circle, rgba(255, 255, 255, .028) 0 1px, transparent 1px 5px);
+}
+
+// The rainbow sheen of a disc catching the light; it sweeps as the disc turns.
+.sheen {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: conic-gradient(
+    from 200deg,
+    transparent 0deg,
+    rgba(255, 255, 255, .10) 18deg,
+    color-mix(in srgb, var(--platform-accent) 22%, transparent) 30deg,
+    rgba(255, 170, 220, .10) 42deg,
+    rgba(255, 230, 160, .08) 54deg,
+    transparent 76deg,
+    transparent 150deg,
+    rgba(150, 200, 255, .08) 172deg,
+    rgba(255, 255, 255, .12) 186deg,
+    rgba(200, 160, 255, .09) 200deg,
+    transparent 226deg,
+    transparent 360deg
+  );
+  -webkit-mask-image: radial-gradient(closest-side, transparent 38%, #000 70%);
+  mask-image: radial-gradient(closest-side, transparent 38%, #000 70%);
+  mix-blend-mode: screen;
+  will-change: transform;
+}
+
+// The resting place of the selected name.
+.band {
+  position: absolute;
+  left: 14px;
+  right: 4px;
+  height: 36px;
+  border: 1px solid color-mix(in srgb, var(--platform-accent) 55%, transparent);
+  border-radius: var(--radius-pill);
+  background: var(--surface-selected);
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
+.notch {
+  position: absolute;
+  left: 2px;
+  width: 0;
+  height: 0;
+  border-top: 7px solid transparent;
+  border-bottom: 7px solid transparent;
+  border-left: 8px solid var(--platform-accent);
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
+.disc:focus-within .band {
+  box-shadow: 0 0 0 2px var(--focus-ring);
+}
+
+.discItem {
+  position: absolute;
+  top: 0;
+  left: 0;
+  max-width: calc(100% - 44px);
+  padding: var(--space-1) var(--space-2) var(--space-1) var(--space-3);
+  overflow: hidden;
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  font: 600 var(--type-sm) / 1.2 var(--platform-font-heading);
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transform-origin: 0 50%;
+  cursor: pointer;
+  visibility: hidden;
+  will-change: transform, opacity;
+  -webkit-tap-highlight-color: transparent;
+  transition: color var(--motion-medium) ease;
+
+  &[aria-pressed="true"] {
+    color: var(--text-strong);
+  }
+
+  &:focus-visible {
+    outline: none;
+  }
+}
+
+// Spotlight: the art takes what height is left after the text and Play, so
+// it shrinks when the console deck is open instead of pushing Play away.
+.spotlight {
+  container-type: size;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+  min-height: 0;
+}
+
+.spotlightArt {
+  position: relative;
+  flex: none;
+  width: min(100%, max(84px, calc((100cqh - 196px) * .75)));
+  aspect-ratio: 3 / 4;
+  overflow: hidden;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--surface-base) 85%, white 3%);
+  box-shadow: 0 18px 36px -18px color-mix(in srgb, var(--game-accent, #000) 60%, transparent), var(--elevation-1);
+  animation: spotlightIn var(--motion-slow) var(--ease-spring) both;
+}
+
+.spotlightArtwork {
+  position: absolute;
+  inset: 0;
+}
+
+.spotlightGenre {
+  position: absolute;
+  top: var(--space-2);
+  left: var(--space-2);
+  padding: 2px var(--space-2);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-pill);
+  background: var(--glass-2);
+  color: var(--text-strong);
+  font-size: var(--type-xs);
+  font-weight: 600;
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+}
+
+.spotlightText {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-height: 0;
+  animation: spotlightIn var(--motion-slow) var(--ease-spring) 40ms both;
+}
+
+.spotlightTitle {
+  display: -webkit-box;
+  margin: 0;
+  overflow: hidden;
+  color: var(--text-strong);
+  font: 700 var(--type-lg) / 1.12 var(--platform-font-heading);
+  letter-spacing: -.02em;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.spotlightMeta {
+  margin: 0;
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: var(--type-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.spotlightDescription {
+  display: -webkit-box;
+  margin: var(--space-1) 0 0;
+  overflow: hidden;
+  color: var(--text-body);
+  font-size: var(--type-sm);
+  line-height: 1.45;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+.spotlightMore {
+  align-self: flex-start;
+  padding: 2px 0;
+  border: 0;
+  background: transparent;
+  color: var(--platform-accent);
+  font: 600 var(--type-xs) var(--platform-font-body);
+  cursor: pointer;
+
+  &:focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 2px;
+  }
+}
+
+// A calm, accent-tinted glass pill: it reads as the action without glaring.
+.spotlightPlay {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  flex: none;
+  width: 100%;
+  height: var(--control-md);
+  margin-top: auto;
+  border: 1px solid color-mix(in srgb, var(--platform-accent) 55%, transparent);
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--platform-accent) 18%, var(--glass-2));
+  color: var(--text-strong);
+  font: 700 var(--type-md) var(--platform-font-body);
+  cursor: pointer;
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  transition: background var(--motion-fast) ease, border-color var(--motion-fast) ease, transform var(--motion-fast) var(--ease-spring);
+
+  > span {
+    color: var(--platform-accent);
+    font-size: 20px;
+    font-variation-settings: "FILL" 1;
+  }
+
+  &:hover:not(:disabled) {
+    border-color: var(--platform-accent);
+    background: color-mix(in srgb, var(--platform-accent) 28%, var(--glass-2));
+  }
+
+  &:active:not(:disabled) {
+    transform: scale(.97);
+  }
+
+  &:disabled {
+    opacity: .45;
+    cursor: progress;
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 2px;
+  }
+}
+
+@keyframes spotlightIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spotlightArt, .spotlightText {
+    animation: none;
+  }
+}

@@ -5,13 +5,14 @@ import CatalogPagination from "./CatalogPagination.jsx";
 import GameCard from "./GameCard.jsx";
 import GameShowcase from "./GameShowcase.jsx";
 import GamePreviewDialog from "./GamePreviewDialog.jsx";
+import LibraryDisc from "./LibraryDisc.jsx";
+import { PORTRAIT_LIBRARY_QUERY } from "../../services/libraryLayout.js";
 import Presence from "./Presence.jsx";
 import useMediaQuery from "../../hooks/useMediaQuery.js";
 import useLibraryZoomGestures from "../../hooks/useLibraryZoomGestures.js";
 import { captureLayoutBoxes, morphFromLayoutBoxes, settleLayoutMorphs } from "../../services/layoutMorph.js";
 import styles from "./GameLibrary.module.scss";
 
-const PORTRAIT_CATALOG_QUERY = "(max-width: 900px) and (orientation: portrait)";
 const SKELETON_CARD_COUNT = 8;
 
 const GRID_KEY_DIRECTIONS = Object.freeze({
@@ -31,6 +32,7 @@ const SELECTION_BAR_GAP_PX = 6;
 
 /**
  * Show a bounded catalog page in a vertical grid with a secondary selected-game preview.
+ * `layout` "disc" shows the portrait disc instead of the card grid.
  * `cardScale` sizes the cards; `onCardScaleChange` receives pinch and
  * ctrl+wheel zoom from the grid (a value, or an updater of the current one).
  */
@@ -46,6 +48,7 @@ export default function LobbyList({
   selectedIndex,
   onSelectIndex,
   onActivate,
+  layout = "grid",
   cardScale = 1,
   onCardScaleChange,
   registerCardRef,
@@ -53,7 +56,7 @@ export default function LobbyList({
   const gridRef = useRef(null);
   const catalogRef = useRef(null);
   const placeRingRef = useRef(() => {});
-  const portraitLayout = useMediaQuery(PORTRAIT_CATALOG_QUERY);
+  const portraitLayout = useMediaQuery(PORTRAIT_LIBRARY_QUERY);
   const [previewOpen, setPreviewOpen] = useState(false);
   const selectedGame = games[selectedIndex] || games[0];
   const firstResult = catalogPage.total ? (catalogPage.page - 1) * catalogPage.pageSize + 1 : 0;
@@ -144,7 +147,8 @@ export default function LobbyList({
     <section className={styles.catalog} ref={catalogRef} aria-labelledby="catalog-title">
       <div className={styles.catalogWorkspace} aria-busy={loading}>
         <div className={styles.catalogResults}>
-          <div className={styles.catalogHeading}>
+          {/* The disc puts its space into the art and description; the heading stays for screen readers. */}
+          <div className={layout === "disc" ? styles.visuallyHidden : styles.catalogHeading}>
             <div>
               <h1 id="catalog-title">Game library <span>{catalogPage.total.toLocaleString()}</span></h1>
               <p role="status" aria-live="polite" className={!loading && catalogPage.totalPages <= 1 ? styles.visuallyHidden : undefined}>
@@ -163,7 +167,17 @@ export default function LobbyList({
 
           {catalogUnavailable && <p className={styles.catalogNotice}>Catalog unavailable. Showing bundled games.</p>}
 
-          {games.length ? (
+          {games.length && layout === "disc" ? (
+            <LibraryDisc
+              games={games}
+              selectedIndex={selectedIndex}
+              loading={loading}
+              onSelectIndex={onSelectIndex}
+              onActivate={onActivate}
+              onMore={() => setPreviewOpen(true)}
+              registerCardRef={registerCardRef}
+            />
+          ) : games.length ? (
             <div
               id="game-list"
               className={styles.gameGrid}
