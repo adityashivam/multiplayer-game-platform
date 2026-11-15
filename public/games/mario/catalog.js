@@ -4,6 +4,7 @@ export const marioPresentation = {
   backdropUrl: "/games/mario/art/backdrop.svg",
   accentColor: "#a9db87",
   controls: ["keyboard", "touch"],
+  orientations: ["landscape", "portrait"],
 };
 
 /** Shared by both Mario renderers, which expose the same standard input actions.

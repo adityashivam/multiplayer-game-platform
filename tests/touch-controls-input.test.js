@@ -441,3 +441,18 @@ test("temporary cancellation releases virtual holds and permits the next gesture
   pointer("pointerup", 2);
   assert.deepEqual(heldInputs, [true, false, true, false]);
 });
+
+test("a stick binds its portrait axis when the layout is resolved for portrait", (testContext) => {
+  const controlDescriptor = { ...descriptor, controls: [
+    { id: "drive", type: "stick", role: "move", label: "Move paddle", platformBinding: "vertical", portrait: { platformBinding: "horizontal" } },
+  ] };
+  const layout = resolveTouchLayout(controlDescriptor, createDefaultTouchProfile(controlDescriptor), "portrait");
+  const { controls, pointer } = createTouchEnvironment(testContext, { controlDescriptor, layout });
+  const heldInputs = [];
+  const unsubscribe = getGameControls().dpad.right.onHold(() => heldInputs.push(true), () => heldInputs.push(false));
+  testContext.after(unsubscribe);
+  pointer("pointerdown", 1, controls.get("drive"), { clientX: 140, clientY: 270 });
+  assert.deepEqual(heldInputs, [true], "a sideways push drives the portrait binding");
+  pointer("pointerup", 1);
+  assert.deepEqual(heldInputs, [true, false]);
+});

@@ -98,7 +98,13 @@ export function bindTouchControlSurface({ element, gameId, descriptor, layout, d
   const inputDocument = element.ownerDocument;
   const inputWindow = inputDocument.defaultView;
   const inputHost = element.parentElement || element;
-  const declaredControls = new Map(descriptor.controls.map((control) => [control.id, control]));
+  // The resolved layout carries the binding for the current orientation (a
+  // control can bind a different axis in portrait), so it wins over the descriptor's.
+  const resolvedBindings = new Map(layout.map((control) => [control.id, control.platformBinding]));
+  const declaredControls = new Map(descriptor.controls.map((control) => {
+    const binding = resolvedBindings.get(control.id);
+    return [control.id, binding && binding !== control.platformBinding ? { ...control, platformBinding: binding } : control];
+  }));
   const controlElements = new Map();
   for (const controlElement of element.querySelectorAll(TOUCH_CONTROL_SELECTOR)) {
     const controlId = controlElement.dataset.touchControlId;
@@ -107,7 +113,7 @@ export function bindTouchControlSurface({ element, gameId, descriptor, layout, d
     }
   }
   const enabledControlIds = new Set(layout.map((control) => control.id));
-  const virtualControlSources = new Map(descriptor.controls
+  const virtualControlSources = new Map([...declaredControls.values()]
     .filter((control) => control.platformBinding && enabledControlIds.has(control.id))
     .map((control) => [control.id, createVirtualGameControlSource(inputWindow)]));
   const lookControl = descriptor.controls.find((control) => control.type === "look" && enabledControlIds.has(control.id));

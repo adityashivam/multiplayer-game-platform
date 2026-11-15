@@ -212,15 +212,33 @@ export function createLudoHud({ host, onRoll, onTokenPick, onInvite, onRetry }) 
       setHudText(errorMessage, view.errorMessage ?? "");
       retryButton.hidden = !view.retryAvailable;
     },
+    /**
+     * Place the panel for the host's shape and report the space it covers, so
+     * the board is framed in what is left: a side panel on wide screens, a
+     * fixed-height bottom sheet on tall ones (its height never follows the
+     * turn text, so the board does not jump between turns).
+     * @param {number} width
+     * @param {number} height
+     * @returns {{rightPx:number, bottomPx:number}}
+     */
     resize(width, height) {
-      const compact = width < 1000 || height < 520;
-      const panelWidth = compact ? 210 : Math.min(280, Math.max(248, Math.round(width * 0.24)));
+      const portrait = isLudoPortraitHost(width, height);
+      const compact = portrait || width < 1000 || height < 520;
       const sideInset = compact ? COMPACT_SIDE_INSET_PX : HUD_SIDE_INSET_PX;
       panel.classList.toggle("is-compact", compact);
-      panel.style.width = `${panelWidth}px`;
+      panel.classList.toggle("is-portrait", portrait);
       panel.style.right = `${sideInset}px`;
       panel.style.bottom = `${sideInset}px`;
-      return panelWidth + sideInset * 2;
+      if (portrait) {
+        const sheetHeight = readLudoSheetHeight(height);
+        panel.style.width = "";
+        panel.style.height = `${sheetHeight}px`;
+        return { rightPx: 0, bottomPx: sheetHeight + sideInset * 2 };
+      }
+      const panelWidth = compact ? 210 : Math.min(280, Math.max(248, Math.round(width * 0.24)));
+      panel.style.width = `${panelWidth}px`;
+      panel.style.height = "";
+      return { rightPx: panelWidth + sideInset * 2, bottomPx: 0 };
     },
     dispose() {
       cleanups.forEach((cleanup) => cleanup());
@@ -278,6 +296,26 @@ function getLudoPieceProgressLabel(progress) {
   if (progress === LUDO_LIMITS.HOME_FINISH) return "Home";
   if (progress >= LUDO_LIMITS.HOME_START) return "In the home lane";
   return "On the track";
+}
+
+/**
+ * Whether the table should use a bottom sheet instead of a side panel.
+ * @param {number} width
+ * @param {number} height
+ * @returns {boolean}
+ */
+export function isLudoPortraitHost(width, height) {
+  return width > 0 && height > width * 1.1;
+}
+
+/**
+ * The bottom sheet's height on a tall host: enough for players, the turn and
+ * the roll button, never more than about a third of the screen.
+ * @param {number} height
+ * @returns {number}
+ */
+export function readLudoSheetHeight(height) {
+  return Math.round(Math.max(220, Math.min(height * 0.3, 280)));
 }
 
 /**
@@ -360,6 +398,12 @@ const LUDO_HUD_STYLES = `
 .ludo-hud__error p { font-size:12px; color:#ffc8ad; line-height:1.6; margin:0 0 8px; }
 .ludo-hud__error button { width:100%; min-height:44px; color:#0e2439; background:#8cebf0; border:0; border-radius:9px; font-weight:800; }
 .ludo-hud.is-compact { top:20px; gap:5px; padding:11px; border-radius:17px; }
+.ludo-hud.is-portrait { top:auto; left:10px; display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); grid-auto-rows:min-content; align-content:start; gap:8px 12px; }
+.ludo-hud.is-portrait .ludo-hud__header, .ludo-hud.is-portrait .ludo-hud__footer, .ludo-hud.is-portrait .ludo-hud__error { grid-column:1 / -1; }
+.ludo-hud.is-portrait .ludo-hud__turn { padding-top:0; border-top:0; }
+.ludo-hud.is-portrait .ludo-hud__roll, .ludo-hud.is-portrait .ludo-hud__pieces { align-self:center; }
+.ludo-hud.is-portrait .ludo-hud__piece-grid { grid-template-columns:repeat(4,minmax(0,1fr)); }
+.ludo-hud.is-portrait .ludo-hud__piece { min-width:0; }
 .ludo-hud.is-compact .ludo-hud__brand { font-size:17px; letter-spacing:-.6px; }
 .ludo-hud.is-compact .ludo-hud__round { font-size:8px; letter-spacing:.6px; }
 .ludo-hud.is-compact .ludo-hud__players { gap:3px; }

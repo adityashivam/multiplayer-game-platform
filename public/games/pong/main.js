@@ -15,7 +15,8 @@ import { createWorkerInterpolator } from "/platform/frontend-engine/interpolatio
 import { updateConnectionState } from "/platform/frontend-engine/connectionBridge.js";
 import { createNetworkedGameRuntime } from "/platform/frontend-engine/networkedGameRuntime.js";
 import { extractPongPositions, extractPongContinuityKeys } from "./client/snapshotPose.js";
-import { createPongInputState, readPongKeyboardInput } from "./client/inputState.js";
+import { createPongInputState, readPongScreenDirection } from "./client/inputState.js";
+import { createPongCourtView, isPortraitPongHost } from "./client/courtView.js";
 import { createNetworkedGameSession } from "/platform/frontend-engine/networkedGameSession.js";
 import { INPUT_PROTOCOL, SOCKET_EVENT } from "/platform/shared/networkProtocol.js";
 import {
@@ -96,10 +97,18 @@ const { dpad, menu, actions } = getGameControls();
 const gameCanvas = canvas;
 let roomUrl = "";
 
+// A tall screen gets an upright court; the canvas keeps its shape for the
+// session, so a later rotation letterboxes rather than reloading the game.
+const courtView = createPongCourtView({
+  portrait: isPortraitPongHost(gameCanvas?.parentElement?.getBoundingClientRect()),
+  arenaWidth: WIDTH,
+  arenaHeight: HEIGHT,
+});
+
 // ---------- Kaboom init ----------
 kaboom({
-  width: WIDTH,
-  height: HEIGHT,
+  width: courtView.width,
+  height: courtView.height,
   scale: 0.7,
   debug: false,
   global: true,
@@ -117,6 +126,8 @@ if (gameCanvas) {
   gameCanvas.style.objectPosition = "center";
   gameCanvas.style.height = "auto";
   gameCanvas.style.maxHeight = "100%";
+  // Upright, the court hangs from the top so the touch stick sits below it.
+  if (courtView.portrait) gameCanvas.style.alignSelf = "flex-start";
   gameCanvas.style.imageRendering =
     initialPerformanceProfile.resolutionScale < 0.9 ? "pixelated" : "auto";
 }
@@ -291,13 +302,8 @@ ensureRoomId().then((id) => {
 
 function handleDirectionalInput(direction, active) {
   if (active && arePongControlsBlocked()) return;
-  // Map horizontal to vertical since Pong paddles move only up/down
-  const mapped =
-    direction === "up" || direction === "left"
-      ? "up"
-      : direction === "down" || direction === "right"
-      ? "down"
-      : null;
+  // The court view turns screen directions into the paddle's arena direction.
+  const mapped = courtView.readPaddleDirection(direction, myPlayerId);
   if (!mapped) return;
   paddleInputLatch.setHeld(mapped, `shell:${direction}`, active);
 }
@@ -329,7 +335,7 @@ function initControllerNavigation() {
   const cleanups = [];
 
   const updateKeyboardInput = (event, active) => {
-    const direction = readPongKeyboardInput(event.code);
+    const direction = courtView.readPaddleDirection(readPongScreenDirection(event.code), myPlayerId);
     if (!direction) return;
     if (active && (arePongControlsBlocked() || event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey ||
         event.target?.closest?.('input,textarea,select,[contenteditable="true"],[role="dialog"]'))) return;
@@ -390,8 +396,11 @@ scene("pong", () => {
   socket.offEvent("playerJoined");
   socket.offEvent("playerLeft");
 
+  const viewWidth = courtView.width;
+  const viewHeight = courtView.height;
+  const viewPoint = { x: 0, y: 0 };
   add([
-    rect(WIDTH, HEIGHT),
+    rect(viewWidth, viewHeight),
     color(7, 10, 19),
     pos(0, 0),
     anchor("topleft"),
@@ -400,25 +409,31 @@ scene("pong", () => {
 
   // Net line
   const net = add([
-    rect(4, HEIGHT),
-    pos(WIDTH / 2, 0),
+    courtView.portrait ? rect(viewWidth, 4) : rect(4, HEIGHT),
+    courtView.portrait ? pos(0, viewHeight / 2) : pos(WIDTH / 2, 0),
     color(80, 100, 160),
     opacity(0.5),
-    anchor("top"),
+    anchor(courtView.portrait ? "left" : "top"),
   ]);
   net.use(lifespan(Infinity));
+  // Upright, the paddles lie across the court.
+  const paddleShape = () => (courtView.portrait ? rect(PADDLE_H, PADDLE_W) : rect(PADDLE_W, PADDLE_H));
+  const paddlePos = (arenaX) => {
+    const start = courtView.toView(arenaX, HEIGHT / 2, myPlayerId);
+    return pos(start.x, start.y);
+  };
 
   const paddle1 = add([
-    rect(PADDLE_W, PADDLE_H),
-    pos(PADDLE_X1, HEIGHT / 2),
+    paddleShape(),
+    paddlePos(PADDLE_X1),
     anchor("center"),
     color(120, 200, 255),
     outline(4, rgb(40, 80, 140)),
   ]);
 
   const paddle2 = add([
-    rect(PADDLE_W, PADDLE_H),
-    pos(PADDLE_X2, HEIGHT / 2),
+    paddleShape(),
+    paddlePos(PADDLE_X2),
     anchor("center"),
     color(250, 170, 90),
     outline(4, rgb(150, 80, 40)),
@@ -426,22 +441,24 @@ scene("pong", () => {
 
   const ball = add([
     circle(12),
-    pos(WIDTH / 2, HEIGHT / 2),
+    pos(viewWidth / 2, viewHeight / 2),
     anchor("center"),
     color(240, 240, 255),
     outline(3, rgb(120, 130, 150)),
   ]);
 
+  // Upright, each score sits on its player's side of the net, at the edge.
   const scoreText = add([
-    text("0   0", { size: 48 }),
-    pos(WIDTH / 2, 40),
+    text(courtView.portrait ? "0\n\n0" : "0   0", { size: 48, align: "center" }),
+    courtView.portrait ? pos(viewWidth - 48, viewHeight / 2) : pos(WIDTH / 2, 40),
     anchor("center"),
     color(220, 230, 255),
   ]);
 
   const infoText = add([
     text("Waiting for players...", { size: 20 }),
-    pos(WIDTH / 2, HEIGHT - 40),
+    // Upright, the bottom edge is the player's own paddle, so the line sits by the net.
+    courtView.portrait ? pos(viewWidth / 2 - 24, viewHeight / 2 - 32) : pos(viewWidth / 2, viewHeight - 40),
     anchor("center"),
     color(180, 200, 240),
   ]);
@@ -451,7 +468,7 @@ scene("pong", () => {
     color(0, 0, 0),
     opacity(0.65),
     anchor("center"),
-    pos(WIDTH / 2, HEIGHT / 2),
+    pos(viewWidth / 2, viewHeight / 2),
     fixed(),
     z(1500),
   ]);
@@ -470,7 +487,7 @@ scene("pong", () => {
     rect(320, 60),
     color(20, 20, 20),
     opacity(0.85),
-    pos(WIDTH / 2, 80),
+    pos(viewWidth / 2, 80),
     anchor("center"),
     fixed(),
     z(1600),
@@ -523,10 +540,22 @@ scene("pong", () => {
     maxFixedSteps: 10,
     targetRenderFps,
     applyPose: (pose) => {
-      paddle1.pos.y = pose.p1y;
-      paddle2.pos.y = pose.p2y;
-      ball.pos.x = pose.ballx;
-      ball.pos.y = pose.bally;
+      if (!courtView.portrait) {
+        paddle1.pos.y = pose.p1y;
+        paddle2.pos.y = pose.p2y;
+        ball.pos.x = pose.ballx;
+        ball.pos.y = pose.bally;
+        return;
+      }
+      courtView.toView(PADDLE_X1, pose.p1y, myPlayerId, viewPoint);
+      paddle1.pos.x = viewPoint.x;
+      paddle1.pos.y = viewPoint.y;
+      courtView.toView(PADDLE_X2, pose.p2y, myPlayerId, viewPoint);
+      paddle2.pos.x = viewPoint.x;
+      paddle2.pos.y = viewPoint.y;
+      courtView.toView(pose.ballx, pose.bally, myPlayerId, viewPoint);
+      ball.pos.x = viewPoint.x;
+      ball.pos.y = viewPoint.y;
     },
   });
   activePongRuntime = movementRuntime;
@@ -547,7 +576,7 @@ scene("pong", () => {
   function getResultLabel(winner) {
     if (!winner) return "Match complete.";
     if (!myPlayerId) {
-      return winner === "p1" ? "Left player wins!" : "Right player wins!";
+      return `${courtView.readEndLabel(winner, myPlayerId)} player wins!`;
     }
     return winner === myPlayerId ? "You Win!" : "You Lose!";
   }
@@ -617,7 +646,13 @@ scene("pong", () => {
       lastConnected = connected;
     }
 
-    scoreText.text = `${players.p1.score}   ${players.p2.score}`;
+    if (courtView.portrait) {
+      const bottomPlayer = courtView.readBottomPlayer(myPlayerId);
+      const topPlayer = bottomPlayer === "p1" ? "p2" : "p1";
+      scoreText.text = `${players[topPlayer].score}\n\n${players[bottomPlayer].score}`;
+    } else {
+      scoreText.text = `${players.p1.score}   ${players.p2.score}`;
+    }
     infoText.text = `You are ${
       myPlayerId ? myPlayerId.toUpperCase() : "spectator"
     } • Move: D-pad • First to 10`;
@@ -629,7 +664,8 @@ scene("pong", () => {
     updateStartUI(started, startAt, connected, gameOver);
 
     if (!gameOver && lastLost) {
-      showToast(lastLost === "p1" ? "Left missed — point to Right" : "Right missed — point to Left");
+      const winnerEnd = courtView.readEndLabel(lastLost === "p1" ? "p2" : "p1", myPlayerId);
+      showToast(`${courtView.readEndLabel(lastLost, myPlayerId)} missed — point to ${winnerEnd}`);
     }
 
     if (gameOver && !gameOverFlag) {

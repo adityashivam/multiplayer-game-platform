@@ -7,4 +7,5 @@ export const deadShiftPresentation = {
   backdropUrl: "/games/dead-shift/art/backdrop.svg",
   accentColor: "#eab76c",
   controls: ["keyboard", "pointer", "touch"],
+  orientations: ["landscape", "portrait"],
 };

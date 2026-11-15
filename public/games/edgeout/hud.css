@@ -89,3 +89,15 @@
   .eo-scoreboard { top: 12px; height: 54px; }
   .eo-sound { top: 16px; }
 }
+
+/* Portrait phones: the platform menu and Sound sit on the top row, so the
+   scoreboard drops below them and tightens to fit the width. */
+@container (max-width: 520px) {
+  .eo-scoreboard { top: 62px; height: 52px; max-width: calc(100% - 20px); }
+  .eo-card { min-width: 0; padding: 6px 10px; column-gap: 8px; }
+  .eo-card > strong { font-size: 22px; }
+  .eo-round { min-width: 0; padding: 4px 10px; }
+  .eo-round strong { font-size: 11px; }
+  .eo-sound { top: 16px; }
+  .eo-touch-active .eo-abilities { top: 126px; }
+}

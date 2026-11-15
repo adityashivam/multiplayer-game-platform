@@ -344,8 +344,11 @@ try {
   assert.equal(exceptions.length, 0, JSON.stringify(exceptions));
   console.log("EXPANDED PORTRAIT, MODAL PRIORITY, RETURN AND CLEANUP PASSED");
   await evaluate(p1, "document.querySelector('[data-library-card-id=pong]').dispatchEvent(new MouseEvent('dblclick',{bubbles:true}));");
-  await waitFor(p1, "document.querySelector('[aria-label=\"Landscape game startup\"]')");
-  assert.equal(await evaluate(p1, "return document.querySelectorAll('script[id^=game-runtime-pong-]').length;"), 0, "Landscape startup also applies to the platform-bound Pong layout");
+  // Pong plays in portrait: it starts upright with no rotate prompt, and its
+  // paddle stick binds the horizontal axis under the upright court.
+  await waitFor(p1, "location.pathname.startsWith('/games/pong/')&&document.querySelector('#game-canvas')&&document.querySelector('[data-platform-touch-game=pong] [data-touch-control-id=paddle]')", 25000);
+  assert.equal(await evaluate(p1, "return Boolean(document.querySelector('[aria-label=\"Landscape game startup\"]'));"), false, "Pong starts in portrait without a rotate prompt");
+  await capture(p1, "pong-portrait-court");
   await send("Emulation.setDeviceMetricsOverride", { width: 844, height: 390, deviceScaleFactor: 1, mobile: true }, p1);
   await waitFor(p1, "location.pathname.startsWith('/games/pong/')&&typeof get==='function'&&document.querySelector('#game-canvas')", 25000);
   await waitFor(p1, "document.querySelector('[data-platform-game-menu-toggle]')&&document.querySelector('[data-platform-touch-game=pong]')");

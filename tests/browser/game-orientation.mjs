@@ -5,7 +5,28 @@ const baseUrl = process.env.PLATFORM_BASE_URL || "http://localhost:3100";
 const browser = await createBrowserTestSession("game-orientation");
 const { send, evaluate, waitFor, newPage, capture, clickText } = browser;
 
-async function openTouchPage(url, orientationApi = "unsupported", landscape = false) {
+/**
+ * Every bundled game plays in portrait, so the landscape-only path is exercised
+ * by serving the page a catalog whose games declare no orientations, as an
+ * older or third-party game would.
+ */
+const LANDSCAPE_ONLY_CATALOG_SCRIPT = `
+  const catalogFetch=window.fetch.bind(window);
+  const stripOrientations=(game)=>{if(game?.presentation)delete game.presentation.orientations;return game;};
+  window.fetch=async(request,options)=>{
+    const response=await catalogFetch(request,options);
+    const path=new URL(String(request?.url||request),location.href).pathname;
+    if(!path.startsWith('/api/games')||path.endsWith('/new-room')||!response.ok)return response;
+    const body=await response.clone().json().catch(()=>null);
+    if(!body)return response;
+    if(Array.isArray(body.games))body.games.forEach(stripOrientations);
+    if(body.game)stripOrientations(body.game);
+    if(body.presentation)stripOrientations(body);
+    return new Response(JSON.stringify(body),{status:response.status,headers:{'content-type':'application/json'}});
+  };
+`;
+
+async function openTouchPage(url, orientationApi = "unsupported", landscape = false, landscapeOnlyCatalog = true) {
   const page = await newPage("about:blank", landscape ? 844 : 390, landscape ? 390 : 844, true);
   await send("Emulation.setTouchEmulationEnabled", { enabled: true, maxTouchPoints: 5 }, page);
   await send("Page.addScriptToEvaluateOnNewDocument", { source: `
@@ -14,6 +35,7 @@ async function openTouchPage(url, orientationApi = "unsupported", landscape = fa
     Object.defineProperty(screen.orientation,'lock',{configurable:true,value:capability==='unsupported'?undefined:async mode=>{orientationProbe.locks.push(mode);if(capability==='denied')throw new DOMException('Rotation blocked','NotSupportedError');if(capability==='pending'&&orientationProbe.locks.length===1)await new Promise(resolve=>{window.finishAutomaticOrientation=resolve})}});
     Object.defineProperty(screen.orientation,'unlock',{configurable:true,value:()=>{orientationProbe.unlocks++}});
     Element.prototype.requestFullscreen=()=>{orientationProbe.fullscreen++;return Promise.reject(new DOMException('Fullscreen blocked','NotAllowedError'))};
+    ${landscapeOnlyCatalog ? LANDSCAPE_ONLY_CATALOG_SCRIPT : ""}
     const originalFetch=window.fetch.bind(window);
     window.fetch=(request,options)=>{if(String(request).includes('/new-room'))orientationProbe.newRooms++;return originalFetch(request,options)};
   ` }, page);
@@ -84,6 +106,20 @@ try {
     await send("Page.navigate", { url: "about:blank" }, page);
     await send("Page.navigate", { url: "about:blank" }, partner);
   }
+
+  // A game that declares portrait starts in portrait: no prompt, no rotation
+  // request, and its room is joined straight away.
+  const portraitPage = await openTouchPage(baseUrl, "locked", false, false);
+  await waitFor(portraitPage, "document.querySelector('[data-library-card-id=pong]')");
+  await evaluate(portraitPage, "document.querySelector('[data-library-card-id=pong]').dispatchEvent(new MouseEvent('dblclick',{bubbles:true}));");
+  await waitFor(portraitPage, "document.querySelector('#game-canvas')", 30000);
+  await subscribeToRoom(portraitPage, "pong");
+  await waitFor(portraitPage, "orientationRoom?.joined", 30000);
+  assert.equal(await evaluate(portraitPage, "return Boolean(document.querySelector('[aria-label=\"Landscape game startup\"]'));"), false, "No rotate prompt for a portrait game");
+  assert.deepEqual(await evaluate(portraitPage, "return orientationProbe.locks;"), [], "A portrait game never asks to rotate");
+  await capture(portraitPage, "pong-portrait-playing");
+  await send("Page.navigate", { url: "about:blank" }, portraitPage);
+  console.log("PORTRAIT GAME STARTS IN PORTRAIT PASSED");
 
   const lockedPage = await openTouchPage(`${baseUrl}/games/pong`, "locked");
   await waitFor(lockedPage, "document.querySelector('[aria-label=\"Landscape game startup\"]')");

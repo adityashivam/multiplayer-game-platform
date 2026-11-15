@@ -100,4 +100,10 @@
 }
 @container (max-width: 460px) {
   .lf-standings { display: none; }
+  /* Portrait phones: the timer sits left under the menu row and the minimap
+     right, side by side, with the dash meter below them. */
+  .lf-top { top: 60px; left: 3%; transform: none; width: 58cqw; padding: 6px 12px 8px; }
+  .lf-minimap { top: 60px; width: 96px; height: 96px; }
+  .lf-touch-active .lf-footer { top: 168px; left: 3%; transform: none; }
+  .lf-dash { width: 58cqw; padding: 8px 12px; }
 }

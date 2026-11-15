@@ -5,6 +5,7 @@ export const ludoPresentation = {
   backdropUrl: "/games/ludo/art/backdrop.svg",
   accentColor: "#ffc447",
   controls: ["pointer", "touch", "keyboard"],
+  orientations: ["landscape", "portrait"],
 };
 
 /** @type {import("../../platform/shared/touchControls.js").TouchControlsDescriptor} */
@@ -22,5 +23,7 @@ export const ludoTouchControls = {
     behavior: "press",
     platformBinding: "a",
     defaultLayout: { x: 0.08, y: 0.85, size: 64 },
+    // Upright, the table's sheet fills the bottom, so the button waits top right.
+    portrait: { defaultLayout: { x: 0.86, y: 0.1, size: 60 } },
   }],
 };

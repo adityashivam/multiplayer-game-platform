@@ -39,7 +39,7 @@ export default function usePlatformPresentation({ isGameView = false } = {}) {
     };
   }, [getPresentationController]);
 
-  const beginGameLaunch = useCallback(() => getPresentationController().beginGameLaunch(), [getPresentationController]);
+  const beginGameLaunch = useCallback((options) => getPresentationController().beginGameLaunch(options), [getPresentationController]);
 
   /** Keep the existing Promise<void> contract used by landscape orientation. */
   const requestFullscreen = useCallback(() => {

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createLudoClientState } from "../public/games/ludo/client/ludoClientState.js";
-import { getLudoDisplayedDiceValue, getLudoTurnPresentation } from "../public/games/ludo/client/ludoHud.js";
+import { getLudoDisplayedDiceValue, getLudoTurnPresentation, isLudoPortraitHost, readLudoSheetHeight } from "../public/games/ludo/client/ludoHud.js";
 
 /** A complete, hand-authored two-player choice snapshot. */
 function createChoiceSnapshot(overrides = {}) {
@@ -234,4 +234,14 @@ test("Ludo HUD discloses entry assistance without predicting the next result", (
   clientState.recordSnapshot(snapshot, 4);
   const opponentTurn = { ...clientState.getView(4), connectionStatus: "connected", errorMessage: null };
   assert.equal(getLudoTurnPresentation(opponentTurn).description, "Your next roll is coming up.");
+});
+
+test("a tall table uses a bottom sheet whose height leaves the board most of the screen", () => {
+  assert.equal(isLudoPortraitHost(390, 844), true);
+  assert.equal(isLudoPortraitHost(1280, 720), false);
+  assert.equal(isLudoPortraitHost(700, 720), false, "a near-square host keeps the side panel");
+  const phoneSheet = readLudoSheetHeight(844);
+  assert.ok(phoneSheet >= 220 && phoneSheet <= 844 * 0.34, `sheet ${phoneSheet}px`);
+  assert.equal(readLudoSheetHeight(2000), 280, "a tall tablet never gets a towering sheet");
+  assert.equal(readLudoSheetHeight(500), 220, "short screens keep room for the roll button");
 });

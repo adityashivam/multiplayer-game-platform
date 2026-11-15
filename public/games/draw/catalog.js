@@ -4,6 +4,7 @@ export const drawPresentation = {
   backdropUrl: "/games/draw/art/backdrop.svg",
   accentColor: "#b5adff",
   controls: ["pointer", "touch"],
+  orientations: ["landscape", "portrait"],
 };
 
 /** Drawing gestures remain on the canvas; only the existing clear action is overlaid.

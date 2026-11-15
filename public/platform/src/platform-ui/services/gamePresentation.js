@@ -2,6 +2,7 @@ import {
   GAME_CONTROL_LABELS,
   isSupportedGameAccent,
   isSupportedGameCoverUrl,
+  readGameOrientations,
 } from "../../../shared/gamePresentation.js";
 
 const DEFAULT_LIBRARY_ACCENT = "#00daf3";
@@ -23,6 +24,7 @@ const PLAYER_COUNT_TAG_PATTERN = /^(\d+)\s*players?$/i;
  * @property {string} genreLabel
  * @property {string} playerLabel
  * @property {string[]} controlLabels
+ * @property {boolean} supportsPortrait Whether the game lays itself out for a portrait viewport.
  */
 
 /** @param {LibraryGameMetadata} game @param {string[]} tags @returns {string} An advertised capacity, never a live count. */
@@ -58,5 +60,6 @@ export function readGameLibraryDetails(game) {
     controlLabels: [...new Set(controls.filter((control) =>
       typeof control === "string" && Object.hasOwn(GAME_CONTROL_LABELS, control)))]
       .map((control) => GAME_CONTROL_LABELS[control]),
+    supportsPortrait: readGameOrientations(presentation).includes("portrait"),
   };
 }

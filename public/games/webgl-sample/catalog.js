@@ -4,6 +4,7 @@ export const webglSamplePresentation = {
   backdropUrl: "/games/webgl-sample/art/backdrop.svg",
   accentColor: "#76d5ff",
   controls: ["keyboard", "touch"],
+  orientations: ["landscape", "portrait"],
 };
 
 /** @type {import("../../platform/shared/touchControls.js").TouchControlsDescriptor} */

@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readGameLibraryDetails } from "../public/platform/src/platform-ui/services/gamePresentation.js";
-import { validateGamePresentation } from "../public/platform/shared/gamePresentation.js";
+import { readGameOrientations, validateGamePresentation } from "../public/platform/shared/gamePresentation.js";
 
 test("library reads a custom game's cover and three-player capabilities without an identity lookup", () => {
   const game = {
@@ -91,4 +91,20 @@ test("plugin registration rejects unsafe capsule or backdrop URLs and accepts sa
   assert.doesNotThrow(() => validateGamePresentation({ capsuleUrl: "/games/a/art/capsule.svg", backdropUrl: "https://cdn.example.com/b.svg" }, "a"));
   assert.throws(() => validateGamePresentation({ capsuleUrl: "javascript:alert(1)" }, "a"), TypeError);
   assert.throws(() => validateGamePresentation({ backdropUrl: "http://insecure.example/b.svg" }, "a"), TypeError);
+});
+
+test("games are landscape-only unless they declare portrait support", () => {
+  assert.equal(readGameLibraryDetails({ id: "older-game" }).supportsPortrait, false);
+  assert.deepEqual(readGameOrientations(undefined), ["landscape"]);
+  assert.deepEqual(readGameOrientations({ orientations: "portrait" }), ["landscape"], "malformed values keep the safe default");
+  const flexible = { orientations: ["portrait", "landscape"] };
+  assert.equal(readGameLibraryDetails({ id: "tall-game", presentation: flexible }).supportsPortrait, true);
+  assert.deepEqual(readGameOrientations(flexible), ["landscape", "portrait"]);
+});
+
+test("plugin registration rejects unknown, empty or repeated orientations", () => {
+  assert.doesNotThrow(() => validateGamePresentation({ orientations: ["landscape", "portrait"] }, "ok"));
+  for (const orientations of [[], ["sideways"], ["portrait", "portrait"], "portrait"]) {
+    assert.throws(() => validateGamePresentation({ orientations }, "bad"), TypeError);
+  }
 });

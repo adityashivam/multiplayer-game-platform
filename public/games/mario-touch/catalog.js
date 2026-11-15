@@ -6,4 +6,5 @@ export const marioTouchPresentation = {
   backdropUrl: "/games/mario-touch/art/backdrop.svg",
   accentColor: "#ffcb83",
   controls: ["touch", "keyboard"],
+  orientations: ["landscape", "portrait"],
 };

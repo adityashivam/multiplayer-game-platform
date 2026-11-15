@@ -5,11 +5,13 @@ import { createGameOrientationController } from "../services/gameOrientation.js"
 const PORTRAIT_TOUCH_QUERY = "(orientation: portrait) and (any-pointer: coarse)";
 
 /**
- * Start every game in landscape on touch devices, independent of its renderer.
+ * Start landscape-only games in landscape on touch devices, independent of
+ * their renderer. Games that declare portrait support start in whichever way
+ * the player holds the device, with no rotation request.
  * Gate only initial loading: later viewport changes retain the active runtime.
- * @param {{gameId:string|null,requestFullscreen:()=>Promise<void>}} options
+ * @param {{gameId:string|null,supportsPortrait?:boolean,requestFullscreen:()=>Promise<void>}} options
  */
-export default function useGameOrientation({ gameId, requestFullscreen }) {
+export default function useGameOrientation({ gameId, supportsPortrait = false, requestFullscreen }) {
   const portraitTouch = useMediaQuery(PORTRAIT_TOUCH_QUERY);
   const touchDevice = useMediaQuery("(any-pointer: coarse)");
   const [startedGameId, setStartedGameId] = useState(null);
@@ -25,7 +27,7 @@ export default function useGameOrientation({ gameId, requestFullscreen }) {
       setStartedGameId(null);
       return undefined;
     }
-    if (!touchDevice) return undefined;
+    if (!touchDevice || supportsPortrait) return undefined;
     const version = ++requestVersion.current;
     orientationController.startSession();
     void orientationController.requestLandscape().then(({ status }) => {
@@ -35,7 +37,7 @@ export default function useGameOrientation({ gameId, requestFullscreen }) {
       requestVersion.current += 1;
       orientationController.stopSession();
     };
-  }, [gameId, orientationController, touchDevice]);
+  }, [gameId, orientationController, supportsPortrait, touchDevice]);
 
   useEffect(() => {
     if (gameId && !portraitTouch) setStartedGameId(gameId);
@@ -48,7 +50,7 @@ export default function useGameOrientation({ gameId, requestFullscreen }) {
     if (version === requestVersion.current) setRequestState({ gameId, status, manual: true });
   }, [gameId, orientationController]);
 
-  const needsLandscape = Boolean(gameId && portraitTouch && startedGameId !== gameId);
+  const needsLandscape = Boolean(gameId && !supportsPortrait && portraitTouch && startedGameId !== gameId);
   return {
     needsLandscape,
     canLoadRuntime: Boolean(gameId && !needsLandscape),

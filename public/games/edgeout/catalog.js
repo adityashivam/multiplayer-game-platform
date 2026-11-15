@@ -7,4 +7,5 @@ export const edgeoutPresentation = {
   backdropUrl: "/games/edgeout/art/backdrop.svg",
   accentColor: "#2ee6c8",
   controls: ["keyboard", "pointer", "touch"],
+  orientations: ["landscape", "portrait"],
 };

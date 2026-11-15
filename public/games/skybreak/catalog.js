@@ -7,4 +7,5 @@ export const skybreakPresentation = {
   backdropUrl: "/games/skybreak/art/backdrop.svg",
   accentColor: "#ff9a4d",
   controls: ["keyboard", "touch"],
+  orientations: ["landscape", "portrait"],
 };

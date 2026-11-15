@@ -7,4 +7,5 @@ export const lastFusePresentation = {
   backdropUrl: "/games/last-fuse/art/backdrop.svg",
   accentColor: "#ff6a3d",
   controls: ["keyboard", "touch"],
+  orientations: ["landscape", "portrait"],
 };

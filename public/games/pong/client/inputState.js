@@ -8,6 +8,20 @@ const PONG_KEY_BINDINGS = Object.freeze({
 });
 /** @typedef {keyof typeof PONG_KEY_BINDINGS|"shell:up"|"shell:down"|"shell:left"|"shell:right"} PongHoldSource */
 
+const PONG_SCREEN_KEY_BINDINGS = Object.freeze({
+  ArrowUp: "up", KeyW: "up", ArrowDown: "down", KeyS: "down",
+  ArrowLeft: "left", KeyA: "left", ArrowRight: "right", KeyD: "right",
+});
+
+/**
+ * The screen direction a key points, before the court view maps it onto the paddle.
+ * @param {string} keyboardCode
+ * @returns {"up"|"down"|"left"|"right"|null}
+ */
+export function readPongScreenDirection(keyboardCode) {
+  return Object.hasOwn(PONG_SCREEN_KEY_BINDINGS, keyboardCode) ? PONG_SCREEN_KEY_BINDINGS[keyboardCode] : null;
+}
+
 /** @param {string} keyboardCode @returns {PongDirection|null} */
 export function readPongKeyboardInput(keyboardCode) {
   return Object.hasOwn(PONG_KEY_BINDINGS, keyboardCode) ? PONG_KEY_BINDINGS[keyboardCode] : null;

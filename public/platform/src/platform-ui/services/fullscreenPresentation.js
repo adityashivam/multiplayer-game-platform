@@ -259,17 +259,20 @@ export function createFullscreenPresentationController({ document: fullscreenDoc
   }
 
   /**
-   * Start a game from its Play gesture. Portrait and inactive entry points keep
-   * the full-window game view and leave native entry to a later labeled action.
+   * Start a game from its Play gesture. Inactive entry points, and portrait
+   * entry for a landscape-only game, keep the full-window game view and leave
+   * native entry to a later labeled action. A game that plays in portrait
+   * enters fullscreen from a portrait tap too, since it will not ask to rotate.
+   * @param {{allowPortrait?:boolean}} [options]
    * @returns {Promise<FullscreenPresentationResult>}
    */
-  function beginGameLaunch() {
+  function beginGameLaunch({ allowPortrait = false } = {}) {
     if (disposed) return Promise.resolve({ status: "cancelled" });
     if (!fullscreenDocument) return Promise.resolve({ status: "unavailable" });
 
     startPresentationSession();
     const landscape = Boolean(fullscreenWindow && fullscreenWindow.innerWidth > fullscreenWindow.innerHeight);
-    if (!landscape || fullscreenWindow?.navigator?.userActivation?.isActive === false) {
+    if ((!landscape && !allowPortrait) || fullscreenWindow?.navigator?.userActivation?.isActive === false) {
       return Promise.resolve({ status: "deferred" });
     }
 

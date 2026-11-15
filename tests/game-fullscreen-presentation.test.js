@@ -88,6 +88,16 @@ test("landscape launch requests native fullscreen synchronously before navigatio
   await browser.controller.dispose();
 });
 
+test("a portrait-capable game enters fullscreen from a portrait Play tap", async () => {
+  const browser = createFullscreenBrowser({ width: 390, height: 844 });
+  const launchRequest = browser.controller.beginGameLaunch({ allowPortrait: true });
+  browser.calls.push("navigate");
+
+  assert.deepEqual(browser.calls, ["request", "navigate"]);
+  assert.deepEqual(await launchRequest, { status: "native" });
+  await browser.controller.dispose();
+});
+
 test("portrait launch waits for an explicit fullscreen action after rotation", async () => {
   const browser = createFullscreenBrowser({ width: 390, height: 844 });
 

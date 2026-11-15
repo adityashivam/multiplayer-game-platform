@@ -71,9 +71,10 @@ function createLudoLighting(scene) {
  * @param {THREE.OrthographicCamera} camera
  * @param {number} width
  * @param {number} height
- * @param {number} reservedRightPx
+ * @param {number} reservedRightPx Width a side panel covers at the right edge.
+ * @param {number} [reservedBottomPx=0] Height a bottom sheet covers at the bottom edge.
  */
-function fitLudoCamera(camera, width, height, reservedRightPx) {
+function fitLudoCamera(camera, width, height, reservedRightPx, reservedBottomPx = 0) {
   camera.updateMatrixWorld(true);
   const projectedPoint = new THREE.Vector3();
   let minimumX = Infinity;
@@ -94,15 +95,17 @@ function fitLudoCamera(camera, width, height, reservedRightPx) {
   }
 
   const reservedWidth = clampLudoNumber(reservedRightPx, 0, width * 0.65);
+  const reservedHeight = clampLudoNumber(reservedBottomPx, 0, height * 0.6);
   const availableWidth = Math.max(1, width - reservedWidth - 18);
-  const availableHeight = Math.max(1, height - 20);
+  const availableHeight = Math.max(1, height - reservedHeight - 20);
   const fittedHeight = Math.max(
     (maximumY - minimumY) * height / availableHeight,
     (maximumX - minimumX) * height / availableWidth,
   );
   const fittedWidth = fittedHeight * width / height;
   const horizontalCenter = (minimumX + maximumX) / 2 + fittedWidth * reservedWidth / (2 * width);
-  const verticalCenter = (minimumY + maximumY) / 2;
+  // A bottom sheet lifts the board into the space above it.
+  const verticalCenter = (minimumY + maximumY) / 2 - fittedHeight * reservedHeight / (2 * height);
   camera.left = horizontalCenter - fittedWidth / 2;
   camera.right = horizontalCenter + fittedWidth / 2;
   camera.top = verticalCenter + fittedHeight / 2;
@@ -115,7 +118,7 @@ function fitLudoCamera(camera, width, height, reservedRightPx) {
  * networking and HUD; this renderer owns GPU resources and canvas picking.
  * Snapshots are borrowed read-only and logical token progress never changes.
  * @param {{canvas:HTMLCanvasElement,onPiecePick?:(playerId:string,tokenIndex:number)=>void,onDicePick?:()=>void}} options
- * @returns {{resize(width:number,height:number,reservedRightPx?:number):void,render(frame:LudoRenderFrame):void,setQuality(profile:"low"|"medium"|"high"|LudoQualityProfile):void,resetPresentation():void,dispose():void}}
+ * @returns {{resize(width:number,height:number,reservedRightPx?:number,reservedBottomPx?:number):void,render(frame:LudoRenderFrame):void,setQuality(profile:"low"|"medium"|"high"|LudoQualityProfile):void,resetPresentation():void,dispose():void}}
  */
 export function createLudoRenderer({ canvas, onPiecePick = () => {}, onDicePick = () => {} }) {
   const resources = createLudoResources();
@@ -157,6 +160,7 @@ export function createLudoRenderer({ canvas, onPiecePick = () => {}, onDicePick 
   let width = 1;
   let height = 1;
   let reservedRightPx = 0;
+  let reservedBottomPx = 0;
   let disposed = false;
   let pointerDown = null;
   let hoveredPick = null;
@@ -168,15 +172,21 @@ export function createLudoRenderer({ canvas, onPiecePick = () => {}, onDicePick 
     const pixelRatio = Math.min(devicePixelRatio, quality.maxPixelRatio, pixelBudgetRatio) * quality.resolutionScale;
     renderer.setPixelRatio(Math.max(0.5, pixelRatio));
     renderer.setSize(width, height, false);
-    fitLudoCamera(camera, width, height, reservedRightPx);
+    fitLudoCamera(camera, width, height, reservedRightPx, reservedBottomPx);
   }
 
-  /** @param {number} nextWidth @param {number} nextHeight @param {number} [nextReservedRightPx] */
-  function resize(nextWidth, nextHeight, nextReservedRightPx = 0) {
+  /**
+   * @param {number} nextWidth
+   * @param {number} nextHeight
+   * @param {number} [nextReservedRightPx]
+   * @param {number} [nextReservedBottomPx]
+   */
+  function resize(nextWidth, nextHeight, nextReservedRightPx = 0, nextReservedBottomPx = 0) {
     if (disposed) return;
     width = Math.max(1, Math.round(nextWidth));
     height = Math.max(1, Math.round(nextHeight));
     reservedRightPx = Math.max(0, nextReservedRightPx);
+    reservedBottomPx = Math.max(0, nextReservedBottomPx);
     updateLudoRenderSize();
   }
 

@@ -7,4 +7,5 @@ export const skyDashPresentation = {
   backdropUrl: "/games/sky-dash/art/backdrop.svg",
   accentColor: "#7edddd",
   controls: ["keyboard", "touch"],
+  orientations: ["landscape", "portrait"],
 };

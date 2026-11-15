@@ -299,8 +299,8 @@ function initializeLudoGame() {
     if (disposed) return;
     const width = Math.max(1, host.clientWidth);
     const height = Math.max(1, host.clientHeight);
-    const reservedRightPx = hud.resize(width, height);
-    renderer.resize(width, height, reservedRightPx);
+    const { rightPx, bottomPx } = hud.resize(width, height);
+    renderer.resize(width, height, rightPx, bottomPx);
   }
 
   /** Render cadence changes visual motion only; every logical rule stays server-owned. */

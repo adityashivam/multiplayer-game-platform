@@ -28,6 +28,7 @@ import LibraryBackdrop from "./components/platform-screen/LibraryBackdrop.jsx";
 import LaunchOverlay from "./components/platform-screen/LaunchOverlay.jsx";
 import BootReveal from "./components/platform-screen/BootReveal.jsx";
 import { uiSounds } from "./services/uiSounds.js";
+import { readGameOrientations } from "../../shared/gamePresentation.js";
 import { LIBRARY_ZOOM, clampLibraryZoom, readLibraryZoom, saveLibraryZoom, stepLibraryZoom } from "./services/libraryZoom.js";
 
 /** Tab order decides which way content slides when switching tabs. */
@@ -80,7 +81,11 @@ export default function App() {
     triggerHaptic,
   } = useLobbyAudio({ isGameView });
   const { fullscreenActive, toggleFullscreen, requestFullscreen, beginGameLaunch, endGamePresentation } = usePlatformPresentation({ isGameView });
-  const gameOrientation = useGameOrientation({ gameId: isGameView ? activeGame?.id || null : null, requestFullscreen });
+  const gameOrientation = useGameOrientation({
+    gameId: isGameView ? activeGame?.id || null : null,
+    supportsPortrait: readGameOrientations(activeGame?.presentation).includes("portrait"),
+    requestFullscreen,
+  });
   const { connectionState, endGameState, endGameBridgeRef } = usePlatformGameUiState(setShareModal);
   const { disposeGameSession, gameLoadError } = usePlatformGameLoader({
     game: activeGame,
@@ -184,7 +189,8 @@ export default function App() {
 
       triggerHaptic();
       uiSounds.play("select");
-      beginGameLaunch();
+      const launchedGame = visibleGames.find((game) => game.path === path);
+      beginGameLaunch({ allowPortrait: readGameOrientations(launchedGame?.presentation).includes("portrait") });
       setLaunch(describeLaunchFromCard(visibleGames, path, cardRefs.current[selectedIndex]));
       navigateTo(path);
     },

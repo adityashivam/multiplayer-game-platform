@@ -7,4 +7,5 @@ export const riftballPresentation = {
   backdropUrl: "/games/riftball/art/backdrop.svg",
   accentColor: "#27ded1",
   controls: ["keyboard", "pointer", "touch"],
+  orientations: ["landscape", "portrait"],
 };

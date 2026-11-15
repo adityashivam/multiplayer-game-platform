@@ -111,3 +111,16 @@
   .sb-sound { top: 16px; }
   .sb-feed, .sb-trial { top: 26px; }
 }
+/* Portrait phones: the bottom of the screen belongs to the flight stick and
+   buttons, so the gauges and radar move to the top, under the menu row. */
+@container (max-width: 520px) {
+  .sb-top { top: 62px; }
+  .sb-flight, .sb-systems { top: 124px; bottom: auto; padding: 7px 10px; }
+  .sb-flight { left: 3%; gap: 2px 10px; }
+  .sb-flight strong { font-size: 15px; }
+  .sb-systems { right: 3%; width: 44%; gap: 5px; }
+  .sb-radar { top: 196px; bottom: auto; left: 3%; transform: none; width: 84px; }
+  .sb-feed { top: 196px; }
+  .sb-trial { top: 124px; }
+  .sb-timeTrial .sb-flight { top: 196px; }
+}

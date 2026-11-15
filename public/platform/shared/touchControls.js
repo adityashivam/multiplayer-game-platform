@@ -14,7 +14,8 @@ const MAX_CONTROL_TEXT_LENGTH = 64;
 const CONTROL_ID_PATTERN = /^[A-Za-z0-9_][A-Za-z0-9_-]{0,47}$/;
 const UNSAFE_CONTROL_IDS = new Set(["__proto__", "constructor", "prototype"]);
 const DESCRIPTOR_KEYS = new Set(["apiVersion", "customizable", "defaultPreset", "allowedPresets", "controls"]);
-const CONTROL_KEYS = new Set(["id", "type", "role", "label", "icon", "editable", "behavior", "platformBinding", "defaultLayout"]);
+const CONTROL_KEYS = new Set(["id", "type", "role", "label", "icon", "editable", "behavior", "platformBinding", "defaultLayout", "portrait"]);
+const PORTRAIT_OVERRIDE_KEYS = new Set(["defaultLayout", "platformBinding"]);
 const LAYOUT_FIELDS = Object.freeze(["x", "y", "size", "opacity"]);
 const CONTROL_TYPES = new Set(["stick", "look", "button"]);
 const CONTROL_ROLES = new Set(["move", "look", "primary", "secondary", "reload", "jump", "utility"]);
@@ -44,6 +45,11 @@ const DEFAULT_VISIBLE_CONTROL_OPACITY = 0.4;
  * @property {string} [icon] Material symbol name or another game-owned plain icon identifier.
  * @property {boolean} [editable=true] Look surfaces are fixed regardless of this value.
  * @property {TouchLayoutPatch} [defaultLayout]
+ * @property {TouchPortraitOverride} [portrait] Placement and binding used only in a portrait viewport,
+ *   for a game whose view changes shape there (for example a court turned upright).
+ * @typedef {object} TouchPortraitOverride
+ * @property {TouchLayoutPatch} [defaultLayout] Applied over `defaultLayout` in portrait.
+ * @property {TouchPlatformBinding} [platformBinding] Replaces `platformBinding` in portrait; same rules for the control type.
  * @typedef {TouchControlMetadata & ({type: "stick", platformBinding?: TouchPlatformStickBinding, behavior?: never}|
  * {type: "look", platformBinding?: never, behavior?: never}|
  * {type: "button", platformBinding?: TouchPlatformButtonBinding, behavior?: TouchButtonBehavior})} TouchControlDescriptor
@@ -99,6 +105,16 @@ function isValidTouchPlatformBinding(control) {
     control.type === "button" && PLATFORM_BUTTON_BINDINGS.has(control.platformBinding);
 }
 
+/** @param {TouchControlDescriptor} control @returns {boolean} */
+function isValidTouchPortraitOverride(control) {
+  const override = control.portrait;
+  if (override === undefined) return true;
+  return isTouchMetadataObject(override) && hasOnlyTouchMetadataKeys(override, PORTRAIT_OVERRIDE_KEYS) &&
+    (override.defaultLayout === undefined || isValidDefaultTouchLayout(override.defaultLayout)) &&
+    (override.platformBinding === undefined ||
+      (control.platformBinding !== undefined && isValidTouchPlatformBinding({ type: control.type, platformBinding: override.platformBinding })));
+}
+
 /**
  * Reject invalid or unsupported touch contracts before a game registers callbacks.
  * Metadata uses closed shapes; user-saved profiles instead use bounded sanitization.
@@ -133,7 +149,8 @@ export function validateTouchControls(descriptor, gameId) {
         (control.editable !== undefined && typeof control.editable !== "boolean") ||
         (control.behavior !== undefined && (control.type !== "button" || !BUTTON_BEHAVIORS.has(control.behavior))) ||
         !isValidTouchPlatformBinding(control) ||
-        (control.defaultLayout !== undefined && !isValidDefaultTouchLayout(control.defaultLayout))) {
+        (control.defaultLayout !== undefined && !isValidDefaultTouchLayout(control.defaultLayout)) ||
+        !isValidTouchPortraitOverride(control)) {
       throw new TypeError(`Game ${gameId} has invalid touch control metadata`);
     }
     controlIds.add(control.id);
@@ -287,11 +304,17 @@ export function resolveTouchLayout(descriptor, profile, orientation = "landscape
     defaultLayout.x = Math.max(0.08, defaultLayout.x - roleIndex % 4 * 0.1);
     defaultLayout.y = Math.max(0.1, defaultLayout.y - Math.floor(roleIndex / 4) * 0.13);
 
+    const portraitOverride = orientation === "portrait" ? control.portrait : undefined;
+    const gameLayout = portraitOverride?.defaultLayout
+      ? { ...control.defaultLayout, ...portraitOverride.defaultLayout }
+      : control.defaultLayout;
+
     return {
       ...control,
-      ...(control.defaultLayout ? { defaultLayout: { ...control.defaultLayout } } : {}),
+      ...(gameLayout ? { defaultLayout: { ...gameLayout } } : {}),
+      ...(portraitOverride?.platformBinding ? { platformBinding: portraitOverride.platformBinding } : {}),
       ...defaultLayout,
-      ...control.defaultLayout,
+      ...gameLayout,
       ...safeProfile.layouts[safeProfile.presetId][control.id],
     };
   });

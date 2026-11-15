@@ -4,6 +4,7 @@ export const pongPresentation = {
   backdropUrl: "/games/pong/art/backdrop.svg",
   accentColor: "#63e6dc",
   controls: ["keyboard", "touch"],
+  orientations: ["landscape", "portrait"],
 };
 
 /** @type {import("../../platform/shared/touchControls.js").TouchControlsDescriptor} */
@@ -13,6 +14,15 @@ export const pongTouchControls = {
   defaultPreset: "two-thumb",
   allowedPresets: ["two-thumb", "three-finger", "four-finger"],
   controls: [
-    { id: "paddle", type: "stick", role: "move", label: "Move paddle", icon: "swap_vert", platformBinding: "vertical" },
+    {
+      id: "paddle",
+      type: "stick",
+      role: "move",
+      label: "Move paddle",
+      icon: "swap_vert",
+      platformBinding: "vertical",
+      // Upright, the court turns and the paddle slides sideways under the picture.
+      portrait: { platformBinding: "horizontal", defaultLayout: { x: 0.5, y: 0.9, size: 96 } },
+    },
   ],
 };

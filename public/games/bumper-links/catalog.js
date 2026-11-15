@@ -7,4 +7,5 @@ export const bumperLinksPresentation = {
   backdropUrl: "/games/bumper-links/art/backdrop.svg",
   accentColor: "#5fd38d",
   controls: ["keyboard", "pointer", "touch"],
+  orientations: ["landscape", "portrait"],
 };

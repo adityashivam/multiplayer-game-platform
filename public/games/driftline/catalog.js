@@ -7,4 +7,5 @@ export const driftlinePresentation = {
   backdropUrl: "/games/driftline/art/backdrop.svg",
   accentColor: "#ff7a3d",
   controls: ["keyboard", "touch"],
+  orientations: ["landscape", "portrait"],
 };

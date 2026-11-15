@@ -186,3 +186,31 @@ test("editing one preset produces owned bounded overrides without changing other
   assert.equal(profile.layouts["three-finger"].drive.x, 0.3);
   assert.deepEqual(updateTouchControl(updated, "constructor", { x: 0 }).layouts, updated.layouts);
 });
+
+test("a portrait override moves a control and swaps its binding only in portrait", () => {
+  const descriptor = createDescriptor({ controls: [
+    { id: "paddle", type: "stick", role: "move", label: "Move paddle", platformBinding: "vertical",
+      defaultLayout: { x: 0.12, size: 120 }, portrait: { defaultLayout: { x: 0.5, y: 0.86 }, platformBinding: "horizontal" } },
+  ] });
+  assert.doesNotThrow(() => validateTouchControls(descriptor, "court"));
+  const profile = createDefaultTouchProfile(descriptor);
+  const [landscape] = resolveTouchLayout(descriptor, profile, "landscape");
+  const [portrait] = resolveTouchLayout(descriptor, profile, "portrait");
+  assert.equal(landscape.platformBinding, "vertical");
+  assert.equal(landscape.x, 0.12);
+  assert.equal(portrait.platformBinding, "horizontal");
+  assert.deepEqual([portrait.x, portrait.y, portrait.size], [0.5, 0.86, 120], "portrait keeps the shared size");
+});
+
+test("portrait overrides are closed shapes that follow the control type's binding rules", () => {
+  const withOverride = (control) => createDescriptor({ controls: [control] });
+  for (const control of [
+    { id: "paddle", type: "stick", role: "move", label: "Move", platformBinding: "vertical", portrait: { platformBinding: "a" } },
+    { id: "paddle", type: "stick", role: "move", label: "Move", portrait: { platformBinding: "horizontal" } },
+    { id: "paddle", type: "stick", role: "move", label: "Move", portrait: { defaultLayout: { x: 2 } } },
+    { id: "paddle", type: "stick", role: "move", label: "Move", portrait: { hidden: true } },
+    { id: "paddle", type: "stick", role: "move", label: "Move", portrait: "horizontal" },
+  ]) {
+    assert.throws(() => validateTouchControls(withOverride(control), "court"), TypeError, JSON.stringify(control.portrait));
+  }
+});
