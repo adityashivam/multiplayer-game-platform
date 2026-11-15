@@ -1,8 +1,8 @@
 .audioButtons {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
-  margin-top: 20px;
+  gap: var(--space-2);
+  margin-top: var(--space-5);
 }
 
 .audioButton,
@@ -10,29 +10,34 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  border: 1px solid var(--platform-border);
-  border-radius: var(--platform-radius);
-  background: var(--platform-surface-inset);
-  color: var(--platform-text-muted);
+  gap: var(--space-2);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-md);
+  background: var(--platform-surface);
+  color: var(--text-body);
   font-family: var(--platform-font-body);
-  font-size: 12px;
+  font-size: var(--type-sm);
   font-weight: 600;
   line-height: 1.4;
   cursor: pointer;
   pointer-events: auto;
-  transition: background 140ms ease, color 140ms ease;
+  transition: background var(--motion-fast) ease, color var(--motion-fast) ease, border-color var(--motion-fast) ease, transform var(--motion-fast) var(--ease-spring);
 
   &:hover:not(:disabled) {
-    background: var(--platform-surface);
-    color: var(--platform-text);
+    background: var(--surface-hover);
+    color: var(--text-strong);
+  }
+
+  &:active:not(:disabled) {
+    transform: scale(.97);
   }
 
   &[aria-pressed="true"] {
-    color: var(--platform-accent);
-    background: #00daf30b;
+    border-color: var(--border-strong);
+    background: var(--surface-selected);
+    color: var(--text-strong);
 
-    &:hover:not(:disabled) {
+    > :global(.material-symbols-outlined) {
       color: var(--platform-accent);
     }
   }
@@ -45,18 +50,18 @@
   &:focus-visible {
     position: relative;
     z-index: 1;
-    outline: 2px solid var(--platform-focus);
+    outline: 2px solid var(--focus-ring);
     outline-offset: 2px;
   }
 }
 
 .audioButton {
   flex-direction: column;
-  min-height: 82px;
-  padding: 12px;
+  min-height: 84px;
+  padding: var(--space-3);
 
   > :global(.material-symbols-outlined) {
-    font-size: 25px;
+    font-size: 24px;
   }
 }
 
@@ -83,11 +88,11 @@
     height: var(--toolbar-button, 32px);
     padding: 0;
     border: 1px solid transparent;
-    border-radius: var(--platform-radius);
+    border-radius: 50%;
     background: transparent;
 
     > :global(.material-symbols-outlined) {
-      font-size: 19px;
+      font-size: 20px;
     }
   }
 
@@ -102,7 +107,7 @@
   height: var(--toolbar-button, 32px);
   padding: 0;
   border: 1px solid transparent;
-  border-radius: var(--platform-radius);
+  border-radius: var(--radius-pill);
   background: transparent;
 
   > span {

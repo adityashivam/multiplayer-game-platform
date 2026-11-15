@@ -1,5 +1,7 @@
 export const webglSamplePresentation = {
   coverUrl: "/games/webgl-sample/assets/cover.svg",
+  capsuleUrl: "/games/webgl-sample/art/capsule.svg",
+  backdropUrl: "/games/webgl-sample/art/backdrop.svg",
   accentColor: "#76d5ff",
   controls: ["keyboard", "touch"],
 };

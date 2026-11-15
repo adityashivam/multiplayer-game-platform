@@ -1,5 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import GameToolbar from "./GameToolbar.jsx";
+import Presence from "./Presence.jsx";
+import { readGameLibraryDetails } from "../../services/gamePresentation.js";
 import NetworkPanel from "./NetworkPanel.jsx";
 import EndGameModal from "./EndGameModal.jsx";
 import ExitConfirmModal from "./ExitConfirmModal.jsx";
@@ -517,12 +519,12 @@ export default function GameView({
           onDeafenedChange={voice.setDeafened}
           onResumeVoicePlayback={() => performQuickVoiceAction(voice.resumePlayback)}
         />
-        {showNetworkUi && networkPanelOpen && (
+        <Presence when={Boolean(showNetworkUi && networkPanelOpen)}>
           <NetworkPanel rows={networkRows} onClose={() => {
             setNetworkPanelOpen(false);
             networkButtonRef.current?.focus({ preventScroll: true });
           }} />
-        )}
+        </Presence>
         {touchEditorOpen && allowTouchCustomization && <TouchLayoutEditor
           game={game}
           profile={touchProfile}
@@ -531,21 +533,27 @@ export default function GameView({
           onCancel={() => onTouchEditorChange?.(false)}
           onSave={(nextProfile, orientation) => { onSaveTouchProfile?.(nextProfile, orientation); onTouchEditorChange?.(false); }}
         />}
-        {!touchEditorOpen && touchNotice && <div className={styles.touchProfileFeedback} role="status">{touchNotice}</div>}
-        {!touchEditorOpen && !touchNotice && homeScreenTipShown && <div className={styles.touchProfileFeedback} role="status">{HOME_SCREEN_FULLSCREEN_TIP}</div>}
+        <Presence when={Boolean(!touchEditorOpen && touchNotice)}>
+          <div className={styles.touchProfileFeedback} role="status">{touchNotice}</div>
+        </Presence>
+        <Presence when={Boolean(!touchEditorOpen && !touchNotice && homeScreenTipShown)}>
+          <div className={styles.touchProfileFeedback} role="status">{HOME_SCREEN_FULLSCREEN_TIP}</div>
+        </Presence>
       </div>
       {/* Platform dialogs cover the whole game view, toolbar included; it is disabled while they are open. */}
-      {visibleVoiceDialogOpen && <VoiceChatDialog
-        state={voice.state}
-        onClose={() => setVoiceDialogOpen(false)}
-        onJoin={voice.join}
-        onMicrophoneMutedChange={voice.setMicrophoneMuted}
-        onDeafenedChange={voice.setDeafened}
-        onVolumeChange={voice.setVolume}
-        onResumePlayback={voice.resumePlayback}
-        onLeave={voice.leave}
-      />}
-      {endGameOpen && !exitConfirmOpen && !visibleVoiceDialogOpen && (
+      <Presence when={Boolean(visibleVoiceDialogOpen)}>
+        <VoiceChatDialog
+          state={voice.state}
+          onClose={() => setVoiceDialogOpen(false)}
+          onJoin={voice.join}
+          onMicrophoneMutedChange={voice.setMicrophoneMuted}
+          onDeafenedChange={voice.setDeafened}
+          onVolumeChange={voice.setVolume}
+          onResumePlayback={voice.resumePlayback}
+          onLeave={voice.leave}
+        />
+      </Presence>
+      <Presence when={Boolean(endGameOpen && !exitConfirmOpen && !visibleVoiceDialogOpen)}>
         <EndGameModal
           title={endGameTitle}
           subtitle={endGameSubtitle}
@@ -556,8 +564,9 @@ export default function GameView({
           rematchDisabled={rematchDisabled}
           icons={icons?.endGame}
           onOpenVoice={voice.available ? openVoiceDialog : undefined}
+          accentColor={readGameLibraryDetails(game || {}).accentColor}
         />
-      )}
+      </Presence>
       {roomLifecycle && !landscapePromptOpen && (!shareOpen || roomStartHasPriority) && !endGameOpen && !exitConfirmOpen && !touchEditorOpen && !gameLoadError && !visibleVoiceDialogOpen && (
         <RoomStartOverlay
           room={roomLifecycle}
@@ -568,7 +577,7 @@ export default function GameView({
           onOpenVoice={voice.available ? openVoiceDialog : undefined}
         />
       )}
-      {shareOpen && !landscapePromptOpen && !endGameOpen && !exitConfirmOpen && !roomStartHasPriority && (
+      <Presence when={Boolean(shareOpen && !landscapePromptOpen && !endGameOpen && !exitConfirmOpen && !roomStartHasPriority)}>
         <ShareModal
           roomLabel={roomLabel}
           shareUrl={shareUrl}
@@ -577,10 +586,10 @@ export default function GameView({
           onClose={onCloseShare}
           icons={icons?.share}
         />
-      )}
-      {exitConfirmOpen && (
+      </Presence>
+      <Presence when={Boolean(exitConfirmOpen)}>
         <ExitConfirmModal onConfirm={onConfirmExit} onCancel={onCancelExit} icons={icons?.exitConfirm} />
-      )}
+      </Presence>
       {landscapePromptOpen && !exitConfirmOpen && <GameOrientationPrompt
         gameName={game?.name}
         canLockOrientation={gameOrientation.canLockOrientation}

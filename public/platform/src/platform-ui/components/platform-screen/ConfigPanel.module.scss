@@ -13,25 +13,27 @@
   container: platform-settings / inline-size;
 
   &:focus-visible {
-    outline: 2px solid var(--platform-focus);
+    outline: 2px solid var(--focus-ring);
     outline-offset: -2px;
   }
 }
 
 .heading {
-  margin: 0 0 20px;
+  margin: 0 0 var(--space-6);
+  color: var(--text-strong);
   font-family: var(--platform-font-heading);
-  font-size: 28px;
+  font-size: var(--type-xl);
   font-weight: 600;
-  letter-spacing: -.04em;
+  line-height: 1.1;
+  letter-spacing: -.035em;
 }
 
 .sectionLabel {
-  margin: 0 0 12px;
-  color: var(--platform-text-muted);
-  font-size: 10px;
+  margin: 0 0 var(--space-3);
+  color: var(--text-muted);
+  font-size: var(--type-xs);
   font-weight: 600;
-  letter-spacing: .12em;
+  letter-spacing: .1em;
   text-transform: uppercase;
 }
 
@@ -40,11 +42,11 @@
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
   grid-template-areas: "info volume mute";
   align-items: center;
-  gap: 24px;
+  gap: var(--space-6);
   width: 100%;
-  padding: 16px 20px;
-  border: 1px solid var(--platform-border);
-  border-radius: 12px;
+  padding: var(--space-4) var(--space-5);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-lg);
   background: var(--platform-surface);
 }
 
@@ -52,8 +54,8 @@
   .audioCard {
     grid-template-columns: minmax(0, 1fr) auto;
     grid-template-areas: "info mute" "volume volume";
-    gap: 14px;
-    padding: 16px;
+    gap: var(--space-3);
+    padding: var(--space-4);
   }
 }
 
@@ -66,15 +68,16 @@
 }
 
 .audioTitle {
-  font-size: 14px;
+  color: var(--text-strong);
+  font-size: var(--type-md);
   font-weight: 600;
 }
 
 .audioDescription {
-  margin: 6px 0 0;
-  color: var(--platform-text-muted);
-  font-size: 11px;
-  line-height: 1.6;
+  margin: var(--space-1) 0 0;
+  color: var(--text-muted);
+  font-size: var(--type-sm);
+  line-height: 1.5;
 }
 
 .muteButton {
@@ -83,40 +86,53 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
+  gap: var(--space-2);
   flex-shrink: 0;
-  min-width: 78px;
-  min-height: 40px;
-  padding: 0 10px;
-  border: 1px solid var(--platform-accent);
-  border-radius: var(--platform-radius);
-  background: #00daf30c;
-  color: var(--platform-accent);
-  font-size: 11px;
+  min-width: 96px;
+  height: var(--control-md);
+  padding: 0 var(--space-4);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-pill);
+  background: var(--surface-selected);
+  color: var(--text-strong);
+  font-size: var(--type-sm);
   font-weight: 600;
-  transition: border-color 140ms ease, color 140ms ease;
+  transition: background var(--motion-fast) ease, border-color var(--motion-fast) ease, color var(--motion-fast) ease, transform var(--motion-fast) var(--ease-spring);
 
   > span:first-child {
-    font-size: 18px;
+    color: var(--platform-accent);
+    font-size: 20px;
+  }
+
+  &:hover {
+    background: var(--surface-hover);
+  }
+
+  &:active {
+    transform: scale(.97);
   }
 
   &:focus-visible {
-    outline: 2px solid var(--platform-focus);
+    outline: 2px solid var(--focus-ring);
     outline-offset: 3px;
   }
 }
 
 .muteButtonMuted {
-  border-color: var(--platform-border);
-  color: var(--platform-text-muted);
+  border-color: var(--glass-border);
+  color: var(--text-muted);
   background: var(--platform-surface-inset);
+
+  > span:first-child {
+    color: inherit;
+  }
 }
 
 .volumeRow {
   grid-area: volume;
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: var(--space-4);
 }
 
 .volumeSlider {
@@ -127,27 +143,27 @@
   accent-color: var(--platform-accent);
 
   &:focus-visible {
-    outline: 2px solid var(--platform-focus);
+    outline: 2px solid var(--focus-ring);
     outline-offset: 4px;
   }
 }
 
 .volumeValue {
-  min-width: 36px;
-  color: var(--platform-text-muted);
+  min-width: 40px;
+  color: var(--text-muted);
   text-align: right;
-  font-size: 12px;
+  font-size: var(--type-sm);
   font-variant-numeric: tabular-nums;
 }
 
 @media (max-width: 520px) {
   .heading {
-    margin-bottom: 20px;
-    font-size: 26px;
+    margin-bottom: var(--space-5);
+    font-size: var(--type-title);
   }
 
   .audioCard {
-    padding: 16px;
+    padding: var(--space-4);
   }
 }
 

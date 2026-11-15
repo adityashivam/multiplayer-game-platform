@@ -2,11 +2,18 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import classNames from "../../../utils/classNames.js";
 import styles from "./GameLibrary.module.scss";
 import { MAX_CATALOG_SEARCH_LENGTH } from "../../../../shared/gameCatalog.js";
+import { LIBRARY_ZOOM } from "../../services/libraryZoom.js";
 
+/**
+ * Library search, genre filter and the card-size control.
+ * @param {{showZoomControls?:boolean,canZoomIn?:boolean,canZoomOut?:boolean,zoomScale?:number,onZoomChange?:(scale:number)=>void,searchQuery?:string,onSearchChange?:(query:string)=>void,filterOptions?:{value:string,label:string}[],activeFilter?:string,onFilterChange?:(genre:string)=>void,onZoomIn?:()=>void,onZoomOut?:()=>void}} props
+ */
 export default function LobbyHeader({
   showZoomControls = false,
   canZoomIn = true,
   canZoomOut = true,
+  zoomScale = 1,
+  onZoomChange,
   searchQuery = "",
   onSearchChange,
   filterOptions = [],
@@ -51,14 +58,14 @@ export default function LobbyHeader({
           <path d="M3 3h9v9H3zM16 3h9v9h-9zM3 16h9v9H3z" fill="currentColor" />
           <path d="m17 16 9 5-9 5z" fill="currentColor" />
         </svg>
-        <span>KABOOM<small>GAME LIBRARY</small></span>
+        <span>KABOOM</span>
       </div>
       <div className={styles.headerTools}>
         <label className={styles.searchBar}>
           <span className={classNames("material-symbols-outlined", styles.searchIcon)}>search</span>
           <input
             type="text"
-            placeholder="Find a game..."
+            placeholder="Search"
             className={styles.searchInput}
             aria-label="Search games"
             value={searchQuery}
@@ -128,24 +135,36 @@ export default function LobbyHeader({
         </div>
 
         {showZoomControls ? (
-          <div className={styles.zoomControl} aria-label="Resize cards">
+          <div className={styles.zoomControl} role="group" aria-label="Card size">
             <button
               type="button"
               className={styles.zoomButton}
               onClick={onZoomOut}
               disabled={!canZoomOut}
-              aria-label="Zoom out cards"
+              aria-label="Smaller cards"
             >
-              <span className="material-symbols-outlined">remove</span>
+              <span className="material-symbols-outlined" aria-hidden="true">remove</span>
             </button>
+            <input
+              type="range"
+              className={styles.zoomSlider}
+              min={LIBRARY_ZOOM.min}
+              max={LIBRARY_ZOOM.max}
+              step={0.01}
+              value={zoomScale}
+              style={{ "--zoom-fill": `${((zoomScale - LIBRARY_ZOOM.min) / (LIBRARY_ZOOM.max - LIBRARY_ZOOM.min)) * 100}%` }}
+              aria-label="Card size"
+              aria-valuetext={`${Math.round(zoomScale * 100)}%`}
+              onChange={(event) => onZoomChange?.(Number(event.target.value))}
+            />
             <button
               type="button"
               className={styles.zoomButton}
               onClick={onZoomIn}
               disabled={!canZoomIn}
-              aria-label="Zoom in cards"
+              aria-label="Bigger cards"
             >
-              <span className="material-symbols-outlined">add</span>
+              <span className="material-symbols-outlined" aria-hidden="true">add</span>
             </button>
           </div>
         ) : null}

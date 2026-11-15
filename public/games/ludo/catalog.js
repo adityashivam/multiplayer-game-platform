@@ -1,6 +1,8 @@
 /** Game-owned artwork, input advertising and optional platform control layout. */
 export const ludoPresentation = {
   coverUrl: "/games/ludo/cover.svg",
+  capsuleUrl: "/games/ludo/art/capsule.svg",
+  backdropUrl: "/games/ludo/art/backdrop.svg",
   accentColor: "#ffc447",
   controls: ["pointer", "touch", "keyboard"],
 };

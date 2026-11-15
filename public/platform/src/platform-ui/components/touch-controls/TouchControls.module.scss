@@ -287,11 +287,11 @@
 
 .previewCaption {
   position: absolute;
-  top: 10px;
-  left: 12px;
+  top: var(--space-3);
+  left: var(--space-3);
   z-index: 1;
-  color: #c8d9df;
-  font-size: 9px;
+  color: var(--text-body);
+  font-size: var(--type-xs);
   font-weight: 600;
   letter-spacing: .025em;
 }
@@ -300,11 +300,12 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  flex: 0 0 16px;
+  gap: var(--space-3);
+  flex: 0 0 auto;
   width: min(100%, var(--touch-preview-max-width));
-  color: var(--platform-text-muted);
-  font-size: 9px;
+  margin-top: var(--space-2);
+  color: var(--text-muted);
+  font-size: var(--type-xs);
   line-height: 1.5;
 }
 
@@ -322,7 +323,7 @@
   outline: 0;
   container-name: touch-editor;
   container-type: size;
-  animation: editorEnter 140ms ease both;
+  animation: editorEnter var(--motion-medium) var(--ease-spring) both;
   touch-action: none;
 }
 

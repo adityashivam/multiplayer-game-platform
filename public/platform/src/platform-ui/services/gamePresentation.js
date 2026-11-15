@@ -17,6 +17,8 @@ const PLAYER_COUNT_TAG_PATTERN = /^(\d+)\s*players?$/i;
  *
  * @typedef {object} GameLibraryDetails
  * @property {string|null} coverUrl
+ * @property {string|null} capsuleUrl Portrait card art, when the game supplies it.
+ * @property {string|null} backdropUrl Wide scene for the library backdrop, when supplied.
  * @property {string} accentColor
  * @property {string} genreLabel
  * @property {string} playerLabel
@@ -48,6 +50,8 @@ export function readGameLibraryDetails(game) {
 
   return {
     coverUrl: isSupportedGameCoverUrl(presentation.coverUrl) ? presentation.coverUrl : null,
+    capsuleUrl: isSupportedGameCoverUrl(presentation.capsuleUrl) ? presentation.capsuleUrl : null,
+    backdropUrl: isSupportedGameCoverUrl(presentation.backdropUrl) ? presentation.backdropUrl : null,
     accentColor: isSupportedGameAccent(presentation.accentColor) ? presentation.accentColor : DEFAULT_LIBRARY_ACCENT,
     genreLabel: tags.find((tag) => !CAPABILITY_TAG_PATTERN.test(tag)) || "Game",
     playerLabel: readPlayerCapacityLabel(game, tags),

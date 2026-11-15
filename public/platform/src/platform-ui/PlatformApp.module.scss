@@ -15,17 +15,30 @@
 .touchProfileFeedback {
   position: absolute;
   z-index: 4;
-  bottom: 12px;
-  left: 50%;
-  transform: translateX(-50%);
+  bottom: var(--space-3);
+  // Centred with margins, not a transform, so enter and exit motion can't shift it sideways.
+  left: 0;
+  right: 0;
+  width: max-content;
   max-width: calc(100% - 32px);
-  padding: 8px 12px;
-  border: 1px solid var(--platform-border);
-  border-radius: var(--platform-radius);
-  background: var(--platform-surface-inset);
+  margin-inline: auto;
+  padding: var(--space-2) var(--space-4);
+  animation: toastIn var(--motion-medium) var(--ease-spring) both;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-pill);
+  background: var(--glass-2);
+  box-shadow: var(--elevation-2), var(--glass-highlight);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
   color: var(--platform-text);
-  font: 10px var(--platform-font-body);
+  font: 600 var(--type-sm) var(--platform-font-body);
+  text-align: center;
   pointer-events: none;
+}
+
+@keyframes toastIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
 }
 
 .canvasFrame {
@@ -134,10 +147,10 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 14px;
-  padding: 28px;
+  gap: var(--space-3);
+  padding: var(--space-6);
   overflow-y: auto;
-  background: var(--platform-surface-inset);
+  background: #0b0d10;
   color: var(--platform-text);
   text-align: center;
   font-family: var(--platform-font-body);
@@ -150,32 +163,33 @@
   h2 {
     margin: 0;
     font-family: var(--platform-font-heading);
-    font-size: 25px;
+    font-size: var(--type-title);
+    font-weight: 600;
     letter-spacing: -.03em;
   }
 
   p {
     max-width: 38ch;
     margin: 0;
-    color: var(--platform-text-muted);
-    font-size: 12px;
-    line-height: 1.7;
+    color: var(--text-muted);
+    font-size: var(--type-sm);
+    line-height: 1.6;
     overflow-wrap: anywhere;
   }
 
   button {
-    min-height: 40px;
-    margin-top: 4px;
-    padding: 10px 18px;
+    height: var(--control-lg);
+    margin-top: var(--space-2);
+    padding: 0 var(--space-6);
     border: 0;
-    border-radius: var(--platform-radius);
+    border-radius: var(--radius-pill);
     background: var(--platform-accent);
     color: var(--platform-accent-text);
-    font-size: 12px;
+    font-size: var(--type-md);
     font-weight: 700;
 
     &:focus-visible {
-      outline: 2px solid var(--platform-focus);
+      outline: 2px solid var(--focus-ring);
       outline-offset: 3px;
     }
   }

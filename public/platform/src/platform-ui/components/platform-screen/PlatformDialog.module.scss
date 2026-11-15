@@ -5,9 +5,10 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 12px;
-  background: rgba(4, 10, 14, .72);
-  backdrop-filter: blur(5px);
+  padding: var(--space-3);
+  background: rgba(5, 6, 8, .6);
+  -webkit-backdrop-filter: blur(8px) saturate(1.2);
+  backdrop-filter: blur(8px) saturate(1.2);
   color: var(--platform-text);
   font-family: var(--platform-font-body);
 }
@@ -16,39 +17,45 @@
   position: relative;
   width: min(100%, 440px);
   max-height: 100%;
-  padding: 28px;
+  padding: var(--space-6);
   overflow-y: auto;
-  border: 1px solid var(--platform-border);
-  border-radius: var(--platform-panel-radius);
-  background: var(--platform-surface);
-  box-shadow: 0 24px 64px rgba(0, 0, 0, .4);
-  animation: dialogFadeIn 160ms ease both;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-lg);
+  background: var(--glass-2);
+  box-shadow: var(--elevation-3), var(--glass-highlight);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  animation: dialogScaleIn var(--motion-medium) var(--ease-settle) both;
   scrollbar-width: thin;
   scrollbar-color: #425963 transparent;
 }
 
 .closeButton {
   position: absolute;
-  top: 14px;
-  right: 14px;
+  top: var(--space-4);
+  right: var(--space-4);
   display: grid;
   place-items: center;
-  width: 36px;
-  height: 36px;
+  width: var(--control-sm);
+  height: var(--control-sm);
   padding: 0;
   border: 0;
-  border-radius: var(--platform-radius);
+  border-radius: 50%;
   background: transparent;
-  color: var(--platform-text-muted);
-  transition: background 140ms ease, color 140ms ease;
+  color: var(--text-muted);
+  transition: background var(--motion-fast) ease, color var(--motion-fast) ease, transform var(--motion-fast) var(--ease-spring);
 
   &:hover {
-    background: #ffffff0a;
-    color: var(--platform-text);
+    background: var(--surface-hover);
+    color: var(--text-strong);
+  }
+
+  &:active {
+    transform: scale(.92);
   }
 
   > span {
-    font-size: 21px;
+    font-size: 20px;
   }
 }
 
@@ -60,61 +67,61 @@
 .headingRow {
   display: flex;
   align-items: center;
-  gap: 13px;
-  padding-right: 30px;
+  gap: var(--space-3);
+  padding-right: var(--space-8);
 }
 
 .headingIcon {
   display: grid;
   place-items: center;
-  flex: 0 0 44px;
-  height: 44px;
-  border: 1px solid #00daf324;
-  border-radius: 10px;
-  background: #00daf30c;
-  color: var(--platform-accent);
+  flex: 0 0 var(--control-md);
+  height: var(--control-md);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-md);
+  background: var(--surface-selected);
+  color: var(--text-strong);
 
   > span {
-    font-size: 25px;
+    font-size: 22px;
   }
 }
 
 .headingText h2 {
   margin: 0;
-  color: var(--platform-text);
+  color: var(--text-strong);
   font-family: var(--platform-font-heading);
-  font-size: 28px;
+  font-size: var(--type-title);
   font-weight: 600;
   line-height: 1.15;
-  letter-spacing: -.04em;
+  letter-spacing: -.03em;
   overflow-wrap: anywhere;
 }
 
 .eyebrow {
-  margin: 0 0 5px;
+  margin: 0 0 2px;
   overflow: hidden;
-  color: var(--platform-text-muted);
-  font-size: 10px;
+  color: var(--text-muted);
+  font-size: var(--type-xs);
   font-weight: 600;
   line-height: 1.4;
-  letter-spacing: .06em;
+  letter-spacing: .04em;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .description {
-  margin: 17px 0 0;
-  color: var(--platform-text-muted);
-  font-size: 12px;
-  line-height: 1.75;
+  margin: var(--space-4) 0 0;
+  color: var(--text-muted);
+  font-size: var(--type-sm);
+  line-height: 1.6;
   overflow-wrap: anywhere;
 }
 
 .actions {
   display: flex;
   flex-direction: column;
-  gap: 7px;
-  margin-top: 18px;
+  gap: var(--space-2);
+  margin-top: var(--space-5);
 }
 
 .primaryAction,
@@ -122,21 +129,25 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 9px;
+  gap: var(--space-2);
   width: 100%;
-  min-height: 44px;
-  padding: 10px 14px;
-  border: 0;
-  border-radius: var(--platform-radius);
+  min-height: var(--control-lg);
+  padding: var(--space-2) var(--space-5);
+  border: 1px solid transparent;
+  border-radius: var(--radius-pill);
   font-family: var(--platform-font-body);
-  font-size: 12px;
+  font-size: var(--type-md);
   font-weight: 700;
-  line-height: 1.5;
-  transition: background 140ms ease, color 140ms ease;
+  line-height: 1.3;
+  transition: background var(--motion-fast) ease, color var(--motion-fast) ease, border-color var(--motion-fast) ease, transform var(--motion-fast) var(--ease-spring);
 
   > :global(.material-symbols-outlined) {
     flex-shrink: 0;
-    font-size: 19px;
+    font-size: 20px;
+  }
+
+  &:active:not(:disabled) {
+    transform: scale(.98);
   }
 
   &:disabled {
@@ -154,32 +165,33 @@
   }
 }
 
+// Secondary actions are quiet glass pills, one step below the primary.
 .secondaryAction {
-  min-height: 36px;
-  padding: 8px 12px;
-  background: transparent;
-  color: var(--platform-text-muted);
-  font-size: 11px;
+  min-height: var(--control-md);
+  border-color: var(--glass-border);
+  background: var(--platform-surface);
+  color: var(--text-body);
+  font-size: var(--type-sm);
   font-weight: 600;
 
   &:hover:not(:disabled) {
-    background: #ffffff07;
-    color: var(--platform-text);
+    background: var(--surface-hover);
+    color: var(--text-strong);
   }
 }
 
 .footer {
-  margin-top: 16px;
-  padding-top: 16px;
-  border-top: 1px solid #ffffff0b;
-  color: var(--platform-text-muted);
-  font-size: 11px;
+  margin-top: var(--space-5);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--glass-border);
+  color: var(--text-muted);
+  font-size: var(--type-xs);
   line-height: 1.6;
   overflow-wrap: anywhere;
 }
 
 .panel button:focus-visible {
-  outline: 2px solid var(--platform-focus);
+  outline: 2px solid var(--focus-ring);
   outline-offset: 3px;
 }
 
@@ -190,91 +202,64 @@
 
 @media (max-width: 520px) {
   .panel {
-    padding: 22px 20px;
-    border-radius: 12px;
+    padding: var(--space-5);
   }
 
   .closeButton {
-    top: 10px;
-    right: 10px;
-    width: 40px;
-    height: 40px;
-  }
-
-  .headingRow {
-    gap: 11px;
+    top: var(--space-3);
+    right: var(--space-3);
   }
 
   .headingText h2 {
-    font-size: 25px;
-  }
-
-  .headingIcon {
-    flex-basis: 40px;
-    height: 40px;
-  }
-
-  .description {
-    margin-top: 15px;
+    font-size: 22px;
   }
 }
 
 @media (max-height: 660px) and (orientation: portrait), (max-height: 540px) and (orientation: landscape) {
   .panel {
-    padding: 18px;
+    padding: var(--space-4) var(--space-5);
   }
 
   .closeButton {
-    top: 8px;
-    right: 8px;
-  }
-
-  .headingRow {
-    gap: 10px;
+    top: var(--space-3);
+    right: var(--space-3);
   }
 
   .headingText h2 {
-    font-size: 23px;
-  }
-
-  .eyebrow {
-    margin-bottom: 4px;
-    font-size: 9px;
+    font-size: var(--type-lg);
   }
 
   .headingIcon {
-    flex-basis: 36px;
-    height: 36px;
+    flex-basis: var(--control-sm);
+    height: var(--control-sm);
   }
 
   .headingIcon > span {
-    font-size: 22px;
+    font-size: 20px;
   }
 
   .description {
-    margin-top: 12px;
-    font-size: 11px;
-    line-height: 1.6;
+    margin-top: var(--space-3);
   }
 
   .actions {
-    margin-top: 14px;
-    gap: 4px;
+    margin-top: var(--space-3);
+    gap: var(--space-2);
   }
 
   .primaryAction {
-    min-height: 40px;
-    padding-block: 8px;
+    min-height: var(--control-md);
+    padding-block: var(--space-1);
   }
 
   .secondaryAction {
-    min-height: 32px;
-    padding-block: 6px;
+    min-height: var(--control-sm);
+    padding-block: var(--space-1);
   }
 
   .footer {
-    margin-top: 12px;
-    padding-top: 12px;
+    margin-top: var(--space-3);
+    padding-top: var(--space-3);
   }
 }
 
@@ -286,4 +271,30 @@
   .panel button {
     transition: none;
   }
+}
+
+@keyframes dialogScaleIn {
+  from { opacity: 0; transform: translateY(6px) scale(.97); }
+  to { opacity: 1; transform: none; }
+}
+
+// Results: the game's colour washes in from the top and the content follows
+// in a short stagger, so a match ending feels like a moment, not a popup.
+.panelAccent {
+  background:
+    radial-gradient(120% 70% at 50% -10%, color-mix(in srgb, var(--dialog-accent) 24%, transparent), transparent 70%),
+    var(--glass-2);
+
+  > * {
+    animation: dialogContentIn var(--motion-slow) var(--ease-spring) both;
+  }
+
+  > :nth-child(2) { animation-delay: 60ms; }
+  > :nth-child(3) { animation-delay: 120ms; }
+  > :nth-child(4) { animation-delay: 180ms; }
+}
+
+@keyframes dialogContentIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: none; }
 }

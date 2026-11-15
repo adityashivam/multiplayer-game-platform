@@ -20,8 +20,14 @@ import useRoomLifecycle from "./hooks/useRoomLifecycle.js";
 import { createRoomInvitePolicy } from "./services/roomInvitePolicy.js";
 import { getGameRuntimeSpec } from "./services/gameRuntime.js";
 import { readCatalogColumnCount, readNextCatalogIndex } from "./services/catalogNavigation.js";
+import LibraryBackdrop from "./components/platform-screen/LibraryBackdrop.jsx";
+import LaunchOverlay from "./components/platform-screen/LaunchOverlay.jsx";
+import BootReveal from "./components/platform-screen/BootReveal.jsx";
+import { uiSounds } from "./services/uiSounds.js";
+import { LIBRARY_ZOOM, clampLibraryZoom, readLibraryZoom, saveLibraryZoom, stepLibraryZoom } from "./services/libraryZoom.js";
 
-const CARD_ZOOM_STEPS = [0.85, 1, 1.075, 1.15];
+/** Tab order decides which way content slides when switching tabs. */
+const TAB_ORDER = Object.freeze(["solo", "multi", "friends", "profile", "config"]);
 
 export default function App() {
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -30,7 +36,9 @@ export default function App() {
   const [exitConfirmOpen, setExitConfirmOpen] = useState(false);
   const [routeTransitioning, setRouteTransitioning] = useState(false);
   const [activeTab, setActiveTab] = useState("multi");
-  const [cardZoomIndex, setCardZoomIndex] = useState(1);
+  const [tabSwap, setTabSwap] = useState(null);
+  const [launch, setLaunch] = useState(null);
+  const [cardScale, setCardScale] = useState(() => readLibraryZoom());
   const [catalogQuery, setCatalogQuery] = useState({ page: 1, q: "", genre: "all", sort: "name-asc" });
   const [touchEditorOpen, setTouchEditorOpen] = useState(false);
   const [voiceDialogOpen, setVoiceDialogOpen] = useState(false);
@@ -90,9 +98,8 @@ export default function App() {
 
   const roomLabel = route?.roomId ? `Room #${route.roomId}` : "Room #----";
   const rematchDisabled = endGameState.phase === "waiting";
-  const cardScale = CARD_ZOOM_STEPS[cardZoomIndex] || 1;
-  const canZoomOut = cardZoomIndex > 0;
-  const canZoomIn = cardZoomIndex < CARD_ZOOM_STEPS.length - 1;
+  const canZoomOut = cardScale > LIBRARY_ZOOM.min;
+  const canZoomIn = cardScale < LIBRARY_ZOOM.max;
   const emptyLobbyMessage = catalogQuery.q.trim() || catalogQuery.genre !== "all"
     ? "Try a different search or genre."
     : "No games available right now.";
@@ -166,11 +173,14 @@ export default function App() {
       if (!path) return;
 
       triggerHaptic();
+      uiSounds.play("select");
       beginGameLaunch();
+      setLaunch(describeLaunchFromCard(visibleGames, path, cardRefs.current[selectedIndex]));
       navigateTo(path);
     },
-    [beginGameLaunch, navigateTo, triggerHaptic],
+    [beginGameLaunch, navigateTo, selectedIndex, triggerHaptic, visibleGames],
   );
+  const finishLaunch = useCallback(() => setLaunch(null), []);
 
   const returnToLobby = useCallback(() => {
     setExitConfirmOpen(false);
@@ -180,6 +190,8 @@ export default function App() {
     if (route?.gameId) {
       disposeGameSession(route.gameId);
     }
+    uiSounds.play("back");
+    setLaunch(null);
     navigateTo("/");
   }, [disposeGameSession, endGamePresentation, navigateTo, route?.gameId]);
 
@@ -305,24 +317,36 @@ export default function App() {
   const handleTabChange = useCallback(
     (tabId) => {
       ensureLobbyMusicPlayback();
+      if (tabId !== activeTab) {
+        uiSounds.play("tab");
+        const direction = TAB_ORDER.indexOf(tabId) > TAB_ORDER.indexOf(activeTab) ? 1 : -1;
+        setTabSwap((previous) => ({ direction, serial: (previous?.serial ?? 0) + 1 }));
+      }
       setActiveTab(tabId);
     },
-    [ensureLobbyMusicPlayback],
+    [activeTab, ensureLobbyMusicPlayback],
   );
 
-  const handleZoomOut = useCallback(() => {
-    if (!canZoomOut) return;
-    ensureLobbyMusicPlayback();
-    triggerHaptic();
-    setCardZoomIndex((current) => Math.max(0, current - 1));
-  }, [canZoomOut, ensureLobbyMusicPlayback, triggerHaptic]);
+  // Remember the card size a moment after the last change, not every frame of a pinch.
+  useEffect(() => {
+    const saveTimer = window.setTimeout(() => saveLibraryZoom(cardScale), 300);
+    return () => window.clearTimeout(saveTimer);
+  }, [cardScale]);
 
-  const handleZoomIn = useCallback(() => {
-    if (!canZoomIn) return;
+  const handleZoomStep = useCallback((direction) => {
     ensureLobbyMusicPlayback();
     triggerHaptic();
-    setCardZoomIndex((current) => Math.min(CARD_ZOOM_STEPS.length - 1, current + 1));
-  }, [canZoomIn, ensureLobbyMusicPlayback, triggerHaptic]);
+    setCardScale((current) => stepLibraryZoom(current, direction));
+  }, [ensureLobbyMusicPlayback, triggerHaptic]);
+
+  const handleZoomOut = useCallback(() => handleZoomStep(-1), [handleZoomStep]);
+  const handleZoomIn = useCallback(() => handleZoomStep(1), [handleZoomStep]);
+  const handleZoomChange = useCallback((nextScale) => {
+    setCardScale((current) => {
+      const next = clampLibraryZoom(typeof nextScale === "function" ? nextScale(current) : nextScale);
+      return Math.abs(next - current) < 0.0005 ? current : next;
+    });
+  }, []);
 
   const footer = !isGameView ? (
     <BottomNav activeTab={activeTab} onTabChange={handleTabChange} icons={DEFAULT_THEME_ICONS.nav} disabled={configDialogOpen} />
@@ -331,6 +355,9 @@ export default function App() {
   return (
     <PlatformShell
       footer={footer}
+      backdrop={!isGameView && activeTab !== "config" ? <LibraryBackdrop game={visibleGames[selectedIndex] || visibleGames[0] || null} /> : null}
+      overlay={launch && isGameView ? <LaunchOverlay launch={launch} onDone={finishLaunch} /> : null}
+      contentSwap={isGameView ? null : tabSwap}
       fullscreenActive={fullscreenActive}
       isGameScreen={isGameView}
       transitioning={routeTransitioning}
@@ -340,11 +367,14 @@ export default function App() {
       immersive={isGameView && touchSettings.expanded}
       controllerDisabled={Boolean(gameOrientation.needsLandscape || roomStartBlocking || touchEditorOpen || voiceDialogOpen || configDialogOpen || shareOpen || exitConfirmOpen || endGameState.open)}
     >
+      {!isGameView && <BootReveal />}
       {!isGameView && activeTab !== "config" && (
         <LobbyHeader
           showZoomControls={activeTab !== "config"}
           canZoomIn={canZoomIn}
           canZoomOut={canZoomOut}
+          zoomScale={cardScale}
+          onZoomChange={handleZoomChange}
           searchQuery={catalogQuery.q}
           onSearchChange={(q) => updateCatalogQuery({ q })}
           filterOptions={filterOptions}
@@ -369,6 +399,7 @@ export default function App() {
           onSelectIndex={selectLibraryGame}
           onActivate={openGamePath}
           cardScale={cardScale}
+          onCardScaleChange={handleZoomChange}
           registerCardRef={(index, node) => {
             cardRefs.current[index] = node;
           }}
@@ -430,4 +461,27 @@ export default function App() {
       )}
     </PlatformShell>
   );
+}
+
+/**
+ * Where a launch zoom starts: the activated card's box inside the console
+ * screen, as clip insets. Null zooms from the middle.
+ * @param {readonly object[]} games @param {string} path @param {HTMLElement|undefined} card
+ */
+function describeLaunchFromCard(games, path, card) {
+  const game = games.find((candidate) => candidate.path === path);
+  if (!game) return null;
+  const screen = card?.closest("[data-platform-screen]");
+  let from = null;
+  if (card && screen && card.dataset.libraryCardId === game.id) {
+    const cardBounds = (card.querySelector("[data-card-media]") || card).getBoundingClientRect();
+    const screenBounds = screen.getBoundingClientRect();
+    from = {
+      top: Math.max(0, cardBounds.top - screenBounds.top),
+      right: Math.max(0, screenBounds.right - cardBounds.right),
+      bottom: Math.max(0, screenBounds.bottom - cardBounds.bottom),
+      left: Math.max(0, cardBounds.left - screenBounds.left),
+    };
+  }
+  return { game, from, serial: Date.now() };
 }

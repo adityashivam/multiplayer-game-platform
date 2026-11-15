@@ -1,15 +1,15 @@
 .linkField {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--space-2);
   min-width: 0;
-  margin-top: 22px;
+  margin-top: var(--space-5);
 
   > label {
-    color: var(--platform-text-muted);
-    font-size: 10px;
+    color: var(--text-muted);
+    font-size: var(--type-xs);
     font-weight: 600;
-    letter-spacing: .1em;
+    letter-spacing: .08em;
     text-transform: uppercase;
   }
 }
@@ -17,18 +17,18 @@
 .linkInputRow {
   display: flex;
   align-items: center;
-  gap: 9px;
+  gap: var(--space-2);
   min-width: 0;
-  height: 44px;
-  padding: 0 12px;
-  border: 1px solid var(--platform-border);
-  border-radius: var(--platform-radius);
+  height: var(--control-lg);
+  padding: 0 var(--space-4);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-pill);
   background: var(--platform-surface-inset);
 
   > span {
     flex-shrink: 0;
-    color: var(--platform-text-muted);
-    font-size: 19px;
+    color: var(--text-muted);
+    font-size: 20px;
   }
 
   input {
@@ -40,9 +40,9 @@
     border: 0;
     outline: none;
     background: transparent;
-    color: var(--platform-text);
+    color: var(--text-strong);
     font-family: inherit;
-    font-size: 11px;
+    font-size: var(--type-sm);
 
     &::placeholder {
       color: var(--platform-text-muted);
@@ -50,41 +50,35 @@
   }
 
   &:focus-within {
-    border-color: var(--platform-accent);
+    border-color: var(--border-strong);
   }
 }
 
 .hint {
   display: flex;
   align-items: flex-start;
-  gap: 8px;
-  margin: 16px 0 0;
-  padding-top: 16px;
-  border-top: 1px solid #ffffff0b;
-  color: var(--platform-text-muted);
-  font-size: 10px;
+  gap: var(--space-2);
+  margin: var(--space-5) 0 0;
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--glass-border);
+  color: var(--text-muted);
+  font-size: var(--type-xs);
   line-height: 1.6;
 
   > span {
     flex-shrink: 0;
-    font-size: 15px;
-  }
-}
-
-@media (max-width: 520px) {
-  .linkField {
-    margin-top: 19px;
+    font-size: 16px;
   }
 }
 
 @media (max-height: 660px) and (orientation: portrait), (max-height: 540px) and (orientation: landscape) {
   .linkField {
-    margin-top: 15px;
-    gap: 6px;
+    margin-top: var(--space-3);
+    gap: var(--space-1);
   }
 
   .linkInputRow {
-    height: 40px;
+    height: var(--control-md);
   }
 
   .hint {

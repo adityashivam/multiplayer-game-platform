@@ -40,7 +40,6 @@ export default function GameShowcase({ game, onActivate, disabled = false }) {
         >
           <span className="material-symbols-outlined" aria-hidden="true">play_arrow</span>
           Play now
-          <span className={styles.playButtonArrow} aria-hidden="true">↗</span>
         </button>
       </div>
       <span className={styles.showcaseCaption} aria-hidden="true">SELECTED GAME / READY TO PLAY</span>

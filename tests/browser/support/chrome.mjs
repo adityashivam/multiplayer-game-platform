@@ -82,9 +82,12 @@ export async function createBrowserTestSession(prefix, { extraArgs = [] } = {}) 
     if (!toggle) return;
     await pressAt(sessionId, toggle);
     await waitFor(sessionId, "document.querySelector('[data-platform-game-menu-toggle][aria-expanded=\"true\"]')", 5000);
+    // Let the menu's entrance animation settle before measuring its buttons.
+    await delay(220);
   }
+
   async function click(sessionId, selector) {
-    const locate = `const element=document.querySelector(${JSON.stringify(selector)});if(!element)return null;const bounds=element.getBoundingClientRect();return{x:bounds.x+bounds.width/2,y:bounds.y+bounds.height/2};`;
+    const locate = `const element=[...document.querySelectorAll(${JSON.stringify(selector)})].find((candidate)=>!candidate.closest('[inert]'));if(!element)return null;const bounds=element.getBoundingClientRect();return{x:bounds.x+bounds.width/2,y:bounds.y+bounds.height/2};`;
     let point = await evaluate(sessionId, locate);
     if (!point) {
       // Platform actions live in the collapsed game menu until it is opened.

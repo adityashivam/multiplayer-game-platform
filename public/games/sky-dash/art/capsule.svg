@@ -1,0 +1,149 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 900">
+  <defs>
+    <linearGradient id="sdSky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#05080b"/>
+      <stop offset="0.2" stop-color="#10161c"/>
+      <stop offset="0.38" stop-color="#2a2a2c"/>
+      <stop offset="0.5" stop-color="#4e4946"/>
+      <stop offset="0.56" stop-color="#3c3d3d"/>
+      <stop offset="0.7" stop-color="#151b21"/>
+      <stop offset="1" stop-color="#0b1117"/>
+    </linearGradient>
+    <radialGradient id="sdSun" cx="322" cy="452" r="600" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#f6ffff"/>
+      <stop offset="0.04" stop-color="#e0f8f8" stop-opacity="0.95"/>
+      <stop offset="0.13" stop-color="#7edddd" stop-opacity="0.45"/>
+      <stop offset="0.34" stop-color="#6f9696" stop-opacity="0.15"/>
+      <stop offset="0.7" stop-color="#5a6a6a" stop-opacity="0.04"/>
+      <stop offset="1" stop-color="#7edddd" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="sdBand" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#8c9696" stop-opacity="0"/>
+      <stop offset="0.5" stop-color="#8c9696" stop-opacity="0.16"/>
+      <stop offset="1" stop-color="#8c9696" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="sdFarRock" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#5d6769"/>
+      <stop offset="0.14" stop-color="#40494c"/>
+      <stop offset="1" stop-color="#40494c" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="sdMidRock" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#262d31"/>
+      <stop offset="0.12" stop-color="#181e22"/>
+      <stop offset="1" stop-color="#151b20" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="sdNearRock" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0f1418"/>
+      <stop offset="0.5" stop-color="#070a0d"/>
+      <stop offset="1" stop-color="#0b1117"/>
+    </linearGradient>
+    <linearGradient id="sdCloud" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#9fb0b0"/>
+      <stop offset="0.1" stop-color="#4f5c5f"/>
+      <stop offset="0.55" stop-color="#20282d"/>
+      <stop offset="1" stop-color="#0b1117"/>
+    </linearGradient>
+    <linearGradient id="sdCloudBack" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#7f8d8e"/>
+      <stop offset="0.3" stop-color="#4b5558"/>
+      <stop offset="1" stop-color="#2b3236"/>
+    </linearGradient>
+    <linearGradient id="sdHaze" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#a5b4b4" stop-opacity="0"/>
+      <stop offset="0.55" stop-color="#a5b4b4" stop-opacity="0.16"/>
+      <stop offset="1" stop-color="#a5b4b4" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="sdStreak" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#d6f5f5" stop-opacity="0"/>
+      <stop offset="1" stop-color="#d6f5f5" stop-opacity="0.45"/>
+    </linearGradient>
+    <radialGradient id="sdVignette" cx="0.5" cy="0.42" r="0.78">
+      <stop offset="0.5" stop-color="#020304" stop-opacity="0"/>
+      <stop offset="1" stop-color="#020304" stop-opacity="0.85"/>
+    </radialGradient>
+    <linearGradient id="sdFadeBottom" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0.64" stop-color="#0b1117" stop-opacity="0"/>
+      <stop offset="0.8" stop-color="#0b1117" stop-opacity="0.82"/>
+      <stop offset="0.9" stop-color="#0b1117"/>
+    </linearGradient>
+    <filter id="sdGrain" x="0" y="0" width="100%" height="100%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" stitchTiles="stitch"/>
+      <feColorMatrix values="1.6 0 0 0 -0.3  1.6 0 0 0 -0.3  1.6 0 0 0 -0.3  0 0 0 0 1"/>
+    </filter>
+
+    <!-- Runner mid-leap, facing right, pelvis at the origin. -->
+    <g id="sdRunner">
+      <path d="M30 -100C16 -104 4 -96 -10 -100C-22 -104 -32 -98 -46 -104C-36 -94 -24 -92 -12 -92C2 -91 16 -94 30 -92Z"/>
+      <path d="M25.9 -80.3Q41.1 -77 56.3 -73.7A6.5 6.5 0 0 0 59.7 -86.3Q44.9 -91 30.1 -95.7A8 8 0 0 0 25.9 -80.3Z"/>
+      <path d="M62.2 -75Q73.7 -85.5 85.3 -96A5.2 5.2 0 0 0 78.7 -104Q66.3 -94.5 53.8 -85A6.5 6.5 0 0 0 62.2 -75Z"/>
+      <path d="M90.6 -106.9A6 5 -40 1 0 81.4 -99.1A6 5 -40 1 0 90.6 -106.9Z"/>
+      <path d="M-14.8 -7Q-34.1 17.6 -51.3 43.9A9.5 9.5 0 0 0 -36.7 56.1Q-13.9 34.4 6.8 11A14 14 0 0 0 -14.8 -7Z"/>
+      <path d="M-50.6 43.1Q-72.4 64.3 -92.1 87.7A6 6 0 0 0 -83.9 96.3Q-59.6 77.7 -37.4 56.9A9.5 9.5 0 0 0 -50.6 43.1Z"/>
+      <path d="M-86 84L-100 82L-110 92L-104 104L-88 100Z"/>
+      <path d="M15.3 8.6Q32 -30 43.2 -70.3A20 20 0 0 0 4.8 -81.7Q-8 -42 -15.3 -0.6A16 16 0 0 0 15.3 8.6Z"/>
+      <path d="M37.5 -65Q38.8 -77.6 40.2 -90.3A9 9 0 0 0 23.8 -97.7Q15.2 -88.4 6.5 -79A17 17 0 0 0 37.5 -65Z"/>
+      <path d="M33 -86.7Q36.8 -92.8 40.6 -98.9A5.5 5.5 0 0 0 31.4 -105.1Q27.2 -99.2 23 -93.3A6 6 0 0 0 33 -86.7Z"/>
+      <path d="M29 -114C30 -127 42 -133 51 -128C57 -124 57 -115 54 -107C51 -101 45 -99 39 -100C34 -101 30 -104 27 -108C23 -111 19 -113 16 -118C21 -116 25 -115 29 -114Z"/>
+      <path d="M-21.5 -35.7L-11.7 -65.9L-7.7 -67.9L3.4 -64.3L5.5 -60.3L-4.3 -30.1L-8.3 -28.1L-19.4 -31.7Z"/>
+      <path d="M8.5 18.3Q36.4 12.2 63.7 3.4A9.5 9.5 0 0 0 60.3 -15.4Q31.6 -14.2 3.5 -10.3A14.5 14.5 0 0 0 8.5 18.3Z"/>
+      <path d="M52.8 -3.8Q60 25.2 70.2 53.4A6 6 0 0 0 81.8 50.6Q78 20.8 71.2 -8.2A9.5 9.5 0 0 0 52.8 -3.8Z"/>
+      <path d="M70 48L88 46L100 52L98 60L72 62Z"/>
+      <path d="M14.3 -91.7Q-0.1 -76.1 -14.6 -60.6A6.5 6.5 0 0 0 -5.4 -51.4Q10.1 -65.9 25.7 -80.3A8 8 0 0 0 14.3 -91.7Z"/>
+      <path d="M-12.1 -62.2Q-26.8 -56.5 -41.6 -50.9A5.2 5.2 0 0 0 -38.4 -41.1Q-23.2 -45.5 -7.9 -49.8A6.5 6.5 0 0 0 -12.1 -62.2Z"/>
+      <path d="M-39.2 -43.4A6 5 15 1 0 -50.8 -46.6A6 5 15 1 0 -39.2 -43.4Z"/>
+    </g>
+  </defs>
+
+  <rect width="600" height="900" fill="url(#sdSky)"/>
+  <g fill="url(#sdBand)">
+    <path d="M-40 150C120 140 300 152 640 132L640 140C300 162 120 150 -40 160Z"/>
+    <path d="M-40 236C160 222 380 238 640 220L640 232C380 252 160 236 -40 250Z"/>
+    <path d="M-40 312C180 300 360 314 640 300L640 306C360 322 180 308 -40 318Z"/>
+  </g>
+  <rect width="600" height="900" fill="url(#sdSun)"/>
+
+  <path d="M-20 470C40 460 90 464 140 456C180 450 230 456 270 452C330 446 380 454 440 448C500 442 560 450 620 444L620 560L-20 560Z" fill="url(#sdCloudBack)" opacity="0.55"/>
+
+  <g fill="url(#sdFarRock)" opacity="0.8">
+    <path d="M30 372C56 366 100 366 126 372L120 382L106 390L98 412L90 440L82 412L68 396L46 386Z"/>
+    <path d="M488 352C506 348 540 348 556 352L550 360L540 368L534 392L526 368L506 360Z"/>
+    <path d="M200 412C214 409 236 409 248 412L242 420L234 434L226 420Z" opacity="0.7"/>
+  </g>
+
+  <path d="M-20 532C20 522 60 528 96 520C136 512 176 522 214 516C256 508 296 518 336 512C380 504 420 514 462 508C506 500 556 510 620 502L620 900L-20 900Z" fill="url(#sdCloud)"/>
+  <path d="M-20 572C60 558 140 570 220 558C320 546 420 564 520 552C560 548 590 550 620 548L620 900L-20 900Z" fill="#141a1f" opacity="0.82"/>
+  <rect y="420" width="600" height="180" fill="url(#sdHaze)"/>
+
+  <path d="M430 458C470 450 530 448 570 452C596 454 620 458 620 458L620 480L604 488L586 508L572 548L556 610L540 566L518 536L490 514L458 498L436 478Z" fill="url(#sdMidRock)"/>
+  <path d="M430 458C470 450 530 448 570 452C596 454 620 458 620 458" fill="none" stroke="#e0f8f8" stroke-opacity="0.6" stroke-width="1.5"/>
+
+  <path d="M-20 548C30 540 104 538 160 544L170 556L158 572L144 606L116 656L92 724L76 682L46 652L8 632L-20 622Z" fill="url(#sdNearRock)"/>
+  <path d="M-20 548C30 540 104 538 160 544L170 556" fill="none" stroke="#e0f8f8" stroke-opacity="0.6" stroke-width="1.5"/>
+  <g fill="#080b0e">
+    <path d="M178 574L188 570L192 580L182 584Z"/>
+    <path d="M196 616L203 614L205 621L198 623Z"/>
+  </g>
+
+  <g fill="url(#sdStreak)">
+    <rect x="20" y="268" width="130" height="1.6"/>
+    <rect x="50" y="300" width="110" height="1.2"/>
+    <rect x="10" y="340" width="140" height="1.2"/>
+  </g>
+
+  <use href="#sdRunner" transform="translate(286 312) rotate(10) scale(1.12)" fill="#7edddd" stroke="#7edddd" stroke-width="3" stroke-linejoin="round" opacity="0.4"/>
+  <use href="#sdRunner" transform="translate(284.5 310.5) rotate(10) scale(1.12)" fill="#ecfdfd" stroke="#ecfdfd" stroke-width="3" stroke-linejoin="round"/>
+  <use href="#sdRunner" transform="translate(282.5 308.5) rotate(10) scale(1.12)" fill="#05080b" stroke="#05080b" stroke-width="3" stroke-linejoin="round"/>
+  <g transform="translate(282.5 308.5) rotate(10) scale(1.12)" fill="none" stroke="#2c373a" stroke-width="1.4" stroke-linecap="round">
+    <path d="M-12 -8C2 -3 14 -3 24 -9"/>
+    <path d="M4 -80L28 -44"/>
+    <path d="M74 60L98 58"/>
+    <path d="M-104 102L-90 99"/>
+    <path d="M52 -10L60 -4"/>
+  </g>
+
+  <ellipse cx="322" cy="452" rx="330" ry="2" fill="#ecfdfd" opacity="0.4"/>
+
+  <rect width="600" height="900" filter="url(#sdGrain)" opacity="0.07"/>
+  <rect width="600" height="900" fill="url(#sdVignette)"/>
+  <rect width="600" height="900" fill="url(#sdFadeBottom)"/>
+</svg>

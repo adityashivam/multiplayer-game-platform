@@ -1,5 +1,7 @@
 export const pongPresentation = {
   coverUrl: "/games/pong/assets/cover.svg",
+  capsuleUrl: "/games/pong/art/capsule.svg",
+  backdropUrl: "/games/pong/art/backdrop.svg",
   accentColor: "#63e6dc",
   controls: ["keyboard", "touch"],
 };

@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readGameLibraryDetails } from "../public/platform/src/platform-ui/services/gamePresentation.js";
+import { validateGamePresentation } from "../public/platform/shared/gamePresentation.js";
 
 test("library reads a custom game's cover and three-player capabilities without an identity lookup", () => {
   const game = {
@@ -64,4 +65,30 @@ test("malformed optional presentation cannot inject styles or unsafe artwork URL
   assert.equal(details.coverUrl, null);
   assert.equal(details.accentColor, "#00daf3");
   assert.deepEqual(details.controlLabels, ["Keyboard"]);
+});
+
+test("library reads a game's capsule and backdrop art for the console shelf", () => {
+  const details = readGameLibraryDetails({
+    presentation: {
+      coverUrl: "/games/orbital-relay/cover.svg",
+      capsuleUrl: "/games/orbital-relay/art/capsule.svg",
+      backdropUrl: "/games/orbital-relay/art/backdrop.svg",
+    },
+  });
+  assert.equal(details.capsuleUrl, "/games/orbital-relay/art/capsule.svg");
+  assert.equal(details.backdropUrl, "/games/orbital-relay/art/backdrop.svg");
+});
+
+test("missing or unsafe capsule and backdrop art falls back to none", () => {
+  assert.equal(readGameLibraryDetails({ id: "plain" }).capsuleUrl, null);
+  assert.equal(readGameLibraryDetails({ id: "plain" }).backdropUrl, null);
+  const unsafe = readGameLibraryDetails({ presentation: { capsuleUrl: "javascript:alert(1)", backdropUrl: "//evil.example/x.svg" } });
+  assert.equal(unsafe.capsuleUrl, null);
+  assert.equal(unsafe.backdropUrl, null);
+});
+
+test("plugin registration rejects unsafe capsule or backdrop URLs and accepts safe ones", () => {
+  assert.doesNotThrow(() => validateGamePresentation({ capsuleUrl: "/games/a/art/capsule.svg", backdropUrl: "https://cdn.example.com/b.svg" }, "a"));
+  assert.throws(() => validateGamePresentation({ capsuleUrl: "javascript:alert(1)" }, "a"), TypeError);
+  assert.throws(() => validateGamePresentation({ backdropUrl: "http://insecure.example/b.svg" }, "a"), TypeError);
 });

@@ -205,6 +205,8 @@ try {
     `);
     await waitFor(first, "document.querySelector('[aria-label=\"Match results\"]')");
     await openVoice(first);
+    // The results dialog fades out (inert) for a moment before it unmounts.
+    await waitFor(first, "document.querySelectorAll('[aria-modal=true]').length===1");
     assert.equal(await evaluate(first, "return document.querySelectorAll('[aria-modal=true]').length;"), 1);
     await click(first, '[aria-label="Room voice chat"] [aria-label="Mute microphone"]');
     await click(first, '[aria-label="Room voice chat"] [aria-label="Unmute microphone"]');
@@ -256,6 +258,8 @@ try {
     // A rival leaving mid-match pauses it behind the recovery notice, not the pre-match waiting dialog.
     await waitFor(first, "voiceTest.room?.phase === 'waiting' && document.querySelector('[data-platform-room-recovery]')");
     await openVoice(first);
+    // The results dialog fades out (inert) for a moment before it unmounts.
+    await waitFor(first, "document.querySelectorAll('[aria-modal=true]').length===1");
     assert.equal(await evaluate(first, "return document.querySelectorAll('[aria-modal=true]').length;"), 1);
     await click(first, '[aria-label="Room voice chat"] [aria-label="Mute microphone"]');
     await clickText(first, "Turn off voice");

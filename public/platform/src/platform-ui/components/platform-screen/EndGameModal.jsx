@@ -5,10 +5,10 @@ import styles from "./PlatformDialog.module.scss";
 /**
  * Present game-supplied results and rematch state using platform-owned controls.
  * Optional voice settings temporarily replace results while preserving the call and match state.
- * @param {{title?: string, subtitle?: string, status?: string, actionLabel?: string, onRematch: () => void, onBack: () => void, rematchDisabled?: boolean, icons?: {rematch?: string, backHome?: string},onOpenVoice?:()=>void}} props
+ * @param {{title?: string, subtitle?: string, status?: string, actionLabel?: string, onRematch: () => void, onBack: () => void, rematchDisabled?: boolean, icons?: {rematch?: string, backHome?: string},onOpenVoice?:()=>void,accentColor?:string}} props
  * @returns {React.ReactElement}
  */
-export default function EndGameModal({ title, subtitle, status, actionLabel, onRematch, onBack, rematchDisabled, icons, onOpenVoice }) {
+export default function EndGameModal({ title, subtitle, status, actionLabel, onRematch, onBack, rematchDisabled, icons, onOpenVoice, accentColor }) {
   return (
     <PlatformDialog
       label="Match results"
@@ -17,6 +17,7 @@ export default function EndGameModal({ title, subtitle, status, actionLabel, onR
       description={subtitle || "Ready for the next round?"}
       icon="sports_esports"
       footer={status && <span role="status">{status}</span>}
+      accentColor={accentColor}
     >
       <div className={styles.actions}>
         <button type="button" className={styles.primaryAction} onClick={onRematch} disabled={rematchDisabled}>

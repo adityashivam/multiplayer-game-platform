@@ -18,9 +18,15 @@ const fallbackIcons = {
   config: "settings",
 };
 
+/**
+ * The library's floating glass dock; a pill glides behind the active tab.
+ * @param {{activeTab?:string,onTabChange?:(tabId:string)=>void,icons?:Record<string,string>,disabled?:boolean}} props
+ */
 export default function BottomNav({ activeTab = "multi", onTabChange, icons, disabled = false }) {
+  const activeIndex = Math.max(0, tabs.findIndex((tab) => tab.id === activeTab));
   return (
-    <nav className={styles.navBar} aria-label="Primary">
+    <nav className={styles.navBar} aria-label="Primary" style={{ "--nav-index": activeIndex, "--nav-count": tabs.length }}>
+      <span className={styles.navIndicator} aria-hidden="true" />
       {tabs.map((tab) => {
         const isActive = tab.id === activeTab;
         const icon = fallbackIcons[tab.id] || icons?.[tab.id];

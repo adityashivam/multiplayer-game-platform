@@ -2,6 +2,7 @@ import React, { useEffect, useRef } from "react";
 import PlatformDialog from "./PlatformDialog.jsx";
 import dialogStyles from "./PlatformDialog.module.scss";
 import styles from "./RoomStartOverlay.module.scss";
+import { uiSounds } from "../../services/uiSounds.js";
 
 /**
  * Present server-owned readiness without changing the runtime or shell geometry.
@@ -13,6 +14,15 @@ export default function RoomStartOverlay({ room, gameName, isCreatorEntry, onInv
   const playing = room.phase === "playing";
   const countingDown = room.phase === "countdown";
   const countdownFocusRef = useRef(null);
+  const remainingSeconds = countingDown ? room.secondsRemaining : null;
+
+  // A tick each second of the countdown and a brighter chord on GO.
+  useEffect(() => {
+    if (remainingSeconds > 0) uiSounds.play("countdown");
+  }, [remainingSeconds]);
+  useEffect(() => {
+    if (room.showGo) uiSounds.play("go");
+  }, [room.showGo]);
   useEffect(() => {
     if (!playing) return undefined;
     const frameId = requestAnimationFrame(() => {

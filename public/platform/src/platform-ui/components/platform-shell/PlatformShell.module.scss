@@ -135,9 +135,15 @@
 }
 
 .platformScreenLibrary {
-  background: #131c21;
+  background: #0b0d10;
+
+  // Retro scanlines read as a toy; the library stays clean.
+  .screenScanlines {
+    display: none;
+  }
 
   .screenContent {
+    --screen-inline-padding: 24px;
     padding: 20px 24px 14px;
     gap: 18px;
   }
@@ -187,7 +193,9 @@
   flex: 1;
   min-height: 0;
   overflow: hidden;
-  padding: clamp(12px, 1.8vh, 20px) clamp(12px, 1.8vw, 20px) clamp(10px, 1.6vh, 18px);
+  // Exposed so a scrolling list can carry its scrollbar out to the screen edge.
+  --screen-inline-padding: clamp(12px, 1.8vw, 20px);
+  padding: clamp(12px, 1.8vh, 20px) var(--screen-inline-padding) clamp(10px, 1.6vh, 18px);
   display: flex;
   flex-direction: column;
   gap: clamp(12px, 1.4vh, 18px);
@@ -204,13 +212,34 @@
   will-change: opacity;
 }
 
+.screenContentSlideA {
+  animation: tabSlideA var(--motion-slow) var(--ease-spring);
+}
+
+.screenContentSlideB {
+  animation: tabSlideB var(--motion-slow) var(--ease-spring);
+}
+
+// Two identical keyframes so each tab change restarts the slide.
+@keyframes tabSlideA {
+  from { opacity: 0; transform: translateX(var(--tab-slide-from, 0)); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes tabSlideB {
+  from { opacity: 0; transform: translateX(var(--tab-slide-from, 0)); }
+  to { opacity: 1; transform: none; }
+}
+
 @keyframes routeSwapIn {
   0% {
     opacity: 0;
+    transform: scale(.985);
   }
 
   100% {
     opacity: 1;
+    transform: none;
   }
 }
 
@@ -275,11 +304,13 @@
   }
 
   .screenContent {
+    --screen-inline-padding: 10px;
     padding: 12px 10px 10px;
     gap: 10px;
   }
 
   .platformScreenLibrary .screenContent {
+    --screen-inline-padding: 12px;
     padding: 10px 12px 8px;
     gap: 12px;
   }
@@ -306,11 +337,13 @@
   }
 
   .screenContent {
+    --screen-inline-padding: 12px;
     padding: 10px 12px 8px;
     gap: 8px;
   }
 
   .platformScreenLibrary .screenContent {
+    --screen-inline-padding: 10px;
     padding: 6px 10px;
     gap: 6px;
   }
@@ -494,6 +527,17 @@
     line-height: 1;
   }
 
+  // Without sticks the library deck only holds the D-pad and buttons, so the
+  // screen gets the space back.
+  .platformConsoleLibrary {
+    grid-template-rows: minmax(0, 77fr) minmax(0, 23fr);
+  }
+
+  // The collapse toggle sits on the deck's top edge, wherever that is.
+  .platformConsoleLibrary:not(.platformConsolePortraitExpanded) .platformPortraitToggle {
+    bottom: calc(23% - 14px);
+  }
+
   .platformConsolePortraitExpanded {
     grid-template-rows: minmax(0, 1fr) 0fr;
   }
@@ -519,11 +563,13 @@
     height: 100%;
     max-height: 100%;
     min-height: 0;
+    --screen-inline-padding: 8px;
     padding: 8px 8px 6px;
     gap: 8px;
   }
 
   .platformScreenLibrary .screenContent {
+    --screen-inline-padding: 12px;
     padding: 10px 12px 8px;
     gap: 12px;
   }
@@ -540,5 +586,15 @@
   .platformPortraitDeck,
   .platformConsole {
     transition: none;
+  }
+}
+
+@media (max-width: 900px) and (orientation: portrait) and (max-height: 720px) {
+  .platformConsoleLibrary:not(.platformConsolePortraitExpanded) {
+    grid-template-rows: minmax(0, 72fr) minmax(0, 28fr);
+  }
+
+  .platformConsoleLibrary:not(.platformConsolePortraitExpanded) .platformPortraitToggle {
+    bottom: calc(28% - 14px);
   }
 }

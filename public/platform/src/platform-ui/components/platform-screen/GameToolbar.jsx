@@ -1,5 +1,6 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 import ConnectionIndicator from "./ConnectionIndicator.jsx";
+import Presence from "./Presence.jsx";
 import VoiceChatControls, { isVoiceChatJoined } from "./VoiceChatControls.jsx";
 import {
   GAME_MENU_CORNER_INSET_PX,
@@ -225,7 +226,8 @@ export default function GameToolbar({
         {showNetworkUi && <span className={`${styles.menuDot} ${CONNECTION_DOT_CLASSES[status] || styles.menuDotReconnecting}`} aria-hidden="true" />}
       </button>
 
-      {!expanded && voiceJoined && <button
+      <Presence when={!expanded && voiceJoined}>
+      <button
         type="button"
         className={styles.menuBadge}
         aria-label={voiceState.microphoneMuted ? "Unmute microphone" : "Mute microphone"}
@@ -235,9 +237,11 @@ export default function GameToolbar({
         onClick={() => { void onMicrophoneMutedChange(!voiceState.microphoneMuted); }}
       >
         <span className="material-symbols-outlined" aria-hidden="true">{voiceState.microphoneMuted ? "mic_off" : "mic"}</span>
-      </button>}
+      </button>
+      </Presence>
 
-      {expanded && <div id="platform-game-menu-actions" className={styles.menuPill} onFocus={() => setIdleSerial((serial) => serial + 1)}>
+      <Presence when={expanded}>
+      <div id="platform-game-menu-actions" className={styles.menuPill} onFocus={() => setIdleSerial((serial) => serial + 1)}>
         {expandedPlayArea && <button type="button" className={styles.toolbarButton} onClick={runMenuAction(onHome)} aria-label="Leave game" title="Return to library" disabled={disabled}>
           <span className="material-symbols-outlined" aria-hidden="true">arrow_back</span>
         </button>}
@@ -286,7 +290,8 @@ export default function GameToolbar({
         >
           <span className="material-symbols-outlined" aria-hidden="true">{fullscreenIcon}</span>
         </button>
-      </div>}
+      </div>
+      </Presence>
     </div>
   );
 }

@@ -1,10 +1,10 @@
 .header {
   display: flex;
   align-items: center;
-  gap: 26px;
-  min-height: 46px;
+  gap: var(--space-6);
+  min-height: var(--control-md);
   flex-shrink: 0;
-  padding: 0 4px;
+  padding: 0 var(--space-1);
 }
 
 .libraryBrand {
@@ -20,27 +20,18 @@
   }
 
   > span {
-    color: #edf2f2;
-    font-family: "Space Grotesk", sans-serif;
-    font-size: 18px;
+    color: var(--text-strong);
+    font-family: var(--platform-font-heading);
+    font-size: var(--type-md);
     font-weight: 700;
-    letter-spacing: -.04em;
-  }
-
-  small {
-    display: block;
-    margin-top: 2px;
-    color: #879296;
-    font-size: 8px;
-    font-weight: 500;
-    letter-spacing: .18em;
+    letter-spacing: .14em;
   }
 }
 
 .headerTools {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-2);
   flex: 1;
   min-width: 0;
 }
@@ -48,23 +39,32 @@
 .searchBar {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-2);
   flex: 1;
   min-width: 0;
-  height: 40px;
-  padding: 0 12px;
-  border: 1px solid #2c3336;
-  border-radius: 7px;
-  background: #1b2023;
+  height: var(--control-md);
+  padding: 0 var(--space-4);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-pill);
+  background: var(--glass-1);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+
+  transition: border-color var(--motion-fast) ease, background var(--motion-fast) ease;
+
+  &:hover {
+    background: var(--glass-2);
+  }
 
   &:focus-within {
-    border-color: #00daf3;
+    border-color: var(--border-strong);
+    background: var(--glass-2);
   }
 }
 
 .searchIcon {
-  font-size: 18px;
-  color: #8e9da1;
+  font-size: 20px;
+  color: var(--text-muted);
 }
 
 .searchInput {
@@ -73,11 +73,11 @@
   border: 0;
   outline: none;
   background: transparent;
-  color: #edf2f2;
-  font-size: 12px;
+  color: var(--text-strong);
+  font-size: var(--type-sm);
 
   &::placeholder {
-    color: #8e9a9e;
+    color: var(--text-faint);
   }
 }
 
@@ -86,22 +86,33 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  width: 140px;
-  min-width: 0;
-  height: 40px;
-  padding: 0 10px;
-  border: 1px solid #2c3336;
-  border-radius: 7px;
-  background: #1b2023;
+  // Sized to its label so "All genres" and long genre names never truncate.
+  flex: none;
+  width: auto;
+  min-width: 120px;
+  max-width: 220px;
+  height: var(--control-md);
+  padding: 0 var(--space-3) 0 var(--space-4);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-pill);
+  background: var(--glass-1);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  transition: border-color var(--motion-fast) ease, background var(--motion-fast) ease;
+
+  &:hover {
+    background: var(--glass-2);
+  }
 }
 
 .filterControlOpen {
-  border-color: #00daf3;
+  border-color: var(--border-strong);
+  background: var(--glass-2);
 }
 
 .filterIcon {
-  color: #94a1a5;
-  font-size: 16px;
+  color: var(--text-muted);
+  font-size: 18px;
 }
 
 .filterTrigger {
@@ -109,14 +120,15 @@
   align-items: center;
   justify-content: space-between;
   gap: 4px;
-  flex: 1;
+  flex: 1 1 auto;
   min-width: 0;
   height: 100%;
   padding: 0;
   border: 0;
   background: transparent;
-  color: #d9e0e1;
-  font-size: 11px;
+  color: var(--text-body);
+  font-size: var(--type-sm);
+  font-weight: 500;
 }
 
 .filterTriggerLabel {
@@ -126,8 +138,8 @@
 }
 
 .filterChevron {
-  font-size: 17px;
-  transition: transform 160ms ease;
+  font-size: 18px;
+  transition: transform var(--motion-medium) var(--ease-spring);
 }
 
 .filterChevronOpen {
@@ -139,42 +151,54 @@
   top: calc(100% + 8px);
   right: 0;
   z-index: 40;
-  width: 170px;
+  width: 200px;
   max-height: min(330px, 55dvh);
   overflow-y: auto;
-  padding: 5px;
-  border: 1px solid #3b484d;
-  border-radius: 9px;
-  background: #20282d;
-  box-shadow: 0 15px 35px #0007;
+  padding: var(--space-1);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-md);
+  background: var(--glass-3);
+  box-shadow: var(--elevation-2), var(--glass-highlight);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  transform-origin: top right;
+  animation: menuDropIn var(--motion-medium) var(--ease-spring) both;
+}
+
+@keyframes menuDropIn {
+  from { opacity: 0; transform: translateY(-6px) scale(.97); }
+  to { opacity: 1; transform: none; }
 }
 
 .filterOption {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--space-2);
   width: 100%;
-  min-height: 36px;
-  padding: 0 6px;
+  min-height: var(--control-md);
+  padding: 0 var(--space-3) 0 var(--space-2);
   border: 0;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   background: transparent;
-  color: #dce5e6;
-  font-size: 12px;
+  color: var(--text-body);
+  font-size: var(--type-sm);
   text-align: left;
+  transition: background var(--motion-fast) ease, color var(--motion-fast) ease;
 
   &:hover {
-    background: #ffffff0b;
+    background: var(--surface-hover);
+    color: var(--text-strong);
   }
 }
 
 .filterOptionActive {
-  background: #00daf314;
+  background: var(--surface-selected);
+  color: var(--text-strong);
 }
 
 .filterOptionCheck {
-  color: #00daf3;
-  font-size: 18px;
+  color: var(--platform-accent);
+  font-size: 20px;
 }
 
 .filterOptionCheckHidden {
@@ -189,26 +213,40 @@
   min-width: 0;
 }
 
+// One glass pill: smaller, a continuous size slider, bigger.
 .zoomControl {
   display: flex;
+  align-items: center;
   flex-shrink: 0;
-  gap: 2px;
+  gap: var(--space-1);
+  height: var(--control-md);
+  padding: 0 var(--space-1);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-pill);
+  background: var(--glass-1);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
 }
 
 .zoomButton {
   display: grid;
   place-items: center;
   width: 32px;
-  height: 40px;
+  height: 32px;
   padding: 0;
   border: 0;
-  border-radius: 5px;
+  border-radius: 50%;
   background: transparent;
-  color: #bdc9cc;
+  color: var(--text-body);
+  transition: background var(--motion-fast) ease, color var(--motion-fast) ease, transform var(--motion-fast) var(--ease-spring);
 
   &:hover:not(:disabled) {
-    background: #ffffff0b;
-    color: #00daf3;
+    background: var(--surface-hover);
+    color: var(--text-strong);
+  }
+
+  &:active:not(:disabled) {
+    transform: scale(.92);
   }
 
   &:disabled {
@@ -217,57 +255,136 @@
   }
 
   :global(.material-symbols-outlined) {
-    font-size: 19px;
+    font-size: 20px;
+  }
+}
+
+.zoomSlider {
+  width: 88px;
+  height: 24px;
+  margin: 0;
+  background: transparent;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+
+  &::-webkit-slider-runnable-track {
+    height: 4px;
+    border-radius: var(--radius-pill);
+    background: linear-gradient(90deg, var(--text-body) var(--zoom-fill, 50%), rgba(255, 255, 255, .14) var(--zoom-fill, 50%));
+  }
+
+  &::-moz-range-track {
+    height: 4px;
+    border-radius: var(--radius-pill);
+    background: rgba(255, 255, 255, .14);
+  }
+
+  &::-moz-range-progress {
+    height: 4px;
+    border-radius: var(--radius-pill);
+    background: var(--text-body);
+  }
+
+  &::-webkit-slider-thumb {
+    width: 14px;
+    height: 14px;
+    margin-top: -5px;
+    border: 0;
+    border-radius: 50%;
+    background: var(--text-strong);
+    box-shadow: 0 1px 4px rgba(0, 0, 0, .5);
+    transition: transform var(--motion-fast) var(--ease-spring);
+    -webkit-appearance: none;
+  }
+
+  &::-moz-range-thumb {
+    width: 14px;
+    height: 14px;
+    border: 0;
+    border-radius: 50%;
+    background: var(--text-strong);
+    box-shadow: 0 1px 4px rgba(0, 0, 0, .5);
+  }
+
+  &:active::-webkit-slider-thumb {
+    transform: scale(1.2);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 2px;
+    border-radius: var(--radius-pill);
   }
 }
 
 .navBar {
+  position: relative;
+  z-index: 11;
   display: flex;
   align-items: stretch;
   justify-content: center;
   flex-shrink: 0;
-  gap: 6px;
-  height: 59px;
-  padding: 0 15%;
-  border-top: 1px solid #ffffff0a;
-  background: #11191d;
+  gap: 0;
+  width: min(560px, calc(100% - 32px));
+  height: 54px;
+  margin: 0 auto var(--space-3);
+  padding: 5px;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-pill);
+  background: var(--glass-2);
+  box-shadow: var(--elevation-2), var(--glass-highlight);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+}
+
+// The pill glides behind the active tab.
+.navIndicator {
+  position: absolute;
+  top: 5px;
+  bottom: 5px;
+  left: 5px;
+  width: calc((100% - 10px) / var(--nav-count));
+  border: 1px solid rgba(255, 255, 255, .1);
+  border-radius: var(--radius-pill);
+  background: rgba(255, 255, 255, .08);
+  transform: translateX(calc(var(--nav-index) * 100%));
+  transition: transform var(--motion-slow) var(--ease-spring);
+  pointer-events: none;
 }
 
 .navButton {
   position: relative;
+  z-index: 1;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 7px;
+  gap: var(--space-2);
   flex: 1;
-  padding: 0 8px;
+  min-width: 0;
+  padding: 0 var(--space-2);
   border: 0;
+  border-radius: var(--radius-pill);
   background: transparent;
-  color: #7e949d;
-  font-size: 10px;
-  transition: color 160ms ease;
+  color: var(--text-muted);
+  font-size: var(--type-xs);
+  transition: color var(--motion-medium) ease;
 }
 
 .navButton:hover {
-  color: #d6e5e5;
+  color: var(--text-strong);
 }
 
 .navButtonActive {
-  color: #00daf3;
-}
-
-.navButtonActive::before {
-  position: absolute;
-  top: 0;
-  left: 20%;
-  right: 20%;
-  height: 2px;
-  background: #00daf3;
-  content: "";
+  color: var(--text-strong);
 }
 
 .navIcon {
-  font-size: 19px;
+  font-size: 20px;
+}
+
+.navButtonActive .navIcon {
+  color: var(--platform-accent);
 }
 
 .navButtonActive .navIcon {
@@ -275,7 +392,9 @@
 }
 
 .navLabel {
-  font-size: 10px;
+  font-size: var(--type-xs);
+  font-weight: 600;
+  letter-spacing: .01em;
 }
 
 .catalog {
@@ -293,59 +412,74 @@
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
+  gap: var(--space-4);
   flex-shrink: 0;
-  padding: 3px 2px 0;
-  margin-bottom: 18px;
+  // Same inline insets as the card grid, so heading, cards and pages share edges.
+  padding: var(--space-1) var(--space-5) 0 var(--space-2);
+  margin-bottom: var(--space-4);
 
   h1 {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: var(--space-3);
     margin: 0;
-    color: #eef2ef;
-    font-family: "Space Grotesk", sans-serif;
-    font-size: 25px;
+    color: var(--text-strong);
+    font-family: var(--platform-font-heading);
+    font-size: var(--type-xl);
     font-weight: 600;
-    letter-spacing: -.04em;
+    line-height: 1.1;
+    letter-spacing: -.035em;
   }
 
   h1 > span {
-    padding: 3px 7px;
-    border-radius: 4px;
-    background: #223039;
-    color: #9db0b8;
-    font-size: 11px;
+    display: inline-grid;
+    place-items: center;
+    min-width: 28px;
+    height: 22px;
+    padding: 0 var(--space-2);
+    border-radius: var(--radius-pill);
+    background: var(--surface-selected);
+    color: var(--text-body);
+    font-family: var(--platform-font-body);
+    font-size: var(--type-xs);
+    font-weight: 700;
     letter-spacing: 0;
   }
 
   p {
-    margin: 6px 0 0;
-    color: #8da1ab;
-    font-size: 11px;
+    margin: var(--space-1) 0 0;
+    color: var(--text-muted);
+    font-size: var(--type-xs);
   }
 }
 
 .catalogSort {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--space-2);
   flex-shrink: 0;
-  color: #a1b0b6;
+  color: var(--text-muted);
 
   > span {
-    font-size: 17px;
+    font-size: 18px;
   }
 
   select {
-    max-width: 130px;
-    height: 36px;
-    padding: 0 4px;
-    border: 0;
-    background: #131c21;
-    color: #c0cdd1;
-    font-size: 11px;
+    max-width: 170px;
+    height: var(--control-sm);
+    padding: 0 var(--space-4);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-pill);
+    background: var(--glass-1);
+    color: var(--text-body);
+    font-size: var(--type-sm);
+    font-weight: 500;
     cursor: pointer;
+    transition: background var(--motion-fast) ease, border-color var(--motion-fast) ease;
+
+    &:hover {
+      background: var(--glass-2);
+    }
   }
 }
 
@@ -361,7 +495,7 @@
 .catalogWorkspace {
   display: grid;
   grid-template-columns: minmax(0, 1.15fr) minmax(0, .85fr);
-  gap: 20px;
+  gap: var(--space-6);
   flex: 1;
   min-height: 0;
   min-width: 0;
@@ -376,19 +510,22 @@
 
 .gameGrid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, calc(136px * var(--library-card-scale, 1))), 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, calc(118px * var(--library-card-scale, 1))), 1fr));
   align-content: start;
   align-items: start;
-  gap: 20px 14px;
+  gap: var(--space-4) var(--space-3);
   flex: 1;
   min-height: 0;
-  padding: 4px 7px 12px 3px;
+  // The scrollbar keeps a clear gutter from the cards.
+  padding: var(--space-3) var(--space-5) var(--space-4) var(--space-2);
   overflow-y: auto;
   overflow-x: hidden;
   scroll-padding-block: 4px;
   overscroll-behavior-y: contain;
   scrollbar-width: thin;
   scrollbar-color: #425059 transparent;
+  // Anchors the gliding focus ring, which scrolls with the cards.
+  position: relative;
 }
 
 .gameGrid::-webkit-scrollbar {
@@ -413,16 +550,13 @@
   width: 100%;
   padding: 0;
   border: 0;
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   background: transparent;
-  color: #cad7db;
+  color: var(--text-strong);
   text-align: left;
   -webkit-tap-highlight-color: transparent;
-  transition: color 160ms ease;
-
-  &:hover, &.selected {
-    color: #f0f4f2;
-  }
+  // Caption type follows the card's own width, so zooming scales it smoothly.
+  container-type: inline-size;
 
   &:disabled {
     opacity: .45;
@@ -430,67 +564,177 @@
   }
 }
 
+// Portrait capsule art; the focused card lifts and glows in its game's accent.
 .cardMedia {
   position: relative;
-  aspect-ratio: 1.65;
-  padding: 2px;
+  aspect-ratio: 3 / 4;
   overflow: hidden;
-  border: 1px solid #ffffff13;
-  border-radius: 7px;
-  transition: border-color 160ms ease;
+  border: 1px solid rgba(226, 244, 250, .1);
+  border-radius: var(--radius-md);
+  background: #101a20;
+  box-shadow: var(--elevation-1);
+  transform: translateZ(0);
+  transition:
+    transform var(--motion-medium) var(--ease-spring),
+    box-shadow var(--motion-medium) ease,
+    border-color var(--motion-medium) ease,
+    filter var(--motion-slow) var(--ease-settle);
 
   > .artwork {
-    border-radius: 4px;
+    border-radius: inherit;
   }
 }
 
-.selected .cardMedia {
-  border-color: #00daf3;
-}
-
 .card:hover:not(:disabled) .cardMedia {
-  border-color: #8babb8;
+  border-color: rgba(226, 244, 250, .28);
+  transform: translateY(-2px);
 }
 
+.selected .cardMedia,
+.card.selected:hover:not(:disabled) .cardMedia {
+  border-color: transparent;
+  box-shadow:
+    0 22px 44px -16px rgba(0, 0, 0, .85),
+    0 14px 36px -18px color-mix(in srgb, var(--game-accent, #ffffff) 55%, transparent);
+  transform: scale(1.04);
+}
+
+// Spotlight: the selection is lit, the rest of the shelf steps back.
+.gameGrid:has(.selected) .card:not(.selected) .cardMedia {
+  filter: brightness(.66) saturate(.8);
+}
+
+.gameGrid:has(.selected) .card:not(.selected):hover .cardMedia {
+  filter: brightness(.9) saturate(.95);
+}
+
+// Cards rise in, a few at a time, when a page or filter shows new games.
+.card {
+  animation: cardRiseIn var(--motion-slow) var(--ease-spring) both;
+  animation-delay: calc(min(var(--card-index, 0), 12) * 22ms);
+}
+
+@keyframes cardRiseIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: none; }
+}
+
+// The gliding ring is the cards' focus indicator.
+.card:focus-visible {
+  outline: none;
+}
+
+// A thin edge light in the game's colour that glides between cards instead
+// of jumping; it hugs the card rather than floating around it.
+.focusGlide {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 3;
+  border: 1.5px solid color-mix(in srgb, var(--ring-accent, #ffffff) 45%, rgba(255, 255, 255, .85));
+  border-radius: var(--radius-md);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, .25),
+    0 0 26px -6px color-mix(in srgb, var(--ring-accent, #ffffff) 60%, transparent);
+  opacity: 0;
+  pointer-events: none;
+
+  &[data-ready="true"] {
+    opacity: 1;
+    transition:
+      transform var(--motion-medium) var(--ease-spring),
+      width var(--motion-medium) var(--ease-spring),
+      height var(--motion-medium) var(--ease-spring),
+      border-color var(--motion-slow) ease,
+      box-shadow var(--motion-slow) ease,
+      opacity var(--motion-fast) ease;
+  }
+}
+
+.cardShade {
+  position: absolute;
+  inset: auto 0 0;
+  height: 55%;
+  background: linear-gradient(180deg, transparent, rgba(8, 13, 17, .55) 45%, rgba(8, 13, 17, .92));
+  pointer-events: none;
+}
+
+.cardCaption {
+  position: absolute;
+  inset: auto 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: clamp(8px, 8cqi, 14px);
+}
+
+// Long names wrap to two lines instead of being cut off.
 .cardTitle {
-  margin: 9px 2px 0;
+  display: -webkit-box;
   overflow: hidden;
-  color: inherit;
-  font-size: 13px;
-  font-weight: 650;
-  line-height: 1.5;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  color: var(--text-strong);
+  font-family: var(--platform-font-heading);
+  font-size: clamp(11px, 9.5cqi, 16px);
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -.01em;
+  overflow-wrap: anywhere;
+  text-shadow: 0 1px 6px rgba(0, 0, 0, .6);
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
+// Every card shows the same two rows, so titles line up across the grid.
 .cardSubtitle {
-  margin: 3px 2px 0;
   overflow: hidden;
-  color: #829aa5;
-  font-size: 10px;
-  line-height: 1.5;
+  color: var(--text-muted);
+  font-size: clamp(11px, 7.5cqi, 12px);
+  line-height: 1.35;
   text-overflow: ellipsis;
   white-space: nowrap;
+  transition: color var(--motion-medium) ease;
+}
+
+.selected .cardSubtitle,
+.card:hover .cardSubtitle {
+  color: var(--text-body);
+}
+
+// Fully zoomed out, cards are pure art; the showcase names the selection.
+@container (max-width: 92px) {
+  .card .cardCaption, .card .cardPlayIcon {
+    display: none;
+  }
+
+  .card .cardShade {
+    opacity: 0;
+  }
 }
 
 .cardPlayIcon {
   position: absolute;
-  right: 9px;
-  bottom: 8px;
+  top: var(--space-2);
+  right: var(--space-2);
   display: grid;
   place-items: center;
-  width: 23px;
-  height: 23px;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--glass-border);
   border-radius: 50%;
-  background: #10232bb3;
-  color: #e1f6f4;
-  font-size: 16px;
+  background: var(--glass-2);
+  color: var(--text-strong);
+  font-size: 18px;
+  font-variation-settings: "FILL" 1;
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
   opacity: 0;
-  transition: opacity 160ms ease;
+  transform: scale(.8);
+  transition: opacity var(--motion-medium) ease, transform var(--motion-medium) var(--ease-spring);
 }
 
 .selected .cardPlayIcon, .card:hover .cardPlayIcon {
   opacity: 1;
+  transform: none;
 }
 
 .artwork {
@@ -522,6 +766,59 @@
   object-position: center;
 }
 
+// Capsules keep their subject, which sits in the upper part, when cards crop.
+.artworkCapsule .coverImage {
+  object-position: center top;
+}
+
+// Full-screen art behind the library; each new backdrop fades in over the last.
+.libraryBackdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  background: #0b1117;
+  pointer-events: none;
+}
+
+.libraryBackdropImage {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: right center;
+  animation: backdropFadeIn var(--motion-slow) var(--ease-settle) both;
+}
+
+.libraryBackdropShade {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse at 78% 30%, color-mix(in srgb, var(--game-accent, #00daf3) 16%, transparent), transparent 62%),
+    linear-gradient(90deg, rgba(11, 17, 23, .9) 0%, rgba(11, 17, 23, .7) 42%, rgba(11, 17, 23, .25) 72%, rgba(11, 17, 23, .1) 100%),
+    linear-gradient(0deg, rgba(11, 17, 23, .92) 0%, rgba(11, 17, 23, .6) 30%, transparent 55%);
+}
+
+@keyframes backdropFadeIn {
+  from { opacity: 0; transform: scale(1.03); }
+  to { opacity: 1; transform: none; }
+}
+
+// Shimmering placeholder cards while the catalog loads.
+.skeletonCard {
+  aspect-ratio: 3 / 4;
+  border: 1px solid rgba(226, 244, 250, .06);
+  border-radius: var(--radius-md);
+  background: linear-gradient(100deg, rgba(255, 255, 255, .03) 30%, rgba(255, 255, 255, .09) 50%, rgba(255, 255, 255, .03) 70%) 0 0 / 220% 100%, #101a20;
+  animation: skeletonShimmer 1.4s ease-in-out infinite;
+}
+
+@keyframes skeletonShimmer {
+  from { background-position: 120% 0, 0 0; }
+  to { background-position: -120% 0, 0 0; }
+}
+
 .artworkAmbient {
   position: absolute;
   inset: 0;
@@ -538,6 +835,59 @@
   min-height: 0;
   overflow: hidden;
   height: 100%;
+
+  // The backdrop shows the art, so the panel is just the hero's text and Play.
+  .showcase {
+    justify-content: flex-end;
+    border: 0;
+    background: transparent;
+  }
+
+  .showcaseArtwork {
+    display: none;
+  }
+
+  .showcaseContent {
+    max-height: 100%;
+    padding: var(--space-6) var(--space-2) var(--space-4);
+    background: none;
+  }
+
+  .showcaseTitle {
+    font-size: clamp(30px, 5cqw, 52px);
+    text-shadow: 0 2px 18px rgba(0, 0, 0, .55);
+  }
+
+  .showcaseDescription {
+    max-width: 36ch;
+    color: #d3e0e3;
+    font-size: var(--type-sm);
+    text-shadow: 0 1px 8px rgba(0, 0, 0, .6);
+  }
+
+  .playButton {
+    width: auto;
+    min-width: 200px;
+    height: 46px;
+    padding: 0 var(--space-5);
+    border-radius: var(--radius-pill);
+    box-shadow: 0 10px 24px -12px rgba(0, 0, 0, .8);
+    transition: background var(--motion-fast) ease, transform var(--motion-fast) var(--ease-spring);
+
+    &:active:not(:disabled) {
+      transform: scale(.97);
+    }
+  }
+
+  // Hero text settles in each time the selected game changes.
+  .showcaseContent > * {
+    animation: heroTextIn var(--motion-slow) var(--ease-spring) both;
+  }
+
+  .showcaseContent > :nth-child(2) { animation-delay: 30ms; }
+  .showcaseContent > :nth-child(3) { animation-delay: 60ms; }
+  .showcaseContent > :nth-child(4) { animation-delay: 90ms; }
+  .showcaseContent > :nth-child(5) { animation-delay: 120ms; }
 }
 
 .showcase {
@@ -547,9 +897,9 @@
   justify-content: flex-start;
   height: 100%;
   overflow: hidden;
-  border: 1px solid #ffffff0c;
-  border-radius: 9px;
-  background: #1a262d;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-lg);
+  background: var(--glass-1);
   color: var(--game-accent);
 }
 
@@ -575,19 +925,19 @@
   flex: 0 0 auto;
   max-height: 74%;
   overflow-y: auto;
-  padding: 26px;
-  background: linear-gradient(180deg, #111b2200, #111b22ad);
+  padding: var(--space-6);
+  background: linear-gradient(180deg, transparent, rgba(11, 13, 16, .7));
 }
 
 .showcaseEyebrow {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin: 0 0 10px;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-3);
   color: var(--game-accent);
-  font-size: 9px;
+  font-size: var(--type-xs);
   font-weight: 700;
-  letter-spacing: .12em;
+  letter-spacing: .14em;
   text-transform: uppercase;
 }
 
@@ -599,8 +949,8 @@
 
 .showcaseTitle {
   margin: 0;
-  color: #f6f3ea;
-  font-family: "Space Grotesk", sans-serif;
+  color: var(--text-strong);
+  font-family: var(--platform-font-heading);
   font-size: clamp(26px, 3.7cqw, 42px);
   font-weight: 600;
   line-height: 1.1;
@@ -609,19 +959,19 @@
 }
 
 .showcaseDescription {
-  margin: 13px 0 17px;
-  color: #b7c7cd;
-  font-size: 11px;
-  line-height: 1.7;
+  margin: var(--space-3) 0 var(--space-4);
+  color: var(--text-body);
+  font-size: var(--type-sm);
+  line-height: 1.6;
 }
 
 .capabilities {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px 14px;
-  color: #c6d7db;
-  font-size: 10px;
+  gap: var(--space-2) var(--space-4);
+  color: var(--text-body);
+  font-size: var(--type-xs);
 
   > span {
     display: inline-flex;
@@ -635,25 +985,25 @@
 }
 
 .controlCapability {
-  color: #91a9b3;
+  color: var(--text-muted);
 }
 
 .playButton {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
+  gap: var(--space-2);
   width: 100%;
-  height: 42px;
-  margin-top: 22px;
-  padding: 0 12px;
+  height: var(--control-lg);
+  margin-top: var(--space-5);
+  padding: 0 var(--space-5);
   border: 0;
-  border-radius: 5px;
-  background: #00daf3;
-  color: #062126;
-  font-size: 12px;
-  font-weight: 800;
-  transition: background 160ms ease, transform 160ms ease;
+  border-radius: var(--radius-pill);
+  background: var(--platform-accent);
+  color: var(--platform-accent-text);
+  font-size: var(--type-md);
+  font-weight: 700;
+  transition: background var(--motion-fast) ease, transform var(--motion-fast) var(--ease-spring);
 
   &:hover:not(:disabled) {
     background: #7eebf7;
@@ -675,42 +1025,45 @@
   }
 }
 
-.playButtonArrow {
-  margin-left: auto;
-  font-size: 17px;
-}
-
 .catalogPagination {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: var(--space-3);
   flex-shrink: 0;
-  min-height: 49px;
-  margin-top: 12px;
-  border-top: 1px solid #ffffff0c;
+  min-height: 50px;
+  margin-top: var(--space-2);
+  padding: var(--space-2) var(--space-5) 0 var(--space-2);
+  border-top: 1px solid var(--glass-border);
 
   button {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 8px;
-    min-height: 34px;
-    padding: 0 3px;
-    border: 0;
-    border-radius: 3px;
+    gap: var(--space-1);
+    min-width: var(--control-sm);
+    height: var(--control-sm);
+    padding: 0 var(--space-3);
+    border: 1px solid transparent;
+    border-radius: var(--radius-pill);
     background: transparent;
-    color: #b5cad3;
-    font-size: 10px;
+    color: var(--text-body);
+    font-size: var(--type-sm);
+    transition: background var(--motion-fast) ease, color var(--motion-fast) ease;
+
+    :global(.material-symbols-outlined) {
+      font-size: 20px;
+    }
   }
 
   button:hover:not(:disabled) {
-    color: #00daf3;
+    background: var(--surface-hover);
+    color: var(--text-strong);
   }
 
   button:disabled {
-    color: #657c87;
-    opacity: .65;
+    color: var(--text-faint);
+    opacity: .6;
     cursor: default;
   }
 }
@@ -718,25 +1071,27 @@
 .pageJump {
   display: flex;
   align-items: center;
-  gap: 7px;
-  color: #8da4ae;
-  font-size: 10px;
+  gap: var(--space-2);
+  color: var(--text-muted);
+  font-size: var(--type-sm);
+  white-space: nowrap;
 
   label {
     display: inline-flex;
     align-items: center;
-    gap: 7px;
+    gap: var(--space-2);
   }
 
   input {
-    width: 46px;
-    height: 28px;
-    padding: 0 3px;
-    border: 1px solid #35454e;
-    border-radius: 4px;
-    background: #1a272e;
-    color: #c9dae0;
-    font-size: 11px;
+    width: 52px;
+    height: var(--control-sm);
+    padding: 0 var(--space-1);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-pill);
+    background: var(--glass-1);
+    color: var(--text-strong);
+    font-size: var(--type-sm);
+    font-variant-numeric: tabular-nums;
     text-align: center;
     appearance: textfield;
   }
@@ -746,8 +1101,10 @@
   }
 
   button {
-    padding: 0 3px;
-    font-size: 15px;
+    width: var(--control-sm);
+    padding: 0;
+    border-color: var(--glass-border);
+    background: var(--glass-1);
   }
 }
 
@@ -757,33 +1114,34 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 12px;
+  gap: var(--space-3);
   min-height: 0;
-  padding: 20px;
+  padding: var(--space-5);
   text-align: center;
-  color: #a3b7c0;
+  color: var(--text-muted);
 
   > span {
-    color: #00daf3;
-    font-size: 30px;
+    color: var(--text-muted);
+    font-size: 32px;
   }
 
   h2 {
     margin: 0;
-    color: #edf2f2;
-    font-family: "Space Grotesk", sans-serif;
-    font-size: 22px;
+    color: var(--text-strong);
+    font-family: var(--platform-font-heading);
+    font-size: var(--type-lg);
+    font-weight: 600;
   }
 
   p {
     margin: 0;
-    font-size: 11px;
-    line-height: 1.7;
+    font-size: var(--type-sm);
+    line-height: 1.6;
   }
 }
 
-.header button:focus-visible, .card:focus-visible, .playButton:focus-visible, .navButton:focus-visible, .catalogPagination button:focus-visible, .pageJump input:focus-visible, .catalogSort select:focus-visible {
-  outline: 2px solid #b5f6fc;
+.header button:focus-visible, .playButton:focus-visible, .navButton:focus-visible, .catalogPagination button:focus-visible, .pageJump input:focus-visible, .catalogSort select:focus-visible {
+  outline: 2px solid var(--focus-ring);
   outline-offset: 2px;
 }
 
@@ -807,8 +1165,8 @@
   margin: 0;
   padding: max(12px, env(safe-area-inset-top)) 12px max(12px, env(safe-area-inset-bottom));
   border: 0;
-  background: #131c21;
-  color: #d4e3e8;
+  background: #0b0d10;
+  color: var(--text-body);
   overflow: hidden;
 
   &[open] {
@@ -818,7 +1176,7 @@
   }
 
   &::backdrop {
-    background: #081014d9;
+    background: rgba(5, 6, 8, .85);
   }
 
   .showcase {
@@ -829,7 +1187,7 @@
 
   .showcaseContent {
     max-height: 70%;
-    padding: 24px;
+    padding: var(--space-6);
   }
 
   .showcaseTitle {
@@ -841,42 +1199,29 @@
   display: inline-flex;
   align-items: center;
   align-self: flex-start;
-  gap: 8px;
-  min-height: 40px;
-  padding: 0 6px;
-  border: 0;
-  border-radius: 4px;
-  background: transparent;
-  color: #c7dce5;
-  font-size: 12px;
+  gap: var(--space-2);
+  height: var(--control-md);
+  padding: 0 var(--space-4) 0 var(--space-3);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-pill);
+  background: var(--glass-1);
+  color: var(--text-body);
+  font-size: var(--type-sm);
 }
 
 @container (max-width: 720px) {
   .catalogWorkspace {
-    gap: 14px;
+    gap: var(--space-4);
   }
 
   .catalogHeading {
-    gap: 8px;
-    margin-bottom: 14px;
+    gap: var(--space-2);
+    margin-bottom: var(--space-3);
   }
 
   .catalogHeading h1 {
-    gap: 6px;
-    font-size: 20px;
-  }
-
-  .catalogHeading p {
-    font-size: 10px;
-  }
-
-  .catalogSort {
-    gap: 3px;
-  }
-
-  .catalogSort select {
-    max-width: 100px;
-    font-size: 10px;
+    gap: var(--space-2);
+    font-size: 22px;
   }
 
   .catalogSort > span {
@@ -884,66 +1229,25 @@
   }
 
   .showcaseContent {
-    padding: 18px;
+    padding: var(--space-4);
   }
 
   .showcaseTitle {
-    font-size: 27px;
-  }
-
-  .cardTitle {
-    font-size: 11px;
-  }
-
-  .cardSubtitle {
-    font-size: 9px;
+    font-size: 28px;
   }
 
   .catalogPagination {
-    gap: 6px;
-    min-height: 43px;
-    margin-top: 8px;
-  }
-
-  .catalogPagination button {
-    gap: 3px;
-    font-size: 9px;
-  }
-
-  .pageJump {
-    gap: 4px;
-    font-size: 9px;
-  }
-
-  .pageJump label {
-    gap: 4px;
-  }
-
-  .pageJump input {
-    width: 37px;
+    gap: var(--space-2);
   }
 }
 
 @container (max-width: 600px) {
   .catalogHeading {
     grid-template-columns: minmax(0, 1fr);
-    gap: 6px;
   }
 
   .catalogHeading .catalogSort {
     justify-self: start;
-  }
-
-  .catalogHeading h1 {
-    font-size: 19px;
-  }
-
-  .catalogHeading p {
-    font-size: 9px;
-  }
-
-  .catalogSort select {
-    height: 26px;
   }
 
   .catalogPagination button > span:not([aria-hidden]) {
@@ -951,39 +1255,21 @@
   }
 
   .gameGrid {
-    gap: 14px 10px;
-  }
-
-  .cardTitle {
-    font-size: 10px;
-  }
-
-  .cardSubtitle {
-    font-size: 8px;
+    gap: var(--space-3) var(--space-3);
   }
 
   .showcaseContent {
-    padding: 14px;
+    padding: var(--space-4) var(--space-3);
   }
 
   .showcaseTitle {
-    font-size: 25px;
-  }
-
-  .showcaseDescription {
-    font-size: 10px;
-  }
-
-  .playButton {
-    gap: 4px;
-    padding-inline: 8px;
-    font-size: 11px;
+    font-size: 26px;
   }
 }
 
 @media (max-width: 1100px) {
   .header {
-    gap: 14px;
+    gap: var(--space-4);
   }
 
   .libraryBrand > span {
@@ -991,19 +1277,18 @@
   }
 
   .filterControl {
-    width: 118px;
+    min-width: 0;
   }
 
-  .navBar {
-    padding-inline: 7%;
+  .zoomSlider {
+    width: 64px;
   }
 }
 
 @media (max-width: 900px) and (orientation: portrait) {
   .header {
-    min-height: 44px;
-    gap: 10px;
-    padding: 0 3px;
+    gap: var(--space-3);
+    padding: 0;
   }
 
   .libraryBrand > span {
@@ -1012,8 +1297,8 @@
 
   .headerTools {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 96px auto;
-    gap: 6px;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    gap: var(--space-2);
   }
 
   .filterControl {
@@ -1027,7 +1312,8 @@
 
   .catalogHeading {
     grid-template-columns: minmax(0, 1fr) auto;
-    margin-bottom: 14px;
+    align-items: end;
+    margin-bottom: var(--space-3);
   }
 
   .catalogHeading .catalogSort {
@@ -1035,24 +1321,20 @@
   }
 
   .catalogHeading h1 {
-    font-size: 22px;
+    font-size: 24px;
   }
 
-  .catalogSort select {
-    height: 34px;
-  }
-
+  // One column of results: the grid reaches the screen edge so its scrollbar
+  // sits on the edge, while the cards keep their place.
   .gameGrid {
     grid-template-columns: repeat(auto-fill, minmax(min(100%, calc(137px * var(--library-card-scale, 1))), 1fr));
-    gap: 18px 12px;
+    gap: var(--space-4) var(--space-3);
+    margin-right: calc(-1 * var(--screen-inline-padding, 0px));
+    padding-right: calc(var(--space-2) + var(--screen-inline-padding, 0px));
   }
 
-  .cardTitle {
-    font-size: 12px;
-  }
-
-  .cardSubtitle {
-    font-size: 9px;
+  .catalogHeading, .catalogPagination {
+    padding-right: var(--space-2);
   }
 
   .catalogPagination button > span:not([aria-hidden]) {
@@ -1060,29 +1342,28 @@
   }
 
   .navBar {
-    height: 48px;
-    padding: 0 12px;
-    gap: 0;
+    height: 56px;
+    padding: var(--space-1);
+  }
+
+  .navIndicator {
+    top: var(--space-1);
+    bottom: var(--space-1);
+    left: var(--space-1);
+    width: calc((100% - 8px) / var(--nav-count));
   }
 
   .navButton {
     flex-direction: column;
     gap: 2px;
-    padding: 0 6px;
-  }
-
-  .navLabel {
-    font-size: 8px;
-  }
-
-  .navIcon {
-    font-size: 18px;
+    padding: 0 var(--space-1);
   }
 }
 
-@media (max-width: 520px) {
+// Phones: the slider hides; − and + still step through the same sizes.
+@media (max-width: 560px) {
   .header {
-    gap: 8px;
+    gap: var(--space-2);
   }
 
   .libraryBrand svg {
@@ -1091,28 +1372,25 @@
   }
 
   .filterControl {
-    padding: 0 7px;
+    padding: 0 var(--space-2) 0 var(--space-3);
   }
 
-  .filterIcon {
+  .filterIcon, .zoomSlider {
     display: none;
   }
 
-  .filterTrigger {
-    font-size: 10px;
-  }
-
   .searchBar {
-    padding: 0 7px;
-    gap: 4px;
+    padding: 0 var(--space-3);
   }
 
-  .searchInput {
-    font-size: 11px;
+  .catalogPagination {
+    gap: var(--space-1);
   }
+}
 
-  .zoomButton {
-    width: 26px;
+@media (max-height: 660px) and (orientation: portrait) {
+  .catalogHeading {
+    margin-bottom: var(--space-2);
   }
 
   .catalogHeading h1 {
@@ -1120,22 +1398,7 @@
   }
 
   .catalogPagination {
-    gap: 5px;
-  }
-}
-
-@media (max-height: 660px) and (orientation: portrait) {
-  .catalogHeading {
-    margin-bottom: 10px;
-  }
-
-  .catalogHeading h1 {
-    font-size: 18px;
-  }
-
-  .catalogPagination {
-    min-height: 36px;
-    margin-top: 5px;
+    min-height: 44px;
   }
 
   .cardMedia {
@@ -1145,41 +1408,45 @@
 
 @media (max-height: 540px) and (orientation: landscape) {
   .header {
-    min-height: 34px;
+    min-height: var(--control-sm);
   }
 
   .libraryBrand > span {
     display: none;
   }
 
-  .searchBar, .filterControl, .zoomButton {
-    height: 32px;
+  .searchBar, .filterControl, .zoomControl {
+    height: var(--control-sm);
+  }
+
+  .zoomButton {
+    width: 28px;
+    height: 28px;
   }
 
   .catalogHeading {
-    margin-bottom: 8px;
+    margin-bottom: var(--space-2);
   }
 
   .catalogHeading h1 {
-    font-size: 18px;
+    font-size: 20px;
   }
 
   .catalogHeading p {
-    margin-top: 3px;
-    font-size: 9px;
+    margin-top: 2px;
   }
 
   .catalogHeading .catalogSort select {
-    height: 23px;
+    height: 30px;
   }
 
   .showcaseContent {
-    padding: 12px;
+    padding: var(--space-3);
     max-height: 85%;
   }
 
   .showcaseTitle {
-    font-size: 23px;
+    font-size: 24px;
   }
 
   .showcaseDescription, .capabilities {
@@ -1187,57 +1454,52 @@
   }
 
   .showcaseEyebrow {
-    margin-bottom: 8px;
-    font-size: 8px;
-  }
-
-  .playButton {
-    height: 32px;
-    margin-top: 13px;
-    font-size: 10px;
+    margin-bottom: var(--space-2);
   }
 
   .gameGrid {
-    gap: 12px 10px;
+    gap: var(--space-3) var(--space-2);
+    // Square capsule crops, several per row instead of one wide strip.
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, calc(92px * var(--library-card-scale, 1))), 1fr));
   }
 
   .cardMedia {
-    aspect-ratio: 2.1;
+    aspect-ratio: 1;
   }
 
-  .cardTitle {
-    margin-top: 5px;
-    font-size: 10px;
-  }
-
-  .cardSubtitle {
-    font-size: 8px;
+  .catalogPreview .playButton {
+    width: 100%;
+    min-width: 0;
+    height: 38px;
+    margin-top: var(--space-3);
+    font-size: var(--type-sm);
   }
 
   .catalogPagination {
-    min-height: 33px;
-    margin-top: 5px;
+    min-height: 40px;
+    margin-top: var(--space-1);
+    padding-top: var(--space-1);
   }
 
-  .catalogPagination button {
-    min-height: 28px;
+  .catalogPagination button, .pageJump input {
+    height: 30px;
   }
 
   .navBar {
-    height: 32px;
-    padding-inline: 6%;
+    height: 40px;
+    margin-bottom: var(--space-2);
+    padding: 3px;
   }
 
-  .navButton {
-    gap: 4px;
+  .navIndicator {
+    top: 3px;
+    bottom: 3px;
+    left: 3px;
+    width: calc((100% - 6px) / var(--nav-count));
   }
 
   .navIcon {
-    font-size: 16px;
-  }
-
-  .navLabel {
-    font-size: 8px;
+    font-size: 18px;
   }
 }
 
@@ -1253,4 +1515,138 @@
   .card:hover:not(:disabled) .coverImage, .playButton:hover:not(:disabled) {
     transform: none;
   }
+}
+
+
+@keyframes heroTextIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+
+// Launch: the card's box grows into a full-screen title card, holds while
+// the game starts, then fades away to reveal it.
+.launchOverlay {
+  position: absolute;
+  inset: 0;
+  z-index: 40;
+  overflow: hidden;
+  background: #0b0d10;
+  pointer-events: none;
+  animation:
+    launchGrow var(--motion-slow) var(--ease-spring) both,
+    launchReveal 320ms var(--ease-exit) 930ms forwards;
+}
+
+.launchArt {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: right center;
+  animation: launchArtDrift 1.25s ease-out both;
+}
+
+.launchShade {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(90deg, rgba(11, 13, 16, .85), rgba(11, 13, 16, .35) 55%, rgba(11, 13, 16, .1)),
+    linear-gradient(0deg, rgba(11, 13, 16, .9), transparent 45%);
+}
+
+.launchTitle {
+  position: absolute;
+  left: clamp(20px, 6%, 64px);
+  bottom: clamp(24px, 10%, 80px);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  width: min(420px, 70%);
+  animation: heroTextIn var(--motion-slow) var(--ease-spring) 120ms both;
+
+  > span {
+    color: #f4f6f6;
+    font: 600 clamp(28px, 4.5vw, 56px) / 1.05 var(--platform-font-heading);
+    letter-spacing: -.035em;
+    text-shadow: 0 2px 24px rgba(0, 0, 0, .6);
+  }
+}
+
+.launchProgress {
+  position: relative;
+  display: block;
+  width: 160px;
+  height: 2px;
+  overflow: hidden;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, .14);
+
+  &::after {
+    position: absolute;
+    inset: 0;
+    width: 40%;
+    background: var(--game-accent, #00daf3);
+    animation: launchProgress 900ms var(--ease-settle) infinite;
+    content: "";
+  }
+}
+
+@keyframes launchGrow {
+  from { clip-path: var(--launch-from); }
+  to { clip-path: inset(0 round 0); }
+}
+
+@keyframes launchReveal {
+  to { opacity: 0; }
+}
+
+@keyframes launchArtDrift {
+  from { transform: scale(1.06); }
+  to { transform: scale(1); }
+}
+
+@keyframes launchProgress {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(250%); }
+}
+
+// First-load reveal: the mark settles in, then the whole curtain lifts.
+.bootReveal {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: grid;
+  place-items: center;
+  background: #07080a;
+  pointer-events: none;
+  animation: bootCurtain 420ms var(--ease-exit) 980ms forwards;
+}
+
+.bootMark {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  color: #f2f4f4;
+  animation: bootMarkIn 700ms var(--ease-spring) both;
+
+  svg {
+    width: 40px;
+    height: 40px;
+    color: #00daf3;
+  }
+
+  span {
+    font: 700 30px var(--platform-font-heading);
+    letter-spacing: .32em;
+  }
+}
+
+@keyframes bootMarkIn {
+  from { opacity: 0; transform: scale(.94); filter: blur(6px); letter-spacing: .5em; }
+  to { opacity: 1; transform: none; filter: none; }
+}
+
+@keyframes bootCurtain {
+  to { opacity: 0; visibility: hidden; }
 }

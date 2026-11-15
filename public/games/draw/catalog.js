@@ -1,5 +1,7 @@
 export const drawPresentation = {
   coverUrl: "/games/draw/assets/cover.svg",
+  capsuleUrl: "/games/draw/art/capsule.svg",
+  backdropUrl: "/games/draw/art/backdrop.svg",
   accentColor: "#b5adff",
   controls: ["pointer", "touch"],
 };

@@ -1,0 +1,201 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080">
+  <defs>
+    <linearGradient id="eoSky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#04070a"/>
+      <stop offset="0.45" stop-color="#0e171d"/>
+      <stop offset="0.68" stop-color="#16222a"/>
+      <stop offset="0.82" stop-color="#0f181e"/>
+      <stop offset="1" stop-color="#0b1117"/>
+    </linearGradient>
+    <radialGradient id="eoKey" cx="1715" cy="312" r="1100" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#f6fffd"/>
+      <stop offset="0.04" stop-color="#d4fbf4" stop-opacity="0.9"/>
+      <stop offset="0.1" stop-color="#6fead6" stop-opacity="0.44"/>
+      <stop offset="0.26" stop-color="#5f9c95" stop-opacity="0.15"/>
+      <stop offset="0.55" stop-color="#4d6f6c" stop-opacity="0.04"/>
+      <stop offset="1" stop-color="#2ee6c8" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="eoFlare" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#e9fffb" stop-opacity="0.8"/>
+      <stop offset="0.4" stop-color="#2ee6c8" stop-opacity="0.22"/>
+      <stop offset="1" stop-color="#2ee6c8" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="eoShaft" x1="1" y1="0" x2="0" y2="0.4">
+      <stop offset="0" stop-color="#c8f8ef" stop-opacity="0.12"/>
+      <stop offset="0.7" stop-color="#c8f8ef" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="eoCloudLit" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#4f6968"/>
+      <stop offset="0.16" stop-color="#26363a"/>
+      <stop offset="1" stop-color="#0b1117"/>
+    </linearGradient>
+    <linearGradient id="eoCloudDim" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#28363a"/>
+      <stop offset="0.3" stop-color="#141e23"/>
+      <stop offset="1" stop-color="#0b1117"/>
+    </linearGradient>
+    <linearGradient id="eoHaze" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#8fa9aa" stop-opacity="0"/>
+      <stop offset="0.5" stop-color="#8fa9aa" stop-opacity="0.1"/>
+      <stop offset="1" stop-color="#8fa9aa" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="eoIsland" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#25333a"/>
+      <stop offset="1" stop-color="#16212a" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="eoSlabTop" x1="800" y1="0" x2="1640" y2="0" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#0b1117"/>
+      <stop offset="0.6" stop-color="#1b262c"/>
+      <stop offset="1" stop-color="#3f5658"/>
+    </linearGradient>
+    <linearGradient id="eoSlabFace" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#121a1f"/>
+      <stop offset="0.5" stop-color="#090d11"/>
+      <stop offset="1" stop-color="#0b1117"/>
+    </linearGradient>
+    <linearGradient id="eoRimLine" x1="1100" y1="0" x2="1640" y2="0" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#a8f2e5" stop-opacity="0"/>
+      <stop offset="1" stop-color="#a8f2e5" stop-opacity="0.6"/>
+    </linearGradient>
+    <radialGradient id="eoImpact" cx="1614" cy="413" r="140" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#f4fffd" stop-opacity="0.9"/>
+      <stop offset="0.2" stop-color="#2ee6c8" stop-opacity="0.5"/>
+      <stop offset="1" stop-color="#2ee6c8" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="eoFadeLeft" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#0b1117"/>
+      <stop offset="0.3" stop-color="#0b1117" stop-opacity="0.85"/>
+      <stop offset="0.55" stop-color="#0b1117" stop-opacity="0.2"/>
+      <stop offset="0.7" stop-color="#0b1117" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="eoFadeBottom" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0.66" stop-color="#0b1117" stop-opacity="0"/>
+      <stop offset="0.82" stop-color="#0b1117" stop-opacity="0.85"/>
+      <stop offset="0.94" stop-color="#0b1117"/>
+    </linearGradient>
+    <radialGradient id="eoVignette" cx="0.7" cy="0.4" r="0.8">
+      <stop offset="0.5" stop-color="#0b1117" stop-opacity="0"/>
+      <stop offset="1" stop-color="#0b1117" stop-opacity="0.95"/>
+    </radialGradient>
+    <filter id="eoGrain" x="0" y="0" width="100%" height="100%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="2" stitchTiles="stitch"/>
+      <feColorMatrix values="1.6 0 0 0 -0.3  1.6 0 0 0 -0.3  1.6 0 0 0 -0.3  0 0 0 0 1"/>
+    </filter>
+
+    <!-- Attacker: armoured fighter mid-shove, facing right, feet at the origin. -->
+    <g id="eoAttacker">
+      <path d="M62 -284C82 -280 102 -272 120 -266C124 -258 122 -250 116 -246C98 -250 78 -256 58 -262Z"/>
+      <path d="M116 -268C134 -266 150 -264 166 -262L168 -244C152 -244 134 -244 114 -246Z"/>
+      <path d="M164 -266C174 -270 184 -268 188 -260L190 -246C186 -240 176 -238 166 -242Z"/>
+      <path d="M-46 -156L-6 -136C-30 -110 -54 -84 -70 -64L-96 -82C-78 -104 -60 -130 -46 -156Z"/>
+      <path d="M-96 -86L-70 -64C-90 -46 -116 -24 -128 -10L-146 -22C-130 -38 -112 -62 -96 -86Z"/>
+      <path d="M-150 -26L-128 -12L-112 0L-150 0C-158 -4 -160 -14 -150 -26Z"/>
+      <path d="M-36 -140C-40 -180 -10 -240 30 -268C50 -282 78 -284 92 -268C100 -252 96 -232 84 -216C70 -198 50 -182 38 -160C30 -146 18 -134 -2 -128C-18 -126 -32 -130 -36 -140Z"/>
+      <path d="M-40 -156L32 -152L36 -128L-36 -124Z"/>
+      <path d="M-6 -160C20 -150 60 -120 88 -100L70 -72C44 -90 10 -120 -16 -134Z"/>
+      <path d="M66 -108L90 -110L98 -86L82 -70L64 -78Z"/>
+      <path d="M64 -90L94 -84C86 -60 70 -30 64 -12L42 -14C48 -40 56 -66 64 -90Z"/>
+      <path d="M38 -22L66 -22L72 -12C82 -8 90 -4 92 0L32 0Z"/>
+      <path d="M92 -286C100 -300 122 -302 132 -290C138 -280 138 -266 130 -256L112 -250C102 -252 94 -258 90 -268Z"/>
+      <path d="M40 -286C62 -298 88 -292 98 -272L92 -248C76 -240 54 -242 40 -252C34 -262 34 -276 40 -286Z"/>
+      <path d="M64 -264C82 -258 100 -248 118 -236C122 -230 120 -220 112 -214C96 -222 78 -230 60 -240Z"/>
+      <path d="M106 -242L124 -240L128 -220L112 -212Z"/>
+      <path d="M118 -238C136 -236 152 -234 168 -232L170 -212C154 -213 136 -213 118 -214Z"/>
+      <path d="M166 -236C176 -240 186 -238 190 -230L194 -214C192 -206 182 -204 170 -208Z"/>
+    </g>
+
+    <!-- Defender: armoured fighter facing left, upright, feet at the origin; tilted back at use. -->
+    <g id="eoDefender">
+      <path d="M4 -270L10 -248C26 -244 42 -242 58 -240L60 -262C44 -264 26 -268 4 -270Z"/>
+      <path d="M56 -262L58 -240L96 -250L100 -270Z"/>
+      <path d="M96 -274L114 -276L116 -258L98 -250Z"/>
+      <path d="M-14 -162C-34 -152 -52 -146 -70 -142L-60 -112C-42 -118 -24 -124 -4 -132Z"/>
+      <path d="M-72 -130L-48 -126C-50 -104 -54 -82 -54 -66L-74 -64C-74 -84 -74 -108 -72 -130Z"/>
+      <path d="M-80 -70L-52 -70L-50 -58L-84 -48Z"/>
+      <path d="M-10 -156L22 -148C22 -124 24 -104 26 -84L-4 -82C-6 -104 -8 -130 -10 -156Z"/>
+      <path d="M-4 -86L26 -82C22 -56 18 -30 16 -12L-6 -12C-6 -34 -6 -60 -4 -86Z"/>
+      <path d="M20 -20L-8 -20L-12 -8C-22 -6 -28 -2 -28 0L24 0Z"/>
+      <path d="M-26 -142C-32 -180 -36 -226 -22 -262C-10 -282 14 -284 26 -268C30 -240 26 -200 24 -170C22 -152 20 -140 14 -132L-16 -128Z"/>
+      <path d="M-34 -272C-22 -290 2 -292 16 -280L20 -258C6 -248 -18 -248 -32 -256Z"/>
+      <path d="M-38 -288C-40 -304 -24 -316 -8 -314C6 -312 14 -300 12 -286L4 -272C-10 -268 -26 -270 -36 -278Z"/>
+      <path d="M-2 -272L18 -252C30 -268 42 -286 52 -300L34 -318C22 -302 10 -288 -2 -272Z"/>
+      <path d="M34 -314L54 -304C58 -322 62 -338 64 -354L46 -358C42 -344 38 -330 34 -314Z"/>
+      <path d="M44 -356L66 -352L66 -370L50 -374Z"/>
+    </g>
+  </defs>
+
+  <rect width="1920" height="1080" fill="url(#eoSky)"/>
+  <rect width="1920" height="1080" fill="url(#eoKey)"/>
+
+  <g fill="url(#eoShaft)">
+    <path d="M1715 312L600 600L700 760Z"/>
+    <path d="M1715 312L900 1080L1200 1080Z"/>
+    <path d="M1715 312L800 140L820 230Z" opacity="0.7"/>
+  </g>
+
+  <g fill="url(#eoIsland)">
+    <path d="M1010 330C1040 322 1092 321 1128 327L1122 337L1106 345L1098 364L1090 404L1082 368L1066 352L1046 346L1026 340Z"/>
+    <path d="M1236 450C1252 446 1276 446 1290 450L1284 460L1274 468L1268 492L1260 468L1250 460Z" opacity="0.7"/>
+    <path d="M760 520C780 516 806 516 822 520L816 528L808 534L802 552L796 534L786 528Z" opacity="0.5"/>
+  </g>
+
+  <path d="M600 860C660 846 700 852 740 846C780 832 820 836 860 842C900 826 950 830 990 838C1040 818 1090 822 1130 832C1180 810 1240 812 1280 824C1330 802 1390 806 1430 816C1480 796 1540 800 1580 810C1630 792 1690 796 1730 806C1780 790 1840 794 1880 800C1900 798 1920 800 1940 802L1940 1080L600 1080Z" fill="url(#eoCloudLit)"/>
+  <path d="M1280 824C1330 802 1390 806 1430 816C1480 796 1540 800 1580 810C1630 792 1690 796 1730 806C1780 790 1840 794 1880 800" fill="none" stroke="#a8f2e5" stroke-opacity="0.25" stroke-width="2"/>
+  <path d="M500 920C620 900 760 914 900 896C1040 880 1180 900 1320 884C1460 870 1600 890 1940 868L1940 1080L500 1080Z" fill="url(#eoCloudDim)"/>
+  <rect y="720" width="1920" height="260" fill="url(#eoHaze)"/>
+
+  <g transform="translate(-60 0)">
+  <g fill="#0a0f13">
+    <path d="M1630 724L1652 716L1666 730L1658 758L1636 762L1624 742Z"/>
+    <path d="M1688 620L1704 614L1712 628L1698 640Z"/>
+    <path d="M1600 790L1614 784L1622 798L1608 810Z"/>
+    <path d="M1660 838L1676 832L1682 848L1666 856Z"/>
+  </g>
+  <g fill="none" stroke="#c8f8ef" stroke-opacity="0.5" stroke-width="1.6">
+    <path d="M1652 716L1666 730"/>
+    <path d="M1704 614L1712 628"/>
+    <path d="M1614 784L1622 798"/>
+  </g>
+  <g stroke="#9fb6b6" stroke-opacity="0.16" stroke-width="2">
+    <path d="M1644 680L1644 706"/>
+    <path d="M1696 570L1696 602"/>
+    <path d="M1610 742L1610 772"/>
+  </g>
+
+  <path d="M700 682L1480 670L1590 676L1632 690L1622 700L1598 694L1582 710L700 716Z" fill="url(#eoSlabTop)"/>
+  <path d="M700 714L1582 708L1598 694L1622 700L1628 728L1606 776L1570 816L1490 876L1420 940L1350 1010L1300 960L1220 920L1120 880L1000 830L880 780L760 740Z" fill="url(#eoSlabFace)"/>
+  <path d="M700 682L1480 670L1590 676L1632 690" fill="none" stroke="url(#eoRimLine)" stroke-width="1.6"/>
+  <g fill="none" stroke="#030507" stroke-width="2">
+    <path d="M1590 676L1574 694L1586 712"/>
+    <path d="M1520 672L1508 692L1522 702L1514 716"/>
+    <path d="M1300 716L1290 790L1312 860"/>
+    <path d="M1440 714L1460 800L1444 880"/>
+  </g>
+
+  </g>
+
+  <use href="#eoDefender" transform="translate(1526.72 688.666) rotate(28) scale(1.25)" fill="#2ee6c8" stroke="#2ee6c8" stroke-width="3" stroke-linejoin="round" opacity="0.35"/>
+  <use href="#eoDefender" transform="translate(1522.45 690.222) rotate(28) scale(1.25)" fill="#ecfffb" stroke="#ecfffb" stroke-width="3" stroke-linejoin="round"/>
+  <use href="#eoDefender" transform="translate(1518.55 692.556) rotate(28) scale(1.25)" fill="#0b1418" stroke="#0b1418" stroke-width="3" stroke-linejoin="round"/>
+  <path transform="translate(1518.55 692.556) rotate(28) scale(1.25)" d="M18 -270C28 -262 30 -240 28 -200C26 -170 22 -150 16 -134L10 -136C16 -160 20 -190 22 -220C24 -244 22 -258 18 -270Z M0 -314C10 -310 14 -298 12 -286L6 -284C8 -296 6 -306 0 -314Z M22 -146L26 -146C26 -120 28 -100 28 -84C24 -56 20 -30 18 -12L14 -12C16 -30 20 -56 22 -84C22 -110 22 -128 22 -146Z M56 -240L96 -250L98 -246L58 -236Z" fill="#29403f"/>
+  <use href="#eoAttacker" transform="translate(1382.72 688.666) scale(1.25)" fill="#2ee6c8" stroke="#2ee6c8" stroke-width="3" stroke-linejoin="round" opacity="0.3"/>
+  <use href="#eoAttacker" transform="translate(1378.45 690.222) scale(1.25)" fill="#c8f8ef" stroke="#c8f8ef" stroke-width="3" stroke-linejoin="round"/>
+  <use href="#eoAttacker" transform="translate(1374.55 692.556) scale(1.25)" fill="#05080b" stroke="#05080b" stroke-width="3" stroke-linejoin="round"/>
+  <path transform="translate(1374.55 692.556) scale(1.25)" d="M120 -292C130 -290 136 -280 136 -268L130 -258L125 -261C129 -272 127 -284 120 -292Z M118 -234L170 -227L170 -222L118 -229Z M122 -262L168 -256L168 -252L120 -258Z M88 -84L94 -84C86 -60 72 -30 66 -12L61 -12C69 -32 79 -60 88 -84Z M52 -291C68 -297 88 -290 97 -273L91 -271C82 -285 68 -290 52 -291Z M84 -104L90 -110L98 -86L92 -82Z" fill="#1e2b30"/>
+  <path transform="translate(1374.55 692.556) scale(1.25)" d="M116 -281L136 -277L135 -272L115 -275Z" fill="#2ee6c8"/>
+
+  <circle cx="1614" cy="413" r="140" fill="url(#eoImpact)"/>
+  <ellipse cx="1614" cy="413" rx="400" ry="3" fill="#e9fffb" opacity="0.5"/>
+  <ellipse cx="1715" cy="312" rx="640" ry="3.5" fill="#bdf6ec" opacity="0.3"/>
+  <ellipse cx="1715" cy="312" rx="120" ry="120" fill="url(#eoFlare)"/>
+  <g stroke="#d4fbf4" stroke-linecap="round" fill="none">
+    <path d="M1660 420L1800 444" stroke-width="2" stroke-opacity="0.45"/>
+    <path d="M1650 470L1770 516" stroke-width="1.6" stroke-opacity="0.35"/>
+    <path d="M1690 370L1830 370" stroke-width="1.6" stroke-opacity="0.3"/>
+  </g>
+
+  <rect width="1920" height="1080" filter="url(#eoGrain)" opacity="0.07"/>
+  <rect width="1920" height="1080" fill="url(#eoFadeLeft)"/>
+  <rect width="1920" height="1080" fill="url(#eoVignette)"/>
+  <rect width="1920" height="1080" fill="url(#eoFadeBottom)"/>
+</svg>

@@ -9,6 +9,8 @@ export const GAME_CONTROL_LABELS = Object.freeze({
  * @typedef {"keyboard"|"touch"|"pointer"} GameControl
  * @typedef {object} GamePresentation
  * @property {string} [coverUrl] Root-relative or HTTPS cover illustration.
+ * @property {string} [capsuleUrl] Portrait 600×900 art for library cards; root-relative or HTTPS.
+ * @property {string} [backdropUrl] Wide 1920×1080 scene shown behind the library; root-relative or HTTPS.
  * @property {string} [accentColor] Six-digit hex color.
  * @property {GameControl[]} [controls] Inputs the game actually supports.
  */
@@ -41,7 +43,8 @@ export function validateGamePresentation(presentation, gameId) {
   if (presentation === undefined) return;
 
   if (presentation === null || typeof presentation !== "object" || Array.isArray(presentation) ||
-      (presentation.coverUrl !== undefined && !isSupportedGameCoverUrl(presentation.coverUrl)) ||
+      ["coverUrl", "capsuleUrl", "backdropUrl"].some((artworkKey) =>
+        presentation[artworkKey] !== undefined && !isSupportedGameCoverUrl(presentation[artworkKey])) ||
       (presentation.accentColor !== undefined && !isSupportedGameAccent(presentation.accentColor)) ||
       (presentation.controls !== undefined && (!Array.isArray(presentation.controls) ||
         presentation.controls.some((control) =>

@@ -1,5 +1,7 @@
 export const roadRashPresentation = {
   coverUrl: "/games/roadrash/assets/cover.svg",
+  capsuleUrl: "/games/roadrash/art/capsule.svg",
+  backdropUrl: "/games/roadrash/art/backdrop.svg",
   accentColor: "#ffc078",
   controls: ["keyboard", "touch"],
 };

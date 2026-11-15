@@ -3,23 +3,23 @@
 }
 
 .unblockGuide {
-  margin-top: 14px;
-  padding: 12px 14px;
-  border: 1px solid var(--platform-border);
-  border-radius: var(--platform-radius);
+  margin-top: var(--space-4);
+  padding: var(--space-4);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-md);
   background: var(--platform-surface-inset);
   font-family: var(--platform-font-body);
-  font-size: 11px;
+  font-size: var(--type-sm);
   line-height: 1.55;
 
   h3 {
     display: flex;
     align-items: center;
-    gap: 7px;
-    margin: 0 0 8px;
-    color: var(--platform-text);
+    gap: var(--space-2);
+    margin: 0 0 var(--space-2);
+    color: var(--text-strong);
     font-family: var(--platform-font-heading);
-    font-size: 13px;
+    font-size: var(--type-md);
     font-weight: 600;
 
     > span {
@@ -30,30 +30,31 @@
 
   ol {
     margin: 0;
-    padding-left: 18px;
-    color: var(--platform-text);
+    padding-left: var(--space-5);
+    color: var(--text-body);
 
     li + li {
-      margin-top: 6px;
+      margin-top: var(--space-2);
     }
   }
 
   p {
-    margin: 10px 0 0;
-    color: var(--platform-text-muted);
+    margin: var(--space-3) 0 0;
+    color: var(--text-muted);
+    font-size: var(--type-xs);
   }
 }
 
 .options {
-  margin-top: 12px;
+  margin-top: var(--space-3);
 
   summary {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    min-height: 44px;
-    color: var(--platform-text-muted);
-    font-size: 11px;
+    min-height: var(--control-md);
+    color: var(--text-muted);
+    font-size: var(--type-sm);
     cursor: pointer;
     list-style: none;
 
@@ -63,7 +64,7 @@
 
     > span {
       font-size: 18px;
-      transition: transform 140ms ease;
+      transition: transform var(--motion-medium) var(--ease-spring);
     }
 
     &:hover {
@@ -73,7 +74,7 @@
     &:focus-visible {
       outline: 2px solid var(--platform-focus);
       outline-offset: 2px;
-      border-radius: var(--platform-radius);
+      border-radius: var(--radius-sm);
     }
   }
 
@@ -85,9 +86,9 @@
 .volumeControl {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding-block: 8px 12px;
-  font-size: 11px;
+  gap: var(--space-2);
+  padding-block: var(--space-2) var(--space-3);
+  font-size: var(--type-sm);
 
   > span {
     display: flex;
@@ -117,13 +118,14 @@
 }
 
 .participants {
-  margin-top: 12px;
+  margin-top: var(--space-3);
 
   h3 {
-    margin: 0 0 6px;
-    color: var(--platform-text-muted);
-    font-size: 10px;
+    margin: 0 0 var(--space-1);
+    color: var(--text-muted);
+    font-size: var(--type-xs);
     font-weight: 600;
+    letter-spacing: .04em;
   }
 
   ul {
@@ -136,9 +138,9 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 12px;
-    padding-block: 7px;
-    font-size: 12px;
+    gap: var(--space-3);
+    padding-block: var(--space-2);
+    font-size: var(--type-sm);
 
     > span:first-child {
       min-width: 0;
@@ -150,13 +152,13 @@
 .participantState {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  gap: var(--space-1);
   flex-shrink: 0;
-  color: var(--platform-text-muted);
-  font-size: 10px;
+  color: var(--text-muted);
+  font-size: var(--type-xs);
 
   > :global(.material-symbols-outlined) {
-    font-size: 15px;
+    font-size: 16px;
   }
 }
 

@@ -15,6 +15,7 @@ import styles from "./PlatformDialog.module.scss";
  * @property {React.RefObject<HTMLElement|null>} [initialFocusRef]
  * @property {React.ReactNode} children
  * @property {React.ReactNode} [footer]
+ * @property {string} [accentColor] A game's accent: washes the panel top and staggers its content in, for results.
  */
 
 /**
@@ -24,7 +25,7 @@ import styles from "./PlatformDialog.module.scss";
  */
 export default function PlatformDialog({
   label, title, description, eyebrow, icon, onClose, closeLabel = "Close dialog",
-  closeIcon = "close", initialFocusRef, children, footer,
+  closeIcon = "close", initialFocusRef, children, footer, accentColor,
 }) {
   const descriptionId = useId();
   const panelRef = useRef(null);
@@ -51,7 +52,12 @@ export default function PlatformDialog({
       onKeyPress={(event) => event.stopPropagation()}
       onKeyUp={containDialogKeyUp}
     >
-      <div className={styles.panel} ref={panelRef} tabIndex={-1}>
+      <div
+        className={accentColor ? `${styles.panel} ${styles.panelAccent}` : styles.panel}
+        style={accentColor ? { "--dialog-accent": accentColor } : undefined}
+        ref={panelRef}
+        tabIndex={-1}
+      >
         {onClose && (
           <button type="button" className={styles.closeButton} onClick={onClose} aria-label={closeLabel}>
             <span className="material-symbols-outlined" aria-hidden="true">{closeIcon}</span>

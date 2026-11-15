@@ -42,11 +42,17 @@ function AnalogStick({ side, disabled }) {
   );
 }
 
+/**
+ * The console shell's physical controls.
+ * @param {{onDirectional?:(direction:string)=>void,onAction?:(action:string)=>void,disabled?:boolean,variant?:string,analogSticks?:boolean}} props
+ * `analogSticks` false hides the sticks (the library needs only the D-pad and buttons).
+ */
 export default function PlatformController({
   onDirectional,
   onAction,
   disabled = false,
   variant = "full",
+  analogSticks = true,
 }) {
   const layout = getControllerLayout(variant);
   const sharedProps = { onDirectional, onAction, disabled };
@@ -65,7 +71,7 @@ export default function PlatformController({
             alignment={layout.utilityAlignment}
           />
 
-          {!isActionSide && <AnalogStick side="left" disabled={disabled} />}
+          {analogSticks && !isActionSide && <AnalogStick side="left" disabled={disabled} />}
 
           <div
             className={classNames(
@@ -76,7 +82,7 @@ export default function PlatformController({
             {renderPrimaryCluster(layout.primaryCluster, sharedProps)}
           </div>
 
-          {isActionSide && <AnalogStick side="right" disabled={disabled} />}
+          {analogSticks && isActionSide && <AnalogStick side="right" disabled={disabled} />}
         </div>
       </ControllerFrame>
     );
@@ -87,12 +93,12 @@ export default function PlatformController({
       <div className={styles.controllerBody}>
         <div className={styles.controllerFullCluster}>
           <ControllerDirectionalPad onDirectional={onDirectional} disabled={disabled} />
-          <AnalogStick side="left" disabled={disabled} />
+          {analogSticks && <AnalogStick side="left" disabled={disabled} />}
         </div>
         <ControllerUtilityButtons buttons={layout.utilityButtons} onAction={onAction} disabled={disabled} />
         <div className={styles.controllerFullCluster}>
           <ControllerActionPad onAction={onAction} disabled={disabled} />
-          <AnalogStick side="right" disabled={disabled} />
+          {analogSticks && <AnalogStick side="right" disabled={disabled} />}
         </div>
       </div>
     </ControllerFrame>

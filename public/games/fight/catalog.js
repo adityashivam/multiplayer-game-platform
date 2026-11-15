@@ -1,5 +1,7 @@
 export const fightPresentation = {
   coverUrl: "/games/fight/assets/cover.svg",
+  capsuleUrl: "/games/fight/art/capsule.svg",
+  backdropUrl: "/games/fight/art/backdrop.svg",
   accentColor: "#ffae85",
   controls: ["keyboard", "touch"],
 };

@@ -19,7 +19,7 @@ export default function CatalogPagination({ page, totalPages, loading, onPageCha
   return (
     <nav className={styles.catalogPagination} aria-label="Catalog pages">
       <button type="button" onClick={() => onPageChange(page - 1)} disabled={loading || page <= 1} aria-label="Previous page">
-        <span aria-hidden="true">←</span><span>Previous</span>
+        <span className="material-symbols-outlined" aria-hidden="true">chevron_left</span><span>Previous</span>
       </button>
       <form className={styles.pageJump} onSubmit={submitPage}>
         <label>Page
@@ -36,10 +36,10 @@ export default function CatalogPagination({ page, totalPages, loading, onPageCha
           />
         </label>
         <span>of {totalPages.toLocaleString()}</span>
-        <button type="submit" aria-label="Go to page" disabled={loading} title="Go to page">↵</button>
+        <button type="submit" aria-label="Go to page" disabled={loading} title="Go to page"><span className="material-symbols-outlined" aria-hidden="true">arrow_forward</span></button>
       </form>
       <button type="button" onClick={() => onPageChange(page + 1)} disabled={loading || page >= totalPages} aria-label="Next page">
-        <span>Next</span><span aria-hidden="true">→</span>
+        <span>Next</span><span className="material-symbols-outlined" aria-hidden="true">chevron_right</span>
       </button>
     </nav>
   );

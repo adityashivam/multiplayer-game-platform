@@ -85,9 +85,11 @@ async function openGameMenu(id) {
   if (!toggle) return;
   await pressAt(id, toggle);
   await waitFor(id, `document.querySelector('[data-platform-game-menu-toggle][aria-expanded="true"]')`, 5000);
+  // Let the menu's entrance animation settle before measuring its buttons.
+  await new Promise((resolve) => setTimeout(resolve, 220));
 }
 async function click(id, selector) {
-  const locate = `const element=document.querySelector(${JSON.stringify(selector)});if(!element)return null;const bounds=element.getBoundingClientRect();return{x:bounds.x+bounds.width/2,y:bounds.y+bounds.height/2};`;
+  const locate = `const element=[...document.querySelectorAll(${JSON.stringify(selector)})].find((candidate)=>!candidate.closest('[inert]'));if(!element)return null;const bounds=element.getBoundingClientRect();return{x:bounds.x+bounds.width/2,y:bounds.y+bounds.height/2};`;
   let point = await evaluate(id, locate);
   if (!point) {
     // Platform actions stay folded inside the floating game menu until it opens.

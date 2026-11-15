@@ -1,0 +1,184 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080">
+  <defs>
+    <linearGradient id="rbBack" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#030507"/>
+      <stop offset="0.45" stop-color="#0a1016"/>
+      <stop offset="0.73" stop-color="#121a21"/>
+      <stop offset="0.742" stop-color="#070b0f"/>
+      <stop offset="1" stop-color="#0b1117"/>
+    </linearGradient>
+    <radialGradient id="rbBallGlow" cx="1712" cy="362" r="900" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#f2fffe"/>
+      <stop offset="0.04" stop-color="#c9f8f4" stop-opacity="0.9"/>
+      <stop offset="0.11" stop-color="#27ded1" stop-opacity="0.4"/>
+      <stop offset="0.3" stop-color="#4f8e8a" stop-opacity="0.12"/>
+      <stop offset="1" stop-color="#27ded1" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="rbBallCore" cx="0.42" cy="0.4" r="0.6">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="0.45" stop-color="#d8fbf8"/>
+      <stop offset="0.85" stop-color="#5ee9de"/>
+      <stop offset="1" stop-color="#27ded1"/>
+    </radialGradient>
+    <linearGradient id="rbTrail" x1="0" y1="1" x2="0.6" y2="0">
+      <stop offset="0" stop-color="#27ded1" stop-opacity="0"/>
+      <stop offset="1" stop-color="#d8fbf8" stop-opacity="0.75"/>
+    </linearGradient>
+    <linearGradient id="rbPillar" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#8ea1ad" stop-opacity="0"/>
+      <stop offset="0.5" stop-color="#8ea1ad" stop-opacity="0.2"/>
+      <stop offset="1" stop-color="#8ea1ad" stop-opacity="0.05"/>
+    </linearGradient>
+    <linearGradient id="rbHaze" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#7d8f99" stop-opacity="0"/>
+      <stop offset="0.6" stop-color="#7d8f99" stop-opacity="0.13"/>
+      <stop offset="1" stop-color="#7d8f99" stop-opacity="0"/>
+    </linearGradient>
+    <radialGradient id="rbFloorPool" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#9ff1ea" stop-opacity="0.34"/>
+      <stop offset="0.4" stop-color="#27ded1" stop-opacity="0.1"/>
+      <stop offset="1" stop-color="#27ded1" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="rbReflect" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#c9f8f4" stop-opacity="0.35"/>
+      <stop offset="1" stop-color="#27ded1" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="rbFadeLeft" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#0b1117"/>
+      <stop offset="0.3" stop-color="#0b1117" stop-opacity="0.85"/>
+      <stop offset="0.55" stop-color="#0b1117" stop-opacity="0.25"/>
+      <stop offset="0.7" stop-color="#0b1117" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="rbFadeBottom" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0.72" stop-color="#0b1117" stop-opacity="0"/>
+      <stop offset="0.86" stop-color="#0b1117" stop-opacity="0.85"/>
+      <stop offset="0.96" stop-color="#0b1117"/>
+    </linearGradient>
+    <radialGradient id="rbVignette" cx="0.72" cy="0.38" r="0.8">
+      <stop offset="0.5" stop-color="#0b1117" stop-opacity="0"/>
+      <stop offset="1" stop-color="#0b1117" stop-opacity="0.95"/>
+    </radialGradient>
+    <filter id="rbGrain" x="0" y="0" width="100%" height="100%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="2" stitchTiles="stitch"/>
+      <feColorMatrix values="1.6 0 0 0 -0.3  1.6 0 0 0 -0.3  1.6 0 0 0 -0.3  0 0 0 0 1"/>
+    </filter>
+
+    <!-- Athlete airborne after a strike, facing right, pelvis at the origin. -->
+    <g id="rbAthlete">
+      <path d="M40.1 -100.1Q21.5 -90.5 2.8 -80.8A7.5 7.5 0 0 0 9.2 -67.2Q28.5 -75.5 47.9 -83.9A9 9 0 0 0 40.1 -100.1Z"/>
+      <path d="M1.8 -80.2Q-15.7 -67.6 -33.3 -55A6 6 0 0 0 -26.7 -45Q-8.3 -56.4 10.2 -67.8A7.5 7.5 0 0 0 1.8 -80.2Z"/>
+      <path d="M-29.1 -42A8 7 30 1 0 -42.9 -50A8 7 30 1 0 -29.1 -42Z"/>
+      <path d="M-15.9 -10.6Q-45.2 18.1 -72.8 48.7A10 10 0 0 0 -59.2 63.3Q-26.8 37.9 3.9 10.6A14.5 14.5 0 0 0 -15.9 -10.6Z"/>
+      <path d="M-69.7 46.7Q-104.6 61.1 -138.4 78A6.5 6.5 0 0 0 -133.6 90Q-97.4 78.9 -62.3 65.3A10 10 0 0 0 -69.7 46.7Z"/>
+      <path d="M-135 78.1Q-147.1 76.8 -159.3 75.6A4.5 4.5 0 0 0 -160.7 84.4Q-148.9 87.2 -137 89.9A6 6 0 0 0 -135 78.1Z"/>
+      <path d="M15.1 13.7Q43.2 -26.2 65.4 -69.1A24 24 0 0 0 22.6 -90.9Q0.8 -47.8 -15.1 -1.7A17 17 0 0 0 15.1 13.7Z"/>
+      <path d="M55.9 -61.8Q62.7 -77.2 69.5 -92.7A12 12 0 0 0 50.5 -107.3Q37.3 -96.8 24.1 -86.2A20 20 0 0 0 55.9 -61.8Z"/>
+      <path d="M57.6 -91Q65.4 -100.2 73.2 -109.3A7 7 0 0 0 62.8 -118.7Q54.6 -109.8 46.4 -101A7.5 7.5 0 0 0 57.6 -91Z"/>
+      <path d="M93.3 -118.4A18 21 25 1 0 60.7 -133.6A18 21 25 1 0 93.3 -118.4Z"/>
+      <path d="M1.7 18.2Q38.2 33 75.9 45.1A10 10 0 0 0 84.1 26.9Q49.8 7 14.3 -10.2A15.5 15.5 0 0 0 1.7 18.2Z"/>
+      <path d="M70 32.8Q57.3 72.8 47.8 114A6.5 6.5 0 0 0 60.2 118Q76.7 79.2 90 39.2A10.5 10.5 0 0 0 70 32.8Z"/>
+      <path d="M49.1 120.3Q57.9 128.7 66.6 137A4.5 4.5 0 0 0 73.4 131Q66.1 121.3 58.9 111.7A6.5 6.5 0 0 0 49.1 120.3Z"/>
+      <path d="M75.9 25.5L89.9 30.6L91.4 33.8L87.4 45L84.1 46.5L70.1 41.4L68.6 38.2L72.6 27Z"/>
+      <path d="M36.6 -99.6L59.1 -108.8L64.2 -106.6L69.5 -93.4L67.4 -88.4L44.9 -79.2L39.8 -81.4L34.5 -94.6Z"/>
+      <path d="M59.3 -83.1Q83.4 -91.8 106.8 -102.5A8 8 0 0 0 101.2 -117.5Q76.6 -110.2 52.7 -100.9A9.5 9.5 0 0 0 59.3 -83.1Z"/>
+      <path d="M106.6 -101.9Q128.7 -108.7 150.7 -115.4A9 9 0 0 0 145.3 -132.6Q123.3 -125.3 101.4 -118.1A8.5 8.5 0 0 0 106.6 -101.9Z"/>
+      <path d="M115.7 -125L142.2 -133.1L146.1 -131L150.4 -116.9L148.3 -113L121.8 -104.9L117.9 -107L113.6 -121.1Z"/>
+      <path d="M167.6 -129.9A10 9 -17 1 0 148.4 -124.1A10 9 -17 1 0 167.6 -129.9Z"/>
+    </g>
+  </defs>
+
+  <rect width="1920" height="1080" fill="url(#rbBack)"/>
+
+  <path d="M-10 640L1930 600L1930 800L-10 800Z" fill="#0d141a"/>
+  <g fill="#141d24">
+    <path d="M-10 680L1930 646L1930 658L-10 692Z"/>
+    <path d="M-10 740L1930 712L1930 722L-10 750Z"/>
+  </g>
+  <g fill="#b9c7cf" opacity="0.45">
+    <rect x="1040" y="668" width="3" height="3"/>
+    <rect x="1130" y="666" width="3" height="3"/>
+    <rect x="1260" y="664" width="3" height="3"/>
+    <rect x="1390" y="661" width="3" height="3"/>
+    <rect x="1520" y="659" width="3" height="3"/>
+    <rect x="1840" y="653" width="3" height="3"/>
+    <rect x="1190" y="731" width="3" height="3"/>
+    <rect x="1460" y="727" width="3" height="3"/>
+    <rect x="1700" y="724" width="3" height="3"/>
+  </g>
+  <g fill="url(#rbPillar)">
+    <rect x="980" y="80" width="12" height="570"/>
+    <rect x="1160" y="110" width="8" height="540"/>
+    <rect x="1560" y="90" width="10" height="550"/>
+    <rect x="1880" y="40" width="14" height="580"/>
+  </g>
+
+  <g fill="none" stroke="#020406" stroke-linecap="round">
+    <path d="M600 330C960 160 1400 90 1960 96" stroke-width="34"/>
+    <path d="M700 200C1040 70 1460 20 1960 30" stroke-width="24"/>
+  </g>
+  <g fill="none" stroke="#5d6e78" stroke-opacity="0.35" stroke-width="1.5">
+    <path d="M600 313C960 143 1400 73 1960 79"/>
+    <path d="M700 188C1040 58 1460 8 1960 18"/>
+  </g>
+  <g fill="#dfe8ec">
+    <circle cx="1090" cy="182" r="2.4"/>
+    <circle cx="1260" cy="141" r="2.4"/>
+    <circle cx="1430" cy="114" r="2.4"/>
+  </g>
+  <g fill="#9fb1bb" opacity="0.05">
+    <path d="M1090 182L1010 790L1170 790Z"/>
+    <path d="M1260 141L1180 790L1340 790Z"/>
+    <path d="M1430 114L1360 790L1500 790Z"/>
+  </g>
+
+  <rect width="1920" height="1080" fill="url(#rbBallGlow)"/>
+
+  <g transform="translate(1772 186) rotate(18)">
+    <ellipse rx="80" ry="120" fill="none" stroke="#05080b" stroke-width="22"/>
+    <ellipse rx="80" ry="120" fill="none" stroke="#27ded1" stroke-opacity="0.85" stroke-width="3.5"/>
+    <ellipse rx="68" ry="104" fill="none" stroke="#9ff1ea" stroke-opacity="0.25" stroke-width="1.5"/>
+    <ellipse rx="92" ry="136" fill="none" stroke="#27ded1" stroke-opacity="0.12" stroke-width="9"/>
+  </g>
+
+  <rect y="520" width="1920" height="320" fill="url(#rbHaze)"/>
+
+  <rect y="800" width="1920" height="280" fill="#06090c"/>
+  <ellipse cx="1712" cy="812" rx="520" ry="46" fill="url(#rbFloorPool)"/>
+  <g fill="url(#rbPillar)" opacity="0.5">
+    <rect x="1160" y="800" width="8" height="150"/>
+    <rect x="1560" y="800" width="10" height="150"/>
+    <rect x="1880" y="800" width="14" height="170"/>
+  </g>
+  <rect x="1704" y="802" width="16" height="200" fill="url(#rbReflect)"/>
+  <g stroke="#1a242c" stroke-width="1.2">
+    <path d="M1400 800L800 1080"/>
+    <path d="M1400 800L1200 1080"/>
+    <path d="M1400 800L1600 1080"/>
+    <path d="M1400 800L2000 1080"/>
+    <path d="M-10 860L1930 860"/>
+  </g>
+  <path d="M-10 800L1930 800" stroke="#3c4a52" stroke-width="1.5"/>
+
+  <path d="M1630 512C1654 462 1676 418 1698 374L1724 388C1698 428 1668 470 1630 512Z" fill="url(#rbTrail)"/>
+  <path d="M1652 478C1670 446 1688 414 1706 382" fill="none" stroke="#f2fffe" stroke-opacity="0.5" stroke-width="1.6"/>
+  <path d="M1730 330C1744 296 1754 268 1762 246" fill="none" stroke="#9ff1ea" stroke-opacity="0.35" stroke-width="2" stroke-dasharray="3 13"/>
+
+  <ellipse cx="1450" cy="806" rx="220" ry="8" fill="#020304" opacity="0.45"/>
+  <use href="#rbAthlete" transform="translate(1866 772) scale(-0.34 0.34) rotate(-12)" fill="#03060a"/>
+  <path d="M1810 787L1920 787" stroke="#7d8f99" stroke-opacity="0.15" stroke-width="1.5"/>
+
+  <use href="#rbAthlete" transform="translate(1446 558) scale(1.4)" fill="#27ded1" stroke="#27ded1" stroke-width="3" stroke-linejoin="round" opacity="0.35"/>
+  <use href="#rbAthlete" transform="translate(1443.5 559) scale(1.4)" fill="#e4fbf9" stroke="#e4fbf9" stroke-width="3" stroke-linejoin="round"/>
+  <use href="#rbAthlete" transform="translate(1441 560.5) scale(1.4)" fill="#05080b" stroke="#05080b" stroke-width="3" stroke-linejoin="round"/>
+  <path transform="translate(1441 560.5) scale(1.4)" d="M86 -134C92 -132 96 -126 95 -119L91 -120C91 -126 89 -130 85 -131Z" fill="#27ded1"/>
+
+  <circle cx="1712" cy="362" r="66" fill="#27ded1" opacity="0.18"/>
+  <circle cx="1712" cy="362" r="32" fill="url(#rbBallCore)"/>
+  <ellipse cx="1712" cy="362" rx="420" ry="2.6" fill="#e4fbf9" opacity="0.55"/>
+  <ellipse cx="1712" cy="362" rx="2.2" ry="110" fill="#e4fbf9" opacity="0.22"/>
+
+  <rect width="1920" height="1080" filter="url(#rbGrain)" opacity="0.07"/>
+  <rect width="1920" height="1080" fill="url(#rbFadeLeft)"/>
+  <rect width="1920" height="1080" fill="url(#rbVignette)"/>
+  <rect width="1920" height="1080" fill="url(#rbFadeBottom)"/>
+</svg>

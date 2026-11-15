@@ -1,0 +1,228 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080">
+  <defs>
+    <linearGradient id="dsBase" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#050506"/>
+      <stop offset="0.5" stop-color="#0c0d0e"/>
+      <stop offset="1" stop-color="#0b1117"/>
+    </linearGradient>
+    <radialGradient id="dsKey" cx="1480" cy="463.1" r="900" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#fff6e6"/>
+      <stop offset="0.05" stop-color="#f6dcae" stop-opacity="0.92"/>
+      <stop offset="0.14" stop-color="#eab76c" stop-opacity="0.45"/>
+      <stop offset="0.36" stop-color="#8a7559" stop-opacity="0.14"/>
+      <stop offset="0.7" stop-color="#5a5248" stop-opacity="0.04"/>
+      <stop offset="1" stop-color="#eab76c" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="dsWall" cx="1480" cy="470" r="820" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#4d4134"/>
+      <stop offset="0.12" stop-color="#2a241e"/>
+      <stop offset="0.4" stop-color="#121112"/>
+      <stop offset="1" stop-color="#08090a"/>
+    </radialGradient>
+    <linearGradient id="dsSweep" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#eab76c" stop-opacity="0.35"/>
+      <stop offset="1" stop-color="#eab76c" stop-opacity="0"/>
+    </linearGradient>
+    <radialGradient id="dsBeacon" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#eab76c" stop-opacity="0.5"/>
+      <stop offset="0.3" stop-color="#eab76c" stop-opacity="0.14"/>
+      <stop offset="1" stop-color="#eab76c" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="dsCone" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#eab76c" stop-opacity="0.16"/>
+      <stop offset="1" stop-color="#eab76c" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="dsFog" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#b9a68a" stop-opacity="0"/>
+      <stop offset="0.5" stop-color="#b9a68a" stop-opacity="0.22"/>
+      <stop offset="1" stop-color="#b9a68a" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="dsReflect" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f6dcae" stop-opacity="0.45"/>
+      <stop offset="1" stop-color="#eab76c" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="dsDoor" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f3d6a4"/>
+      <stop offset="0.7" stop-color="#fff3df"/>
+      <stop offset="1" stop-color="#eab76c"/>
+    </linearGradient>
+    <linearGradient id="dsFadeLeft" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#0b1117"/>
+      <stop offset="0.3" stop-color="#0b1117" stop-opacity="0.9"/>
+      <stop offset="0.55" stop-color="#0b1117" stop-opacity="0.3"/>
+      <stop offset="0.68" stop-color="#0b1117" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="dsFadeBottom" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0.68" stop-color="#0b1117" stop-opacity="0"/>
+      <stop offset="0.84" stop-color="#0b1117" stop-opacity="0.85"/>
+      <stop offset="0.95" stop-color="#0b1117"/>
+    </linearGradient>
+    <radialGradient id="dsVignette" cx="0.74" cy="0.44" r="0.8">
+      <stop offset="0.48" stop-color="#0b1117" stop-opacity="0"/>
+      <stop offset="1" stop-color="#0b1117" stop-opacity="0.95"/>
+    </radialGradient>
+    <filter id="dsGrain" x="0" y="0" width="100%" height="100%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="2" stitchTiles="stitch"/>
+      <feColorMatrix values="1.6 0 0 0 -0.3  1.6 0 0 0 -0.3  1.6 0 0 0 -0.3  0 0 0 0 1"/>
+    </filter>
+
+    <!-- Operator seen from behind, aiming down the corridor; waist at the origin. -->
+    <g id="dsOperator">
+      <path d="M-8.5 -177.1L-61.8 -168.2L-64.7 -186L-11.5 -194.9Z"/>
+      <path d="M-25.3 -192.6L-54.9 -187.6L-56.5 -197.5L-26.9 -202.4Z"/>
+      <path d="M-33 -190.3L-44.9 -188.3L-45.3 -191.3L-33.5 -193.2Z"/>
+      <path d="M-62.2 -170.7L-129.3 -159.5L-131.5 -172.8L-64.4 -184Z"/>
+      <path d="M-129.9 -163.5L-167.4 -157.2L-168.2 -162.2L-130.8 -168.4Z"/>
+      <path d="M-165.1 -155.6L-178.9 -153.3L-180.4 -162.2L-166.6 -164.5Z"/>
+      <path d="M-40.2 -172.8L-52.1 -170.9L-52.4 -148.5L-40.2 -148.5Z"/>
+      <path d="M-90.1 -179.8L-121.6 -174.5L-122 -176.5L-90.4 -181.7Z"/>
+      <path d="M-51.9 -2.8Q-58.2 72.4 -60.9 148A19 19 0 0 0 -23.1 152Q-9.8 77.6 -0.1 2.8A26 26 0 0 0 -51.9 -2.8Z"/>
+      <path d="M0.3 3.8Q13 78.5 29.2 152.8A19 19 0 0 0 66.8 147.2Q61 71.5 51.7 -3.8A26 26 0 0 0 0.3 3.8Z"/>
+      <path d="M-95 -168Q-105.7 -149.2 -116.5 -130.3A15 15 0 0 0 -91.5 -113.7Q-78.3 -130.8 -65 -148A18 18 0 0 0 -95 -168Z"/>
+      <path d="M-90 -122Q-91.5 -142 -93 -162A11 11 0 0 0 -115 -162Q-116.5 -142 -118 -122A14 14 0 0 0 -90 -122Z"/>
+      <path d="M-54 4C-60 -40 -72 -100 -86 -148C-88 -170 -72 -186 -50 -190L50 -190C72 -186 88 -170 86 -148C72 -100 60 -40 54 4Z"/>
+      <path d="M-54.1 -13L54.1 -13L58 -9.1L58 9.1L54.1 13L-54.1 13L-58 9.1L-58 -9.1Z"/>
+      <path d="M65.8 -150.1Q84 -122.9 102.3 -95.7A16 16 0 0 0 129.7 -112.3Q114 -141.1 98.2 -169.9A19 19 0 0 0 65.8 -150.1Z"/>
+      <path d="M122.9 -118.4Q97.3 -129.1 71.6 -139.7A13 13 0 0 0 60.4 -116.3Q84.7 -102.9 109.1 -89.6A16 16 0 0 0 122.9 -118.4Z"/>
+      <path d="M-54 -172.5A28 23 -22 1 0 -106 -151.5A28 23 -22 1 0 -54 -172.5Z"/>
+      <path d="M106 -151.5A28 23 22 1 0 54 -172.5A28 23 22 1 0 106 -151.5Z"/>
+      <path d="M-15 -188Q-16 -182 -17 -176A17 17 0 0 0 17 -176Q16 -182 15 -188A15 15 0 0 0 -15 -188Z"/>
+      <path d="M-36 -204C-38 -236 -20 -256 0 -256C20 -256 38 -236 36 -204C34 -190 22 -184 0 -184C-22 -184 -34 -190 -36 -204Z"/>
+      <path d="M-39.6 -227L-32.4 -227L-30 -224.6L-30 -203.4L-32.4 -201L-39.6 -201L-42 -203.4L-42 -224.6Z"/>
+      <path d="M32.4 -227L39.6 -227L42 -224.6L42 -203.4L39.6 -201L32.4 -201L30 -203.4L30 -224.6Z"/>
+      <path d="M40 -166L54 -262L57 -262L45 -166Z"/>
+    </g>
+
+    <!-- Infected silhouettes, feet at the origin. -->
+    <g id="dsInfectedA">
+      <path d="M-14.5 -83Q-20.6 -62.6 -26.6 -42.3A7 7 0 0 0 -13.4 -37.7Q-5.4 -57.4 2.5 -77A9 9 0 0 0 -14.5 -83Z"/>
+      <path d="M-26.9 -39Q-22.7 -19.1 -18.5 0.7A4.5 4.5 0 0 0 -9.5 -0.7Q-11.3 -20.9 -13.1 -41A7 7 0 0 0 -26.9 -39Z"/>
+      <path d="M-22 -4L-6 -4L-4 2L-24 2Z"/>
+      <path d="M-2.2 -76.3Q6.7 -58.8 15.6 -41.2A7 7 0 0 0 28.4 -46.8Q21.3 -65.2 14.2 -83.7A9 9 0 0 0 -2.2 -76.3Z"/>
+      <path d="M15.2 -42.4Q21.4 -21.7 27.6 -1A4.5 4.5 0 0 0 36.4 -3Q32.6 -24.3 28.8 -45.6A7 7 0 0 0 15.2 -42.4Z"/>
+      <path d="M-0.1 -134.4Q-6.4 -116.1 -12.7 -97.8A5 5 0 0 0 -3.3 -94.2Q4.4 -111.9 12.1 -129.6A6.5 6.5 0 0 0 -0.1 -134.4Z"/>
+      <path d="M-13 -95.8Q-11.2 -73.8 -9.5 -51.8A3.5 3.5 0 0 0 -2.5 -52.2Q-2.8 -74.2 -3 -96.2A5 5 0 0 0 -13 -95.8Z"/>
+      <path d="M11.6 -76.8Q23.6 -104.7 30.5 -134A15 15 0 0 0 1.5 -142Q-7.6 -113.3 -11.6 -83.2A12 12 0 0 0 11.6 -76.8Z"/>
+      <path d="M38.2 -140.3A10 12 35 1 0 21.8 -151.7A10 12 35 1 0 38.2 -140.3Z"/>
+      <path d="M18.1 -130.8Q30.6 -122.4 43 -114A5 5 0 0 0 49 -122Q37.5 -131.6 25.9 -141.2A6.5 6.5 0 0 0 18.1 -130.8Z"/>
+      <path d="M47.7 -113.3Q58.5 -118 69.2 -122.7A3.5 3.5 0 0 0 66.8 -129.3Q55.5 -126 44.3 -122.7A5 5 0 0 0 47.7 -113.3Z"/>
+    </g>
+    <g id="dsInfectedB">
+      <path d="M-17 -84.9Q-18 -63.8 -19 -42.7A7 7 0 0 0 -5 -41.3Q-2 -62.2 1 -83.1A9 9 0 0 0 -17 -84.9Z"/>
+      <path d="M-18.8 -43.6Q-22.6 -22.3 -26.4 -1A4.5 4.5 0 0 0 -17.6 1Q-11.4 -19.7 -5.2 -40.4A7 7 0 0 0 -18.8 -43.6Z"/>
+      <path d="M-0.8 -82.2Q4.2 -62.4 9.1 -42.6A7 7 0 0 0 22.9 -45.4Q19.8 -65.6 16.8 -85.8A9 9 0 0 0 -0.8 -82.2Z"/>
+      <path d="M9 -44.6Q8.3 -22.5 7.5 -0.4A4.5 4.5 0 0 0 16.5 0.4Q19.7 -21.5 23 -43.4A7 7 0 0 0 9 -44.6Z"/>
+      <path d="M12 -84.8Q12.5 -115.9 10 -146.9A14 14 0 0 0 -18 -145.1Q-16.5 -114.1 -12 -83.2A12 12 0 0 0 12 -84.8Z"/>
+      <path d="M-10.7 -166.1A9.5 11.5 -40 1 0 -25.3 -153.9A9.5 11.5 -40 1 0 -10.7 -166.1Z"/>
+      <path d="M-17.8 -141.6Q-23.3 -119.4 -28.8 -97.3A5 5 0 0 0 -19.2 -94.7Q-12.7 -116.6 -6.2 -138.4A6 6 0 0 0 -17.8 -141.6Z"/>
+      <path d="M-28.9 -96.8Q-31.2 -78.7 -33.5 -60.6A3.5 3.5 0 0 0 -26.5 -59.4Q-22.8 -77.3 -19.1 -95.2A5 5 0 0 0 -28.9 -96.8Z"/>
+      <path d="M2.6 -137.3Q11.1 -121.5 19.5 -105.8A5 5 0 0 0 28.5 -110.2Q20.9 -126.5 13.4 -142.7A6 6 0 0 0 2.6 -137.3Z"/>
+      <path d="M19.1 -109.2Q15.9 -93 12.6 -76.8A3.5 3.5 0 0 0 19.4 -75.2Q24.1 -91 28.9 -106.8A5 5 0 0 0 19.1 -109.2Z"/>
+    </g>
+    <g id="dsInfectedC">
+      <path d="M-36.9 -35.8Q-45.8 -22.8 -54.6 -9.8A6 6 0 0 0 -45.4 -2.2Q-34.2 -13.2 -23.1 -24.2A9 9 0 0 0 -36.9 -35.8Z"/>
+      <path d="M-51.7 -0.3Q-41.4 1.8 -31.1 3.8A4 4 0 0 0 -28.9 -3.8Q-38.6 -7.8 -48.3 -11.7A6 6 0 0 0 -51.7 -0.3Z"/>
+      <path d="M-25.2 -23.9Q0.2 -33.1 24.1 -45.8A11 11 0 0 0 15.9 -66.2Q-10.2 -58.9 -34.8 -48.1A13 13 0 0 0 -25.2 -23.9Z"/>
+      <path d="M40.9 -56.4A9 10.5 10 1 0 23.1 -59.6A9 10.5 10 1 0 40.9 -56.4Z"/>
+      <path d="M9.4 -48.9Q19.8 -34.2 30.3 -19.5A4.5 4.5 0 0 0 37.7 -24.5Q28.2 -39.8 18.6 -55.1A5.5 5.5 0 0 0 9.4 -48.9Z"/>
+      <path d="M30.5 -19.2Q38.9 -9.5 47.3 0.2A3.5 3.5 0 0 0 52.7 -4.2Q45.1 -14.5 37.5 -24.8A4.5 4.5 0 0 0 30.5 -19.2Z"/>
+      <path d="M-5.4 -44.8Q-1.9 -31 1.6 -17.1A4.5 4.5 0 0 0 10.4 -18.9Q7.9 -33 5.4 -47.2A5.5 5.5 0 0 0 -5.4 -44.8Z"/>
+      <path d="M2.1 -15.8Q7.5 -7.1 12.9 1.7A3.5 3.5 0 0 0 19.1 -1.7Q14.5 -10.9 9.9 -20.2A4.5 4.5 0 0 0 2.1 -15.8Z"/>
+      <path d="M-27.2 -32.6Q-19.3 -18 -11.4 -3.5A6 6 0 0 0 -0.6 -8.5Q-6.7 -24 -12.8 -39.4A8 8 0 0 0 -27.2 -32.6Z"/>
+    </g>
+  </defs>
+
+  <rect width="1920" height="1080" fill="url(#dsBase)"/>
+  <path d="M1406.4 525.2L1406.4 403.8L1535.2 403.8L1535.2 525.2Z" fill="#3a332b"/>
+  <rect width="1920" height="1080" fill="url(#dsKey)"/>
+  <path d="M1437.7 525.2L1437.7 427.7L1503.9 427.7L1503.9 525.2Z" fill="url(#dsDoor)"/>
+  <g fill="url(#dsWall)">
+    <path d="M744 -192.4L1406.4 403.8L1406.4 525.2L744 1022Z"/>
+    <path d="M2032 -192.4L1535.2 403.8L1535.2 525.2L2032 1022Z"/>
+    <path d="M744 -192.4L2032 -192.4L1535.2 403.8L1406.4 403.8Z"/>
+  </g>
+  <path d="M-20 525.2L1940 525.2L1940 1080L-20 1080Z" fill="#070708" opacity="0.92"/>
+  <g stroke="#1b1a19" stroke-width="1.2">
+    <path d="M928 1022L1424.8 525.2"/>
+    <path d="M1112 1022L1443.2 525.2"/>
+    <path d="M1296 1022L1461.6 525.2"/>
+    <path d="M1480 1022L1480 525.2"/>
+    <path d="M1664 1022L1498.4 525.2"/>
+    <path d="M1848 1022L1516.8 525.2"/>
+  </g>
+  <rect x="1434" y="525.2" width="80.5" height="299" fill="url(#dsReflect)" opacity="0.7"/>
+  <g fill="url(#dsCone)">
+    <path d="M1414.2 142.7L1442.2 142.7L1578.2 696.7L1258.2 696.7Z"/>
+    <path d="M1433.4 237.2L1453 237.2L1548.2 625L1324.2 625Z"/>
+    <path d="M1446.5 302.7L1460.5 302.7L1528.5 579.7L1368.5 579.7Z"/>
+  </g>
+  <g fill="none" stroke="#1d1b19" stroke-width="2">
+    <path d="M836 67.5L1406.4 424"/>
+    <path d="M836 131.9L1406.4 431.4"/>
+    <path d="M836 566.6L1406.4 481"/>
+    <path d="M1963 67.5L1535.2 424"/>
+    <path d="M1963 148L1535.2 433.2"/>
+    <path d="M1963 534.4L1535.2 477.4"/>
+    <path d="M1238.5 -109.6L1452.4 403.8"/>
+    <path d="M1673.2 -109.6L1502.1 403.8"/>
+  </g>
+  <g fill="#060607" fill-rule="evenodd">
+    <path d="M882 918.5L882 -68.2L1928.5 -68.2L1928.5 918.5L1871.7 918.5L1871.7 -11.4L938.8 -11.4L938.8 918.5Z"/>
+    <path d="M1066 780.5L1066 97.4L1790.5 97.4L1790.5 780.5L1751.2 780.5L1751.2 136.7L1105.3 136.7L1105.3 780.5Z"/>
+    <path d="M1185.6 690.8L1185.6 205L1700.8 205L1700.8 690.8L1672.8 690.8L1672.8 233L1213.6 233L1213.6 690.8Z"/>
+    <path d="M1268.4 628.7L1268.4 279.6L1638.7 279.6L1638.7 628.7L1618.6 628.7L1618.6 299.7L1288.5 299.7L1288.5 628.7Z"/>
+    <path d="M1323.6 587.3L1323.6 329.2L1597.3 329.2L1597.3 587.3L1582.4 587.3L1582.4 344.1L1338.5 344.1L1338.5 587.3Z"/>
+    <path d="M1365 556.2L1365 366.5L1566.2 366.5L1566.2 556.2L1555.3 556.2L1555.3 377.4L1375.9 377.4L1375.9 556.2Z"/>
+    <path d="M1392.6 535.5L1392.6 391.3L1545.5 391.3L1545.5 535.5L1537.2 535.5L1537.2 399.6L1400.9 399.6L1400.9 535.5Z"/>
+  </g>
+  <g fill="none" stroke="#eab76c" stroke-opacity="0.24" stroke-width="1.2">
+    <path d="M1213.6 690.8L1213.6 233L1672.8 233L1672.8 690.8"/>
+    <path d="M1288.5 628.7L1288.5 299.7L1618.6 299.7L1618.6 628.7"/>
+    <path d="M1338.5 587.3L1338.5 344.1L1582.4 344.1L1582.4 587.3"/>
+    <path d="M1375.9 556.2L1375.9 377.4L1555.3 377.4L1555.3 556.2"/>
+    <path d="M1400.9 535.5L1400.9 399.6L1537.2 399.6L1537.2 535.5"/>
+  </g>
+  <rect y="366.5" width="1920" height="276" fill="url(#dsFog)"/>
+  <path d="M1213.6 330.2L1656.6 392.7L1656.6 497.7Z" fill="url(#dsSweep)"/>
+  <circle cx="1213.6" cy="330.2" r="77" fill="url(#dsBeacon)"/>
+  <path d="M1205.2 335.8A8.4 9.1 0 0 1 1222 335.8Z" fill="#f2c57f"/>
+  <rect x="1203.1" y="335.8" width="21" height="4.2" fill="#0a0a0b"/>
+  <path d="M1338.5 395.7L1573.8 427.2L1573.8 487.2Z" fill="url(#dsSweep)"/>
+  <circle cx="1338.5" cy="395.7" r="44" fill="url(#dsBeacon)"/>
+  <path d="M1333.7 398.9A4.8 5.2 0 0 1 1343.3 398.9Z" fill="#f2c57f"/>
+  <rect x="1332.5" y="398.9" width="12" height="2.4" fill="#0a0a0b"/>
+  <use href="#dsInfectedB" transform="translate(1426.9 545.9) scale(0.506)" fill="#0a0806"/>
+  <use href="#dsInfectedA" transform="translate(1455.8 573.5) scale(0.69)" fill="#0a0806"/>
+  <use href="#dsInfectedC" transform="translate(1365 608) scale(0.92)" fill="#0a0806"/>
+  <rect y="493" width="1920" height="184" fill="url(#dsFog)" opacity="0.8"/>
+  <g fill="url(#dsBeacon)">
+    <circle cx="1428.2" cy="140.7" r="90"/>
+    <circle cx="1443.2" cy="235.8" r="63"/>
+    <circle cx="1453.5" cy="301.7" r="45"/>
+    <circle cx="1460.5" cy="345.7" r="36"/>
+    <circle cx="1465.6" cy="378.6" r="27"/>
+    <circle cx="1469.1" cy="400.4" r="18"/>
+  </g>
+  <g fill="#e9c58c">
+    <rect x="1412.2" y="136.7" width="32" height="7" rx="2"/>
+    <rect x="1432" y="233" width="22.4" height="4.9" rx="1.4"/>
+    <rect x="1445.5" y="299.7" width="16" height="3.5" rx="1"/>
+    <rect x="1454.1" y="344.1" width="12.8" height="2.8" rx="0.8"/>
+    <rect x="1460.8" y="377.4" width="9.6" height="2.1" rx="0.6"/>
+    <rect x="1465.9" y="399.6" width="6.4" height="1.4" rx="0.4"/>
+  </g>
+  <use href="#dsOperator" transform="translate(1742.4 680.9) scale(1.495)" fill="#eab76c" stroke="#eab76c" stroke-width="3" stroke-linejoin="round" opacity="0.3"/>
+  <use href="#dsOperator" transform="translate(1744.9 682.4) scale(1.495)" fill="#f8deb2" stroke="#f8deb2" stroke-width="3" stroke-linejoin="round"/>
+  <use href="#dsOperator" transform="translate(1748.9 684.9) scale(1.495)" fill="#060607" stroke="#060607" stroke-width="3" stroke-linejoin="round"/>
+  <path transform="translate(1748.9 684.9) scale(1.495)" d="M-39.4 -164L39.4 -164L48 -155.4L48 -60.6L39.4 -52L-39.4 -52L-48 -60.6L-48 -155.4Z" fill="#111112" stroke="#1d1c1b" stroke-width="1.5"/>
+  <g transform="translate(1748.9 684.9) scale(1.495)" fill="none" stroke="#1f1e1c" stroke-width="1.5">
+    <path d="M-30 -96L30 -96"/>
+    <path d="M-30 -76L30 -76"/>
+    <path d="M-44 -6L44 -6"/>
+  </g>
+  <path transform="translate(1748.9 684.9) scale(1.495)" d="M-40 -110L-36 -110L-36 -100L-40 -100Z" fill="#eab76c"/>
+  <rect width="1920" height="1080" filter="url(#dsGrain)" opacity="0.08"/>
+  <rect width="1920" height="1080" fill="url(#dsFadeLeft)"/>
+  <rect width="1920" height="1080" fill="url(#dsVignette)"/>
+  <rect width="1920" height="1080" fill="url(#dsFadeBottom)"/>
+</svg>

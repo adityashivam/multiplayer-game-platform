@@ -67,12 +67,16 @@ The library and selected-game showcase read optional `meta.presentation` from th
 ```js
 presentation: {
   coverUrl: "/games/paddle-demo/assets/cover.svg",
+  capsuleUrl: "/games/paddle-demo/art/capsule.svg",
+  backdropUrl: "/games/paddle-demo/art/backdrop.svg",
   accentColor: "#63e6dc",
   controls: ["keyboard", "touch"],
 },
 ```
 
-All three fields are optional. `coverUrl` accepts a root-relative path or HTTPS URL; a landscape image around 2:1 works well. Keep artwork's subject toward the right so the showcase title remains readable. Supply an illustration or actual gameplay image without embedded interface chrome. Missing or failed artwork uses the platform fallback. `accentColor` is a six-digit hex color. `controls` lists supported inputs from `keyboard`, `touch`, and `pointer` (mouse/pen); omit controls the game does not support. Invalid supplied fields are rejected before registration.
+All fields are optional. `coverUrl` accepts a root-relative path or HTTPS URL; a landscape image around 2:1 works well. Keep artwork's subject toward the right so the showcase title remains readable. Supply an illustration or actual gameplay image without embedded interface chrome. Missing or failed artwork uses the platform fallback. `accentColor` is a six-digit hex color. `controls` lists supported inputs from `keyboard`, `touch`, and `pointer` (mouse/pen); omit controls the game does not support. Invalid supplied fields are rejected before registration.
+
+**Art kit.** For the console-style library, a game also supplies a portrait `capsuleUrl` (viewBox `0 0 600 900`, subject in the upper two thirds, bottom third fading to `#0b1117` so the platform's title stays readable) and a wide `backdropUrl` (viewBox `0 0 1920 1080`, subject in the right third, left half and bottom calmer and darker, edges fading into a dark page). Both follow `coverUrl`'s URL rules. Bundled games draw them as mature cinematic key art: one dramatic light source with rim light and haze, silhouetted figures with realistic proportions, mostly desaturated neutrals with the game's accent as the only saturated colour, and a subtle film grain. They contain no text, raster images or external references, and each stays under 45 KB; `tests/game-art-kit.test.js` checks this. The platform overlays game names in its own type, so artwork never carries titles.
 
 The platform derives capacity from `meta.room.playerIds`, with older player-count tags supported as a fallback. These labels describe supported capacity, not current online players. Titles, descriptions, and genre tags also come from ordinary game metadata. The library does not fabricate playtime, completion progress, or last-played activity.
 

@@ -11,6 +11,7 @@
     "test:config:browser": "node tests/browser/config-layout.mjs",
     "test:orientation:browser": "node tests/browser/game-orientation.mjs",
     "test:presentation:browser": "node tests/browser/game-presentation.mjs",
+    "test:console-ui:browser": "node tests/browser/console-ui.mjs",
     "test:voice:browser": "node tests/browser/voice-chat.mjs",
     "test:ludo:browser": "node tests/browser/ludo.mjs",
     "test:sky-dash:browser": "node tests/browser/sky-dash.mjs",

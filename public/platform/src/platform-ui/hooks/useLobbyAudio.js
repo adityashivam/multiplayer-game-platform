@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { uiSounds } from "../services/uiSounds.js";
 
 const SOUND_MUTED_KEY = "kaboom-sound-muted";
 const MUSIC_VOLUME_KEY = "kaboom-music-volume";
@@ -50,6 +51,7 @@ export default function useLobbyAudio({ isGameView }) {
 
   useEffect(() => {
     mutedRef.current = muted;
+    uiSounds.setMuted(muted);
     localStorage.setItem(SOUND_MUTED_KEY, String(muted));
   }, [muted]);
 
@@ -265,33 +267,7 @@ export default function useLobbyAudio({ isGameView }) {
   }, [isGameView, muted, musicVolume, musicTracks.length, startLobbyMusic, stopLobbyMusicFade]);
 
   const playNavSound = useCallback(() => {
-    if (mutedRef.current) return;
-
-    try {
-      if (!audioContextRef.current) {
-        audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
-      }
-
-      const ctx = audioContextRef.current;
-      if (ctx.state === "suspended") ctx.resume();
-
-      const oscillator = ctx.createOscillator();
-      const gain = ctx.createGain();
-
-      oscillator.connect(gain);
-      gain.connect(ctx.destination);
-
-      oscillator.type = "square";
-      oscillator.frequency.setValueAtTime(660, ctx.currentTime);
-      oscillator.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.03);
-      gain.gain.setValueAtTime(0.06, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.07);
-
-      oscillator.start(ctx.currentTime);
-      oscillator.stop(ctx.currentTime + 0.07);
-    } catch {
-      // Audio not available
-    }
+    uiSounds.play("move");
   }, []);
 
   const updateMusicVolume = useCallback((nextVolume) => {

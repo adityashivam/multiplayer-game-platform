@@ -1,0 +1,136 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 900">
+  <defs>
+    <linearGradient id="studio" x1="0" y1="0" x2="0" y2="900" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#07090c"/>
+      <stop offset=".42" stop-color="#121820"/>
+      <stop offset=".56" stop-color="#151c23"/>
+      <stop offset=".64" stop-color="#0c1015"/>
+      <stop offset="1" stop-color="#07090c"/>
+    </linearGradient>
+    <radialGradient id="ballGlow" cx="300" cy="380" r="260" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#63e6dc" stop-opacity=".42"/>
+      <stop offset=".18" stop-color="#63e6dc" stop-opacity=".16"/>
+      <stop offset=".55" stop-color="#63e6dc" stop-opacity=".04"/>
+      <stop offset="1" stop-color="#63e6dc" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="ballCore" cx="300" cy="380" r="22" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset=".38" stop-color="#e6fffc"/>
+      <stop offset=".55" stop-color="#63e6dc" stop-opacity=".7"/>
+      <stop offset="1" stop-color="#63e6dc" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="pool" cx="300" cy="494" r="300" gradientTransform="translate(0 494) scale(1 .17) translate(0 -494)" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#63e6dc" stop-opacity=".34"/>
+      <stop offset=".35" stop-color="#63e6dc" stop-opacity=".1"/>
+      <stop offset="1" stop-color="#63e6dc" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="trail" x1="130" y1="0" x2="300" y2="0" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#63e6dc" stop-opacity="0"/>
+      <stop offset=".7" stop-color="#63e6dc" stop-opacity=".35"/>
+      <stop offset="1" stop-color="#c9fbf7" stop-opacity=".9"/>
+    </linearGradient>
+    <linearGradient id="slabFront" x1="0" y1="270" x2="0" y2="470" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#c3cad0"/>
+      <stop offset=".25" stop-color="#7d868e"/>
+      <stop offset=".7" stop-color="#3a4148"/>
+      <stop offset="1" stop-color="#22282e"/>
+    </linearGradient>
+    <linearGradient id="slabLit" x1="0" y1="270" x2="0" y2="470" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#e9f3f4"/>
+      <stop offset=".35" stop-color="#bde9e5"/>
+      <stop offset=".62" stop-color="#7fd8d0"/>
+      <stop offset="1" stop-color="#2c4a4b"/>
+    </linearGradient>
+    <radialGradient id="contact">
+      <stop offset="0" stop-color="#020304" stop-opacity=".85"/>
+      <stop offset="1" stop-color="#020304" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="bounce">
+      <stop offset="0" stop-color="#63e6dc" stop-opacity=".35"/>
+      <stop offset="1" stop-color="#63e6dc" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="reflect" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#9aa5ad" stop-opacity=".13"/>
+      <stop offset="1" stop-color="#9aa5ad" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="reflectLit" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#63e6dc" stop-opacity=".18"/>
+      <stop offset="1" stop-color="#63e6dc" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="shadowL" x1="120" y1="0" x2="-60" y2="0" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#020304" stop-opacity=".9"/>
+      <stop offset="1" stop-color="#020304" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="shadowR" x1="470" y1="0" x2="640" y2="0" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#020304" stop-opacity=".9"/>
+      <stop offset="1" stop-color="#020304" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="line" x1="0" y1="0" x2="600" y2="0" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#8fa3ad" stop-opacity="0"/>
+      <stop offset=".5" stop-color="#8fa3ad" stop-opacity=".22"/>
+      <stop offset="1" stop-color="#8fa3ad" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="fade" x1="0" y1="560" x2="0" y2="900" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#0b1117" stop-opacity="0"/>
+      <stop offset=".4" stop-color="#0b1117" stop-opacity=".7"/>
+      <stop offset=".8" stop-color="#0b1117"/>
+      <stop offset="1" stop-color="#0b1117"/>
+    </linearGradient>
+    <radialGradient id="vignette" cx="300" cy="400" r="560" gradientUnits="userSpaceOnUse">
+      <stop offset=".45" stop-color="#030405" stop-opacity="0"/>
+      <stop offset="1" stop-color="#030405" stop-opacity=".85"/>
+    </radialGradient>
+    <filter id="grain" x="0" y="0" width="100%" height="100%">
+      <feTurbulence type="fractalNoise" baseFrequency=".9" numOctaves="2" stitchTiles="stitch"/>
+      <feColorMatrix type="matrix" values=".33 .33 .33 0 0  .33 .33 .33 0 0  .33 .33 .33 0 0  0 0 0 0 1"/>
+    </filter>
+  </defs>
+
+  <rect width="600" height="900" fill="url(#studio)"/>
+  <rect width="600" height="900" fill="url(#ballGlow)"/>
+
+  <g id="court">
+    <path d="M-40 449L640 396" stroke="url(#line)" stroke-width="1"/>
+    <path d="M-40 649L640 498" stroke="url(#line)" stroke-width="1.2"/>
+    <rect y="400" width="600" height="200" fill="url(#pool)"/>
+  </g>
+
+  <ellipse cx="116" cy="521" rx="70" ry="10" fill="url(#contact)"/>
+  <ellipse cx="470" cy="469" rx="44" ry="6" fill="url(#contact)"/>
+  <ellipse cx="160" cy="517" rx="56" ry="7" fill="url(#bounce)"/>
+  <ellipse cx="438" cy="468" rx="34" ry="4.5" fill="url(#bounce)"/>
+
+  <g id="reflections">
+    <path d="M92 568L132 568L132 668L92 668Z" fill="url(#reflect)"/>
+    <path d="M132 568L148 572L148 664L132 668Z" fill="url(#reflectLit)"/>
+    <path d="M452 504L480 504L480 600L452 600Z" fill="url(#reflect)" opacity=".7"/>
+    <path d="M442 502L452 504L452 600L442 596Z" fill="url(#reflectLit)"/>
+    <circle cx="300" cy="605" r="16" fill="url(#ballCore)" opacity=".3"/>
+  </g>
+
+  <g id="paddleNear">
+    <path d="M92 272L132 270L132 470L92 470Z" fill="url(#slabFront)"/>
+    <path d="M132 270L148 274L148 466L132 470Z" fill="url(#slabLit)"/>
+    <path d="M92 272L132 270L148 274" fill="none" stroke="#f4f8f9" stroke-width="1.2" stroke-opacity=".85"/>
+    <path d="M132 270L132 470" stroke="#ffffff" stroke-opacity=".45" stroke-width=".8"/>
+    <ellipse cx="143" cy="392" rx="6" ry="40" fill="#d5fcf8" opacity=".5"/>
+  </g>
+  <g id="paddleFar">
+    <path d="M452 292L480 291L480 434L452 434Z" fill="url(#slabFront)"/>
+    <path d="M442 294L452 292L452 434L442 436Z" fill="url(#slabLit)"/>
+    <path d="M442 294L452 292L480 291" fill="none" stroke="#e8f0f1" stroke-width="1" stroke-opacity=".7"/>
+    <path d="M452 292L452 434" stroke="#ffffff" stroke-opacity=".35" stroke-width=".7"/>
+  </g>
+
+  <g id="ball">
+    <path d="M300 371L150 395L150 398L300 389Z" fill="url(#trail)"/>
+    <path d="M300 377.5L180 396.6L180 397.4L300 382.5Z" fill="#e6fffc" opacity=".6"/>
+    <circle cx="300" cy="380" r="22" fill="url(#ballCore)"/>
+    <circle cx="300" cy="380" r="8.5" fill="#f4fffe"/>
+    <ellipse cx="300" cy="380" rx="140" ry="1.2" fill="#63e6dc" opacity=".35"/>
+  </g>
+
+  <rect width="600" height="900" fill="url(#vignette)"/>
+  <rect width="600" height="900" fill="url(#fade)"/>
+  <rect width="600" height="900" filter="url(#grain)" opacity=".3" style="mix-blend-mode:overlay"/>
+</svg>
